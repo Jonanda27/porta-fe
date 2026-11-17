@@ -121,7 +121,9 @@ export default function UptLayout({
 
   const portScopeLabel = isSuperadmin
     ? "Admin Pusat Mimika"
-    : "Pelabuhan Poumako";
+    : !user?.portId
+      ? "UPTD Semua Pelabuhan"
+      : "Pelabuhan Poumako";
 
   const getNavGroups = (): NavGroup[] => {
     if (isSuperadmin) {

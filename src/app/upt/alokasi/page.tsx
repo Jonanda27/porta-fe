@@ -39,7 +39,7 @@ export default function AlokasiPage() {
   } = useUptStore();
   const { ports, fetchPorts } = usePortStore();
 
-  const isSuperadmin = false;
+  const isMultiPortAdmin = user?.role === "ADMIN_PELABUHAN" && !user?.portId;
   const canAccess = user?.role === "ADMIN_PELABUHAN";
 
   const [selectedPortId, setSelectedPortId] = useState<string>("");
@@ -60,9 +60,9 @@ export default function AlokasiPage() {
   useEffect(() => {
     if (canAccess) {
       fetchAllocationData(numericPortId);
-      if (isSuperadmin) fetchPorts();
+      if (isMultiPortAdmin) fetchPorts();
     }
-  }, [canAccess, isSuperadmin, numericPortId, fetchAllocationData, fetchPorts]);
+  }, [canAccess, isMultiPortAdmin, numericPortId, fetchAllocationData, fetchPorts]);
 
   if (!canAccess) {
     return (
@@ -233,6 +233,24 @@ export default function AlokasiPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isMultiPortAdmin && (
+            <select
+              value={selectedPortId}
+              onChange={(e) => {
+                setSelectedPortId(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
+            >
+              <option value="">Semua Pelabuhan</option>
+              {ports.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} - {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           <div className="relative w-full sm:w-60">
             <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
