@@ -8,6 +8,7 @@ export type UserRole =
   | "PETUGAS_DERMAGA"
   | "BENDAHARA"
   | "OPERATOR_KAPAL"
+  | "TENANT"
   | "DISHUB_EKSEKUTIF";
 
 export interface LoginCredentials {
@@ -23,6 +24,8 @@ export interface AuthUser {
   portId?: number | null;
   operatorId?: number | null;
   operatorVerificationStatus?: string | null;
+  tenantId?: number | null;
+  tenantVerificationStatus?: string | null;
 }
 
 export interface LoginResponse {

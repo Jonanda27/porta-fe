@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -22,25 +22,85 @@ import {
   AlertTriangle,
   HelpCircle,
   ExternalLink,
+  Users,
+  Receipt,
 } from "lucide-react";
+import { AuthService } from "@/services/auth.service";
+import { useAuthStore } from "@/store/auth.store";
+import { UserRole } from "@/types/auth.types";
+
+const ALLOWED_UPT_ROLES: UserRole[] = [
+  "SUPERADMIN",
+  "ADMIN_PELABUHAN",
+  "PETUGAS_DERMAGA",
+  "BENDAHARA",
+];
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  SUPERADMIN: "Superadmin Sistem",
+  ADMIN_PELABUHAN: "Admin Pelabuhan (UPT)",
+  PETUGAS_DERMAGA: "Petugas Dermaga",
+  BENDAHARA: "Bendahara Kasda",
+  OPERATOR_KAPAL: "Operator Kapal",
+  TENANT: "Tenant / Mitra Usaha",
+  DISHUB_EKSEKUTIF: "Eksekutif Dishub",
+};
 
 export default function UptLayout({
   children,
 }: {
-  children: any;
+  children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, isAuthenticated, initialize: initAuth, logout: storeLogout } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+    const storedUser = AuthService.getStoredUser();
+    const token = AuthService.getStoredToken();
+
+    if (!token || !storedUser) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!ALLOWED_UPT_ROLES.includes(storedUser.role)) {
+      router.replace(AuthService.getRedirectRouteByRole(storedUser.role));
+    }
+  }, [initAuth, router]);
 
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const handleLogout = () => {
-    router.push("/");
+    AuthService.logout();
+    storeLogout();
+    router.push("/login");
   };
 
+  const displayName = user?.fullName || "Petugas UPTD Pelabuhan";
+  const displayRole = user?.role ? ROLE_LABELS[user.role] : "Otoritas Pelabuhan";
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() || "PT";
+  const portScopeLabel =
+    user?.role === "SUPERADMIN"
+      ? "PEMKAB MIMIKA • GLOBAL"
+      : "UPTD PELABUHAN POUMAKO";
+  const canManageMaster =
+    user?.role === "SUPERADMIN" || user?.role === "ADMIN_PELABUHAN";
+
   const getPageTitle = () => {
+    if (pathname.includes("/upt/pelabuhan")) return "Master Data Pelabuhan & Dermaga";
+    if (pathname.includes("/upt/users")) return "Manajemen Pengguna & Hak Akses (RBAC)";
+    if (pathname.includes("/upt/tarif")) return "Master Tarif Perda Mimika 4/2023 & Kurs USD";
     if (pathname.includes("/upt/alokasi")) return "Persetujuan Sandar & Alokasi Slot Dermaga";
     if (pathname.includes("/upt/verifikasi")) return "Verifikasi Pendaftaran Operator & Armada";
     if (pathname.includes("/upt/kapal")) return "Pencatatan Kapal & Validasi Manifes";
@@ -51,6 +111,9 @@ export default function UptLayout({
   };
 
   const getBreadcrumbLabel = () => {
+    if (pathname.includes("/upt/pelabuhan")) return "Pelabuhan & Dermaga";
+    if (pathname.includes("/upt/users")) return "Manajemen Pengguna";
+    if (pathname.includes("/upt/tarif")) return "Master Tarif Perda";
     if (pathname.includes("/upt/alokasi")) return "Alokasi Dermaga";
     if (pathname.includes("/upt/verifikasi")) return "Verifikasi Operator";
     if (pathname.includes("/upt/kapal")) return "Log Kapal & Manifes";
@@ -61,6 +124,12 @@ export default function UptLayout({
   };
 
   const getPageDescription = () => {
+    if (pathname.includes("/upt/pelabuhan"))
+      return "Pengelolaan master pelabuhan, kategori layanan, spesifikasi teknis dermaga (panjang/draft), status operasional, serta kelayakan penagihan retribusi.";
+    if (pathname.includes("/upt/users"))
+      return "Pembuatan akun staf pelabuhan, penetapan peran RBAC (Superadmin, Admin Pelabuhan, Petugas Dermaga, Bendahara), serta aktivasi atau penonaktifan akun.";
+    if (pathname.includes("/upt/tarif"))
+      return "Pengaturan matriks tarif resmi Perda Kab. Mimika No. 4/2023, kurs USD-to-IDR live untuk kapal luar negeri, dan penonaktifan tarif lama secara teraudit.";
     if (pathname.includes("/upt/alokasi"))
       return "Pemeriksaan permohonan sandar kapal, deteksi bentrok slot otomatis, verifikasi utilitas pelabuhan, dan penetapan izin alokasi dermaga resmi.";
     if (pathname.includes("/upt/verifikasi"))
@@ -75,6 +144,10 @@ export default function UptLayout({
       return "Rekonsiliasi transaksi loket non-tunai & fisik tunai, maker-checker supervisor, dan penerbitan Berita Acara Serah Terima (BAST) Sif Jaga.";
     return "Command center operasional dermaga terintegrasi: jadwal sandar, antrean kendaraan, peringatan dini insiden, dan monitoring personil sif aktif.";
   };
+
+  if (!isAuthenticated && !AuthService.getStoredToken()) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#1E2922] font-sans flex antialiased selection:bg-[#D97706]/20 selection:text-[#0B241E]">
@@ -136,13 +209,13 @@ export default function UptLayout({
                       PORTA
                     </span>
                     <span className="block text-[9px] font-mono tracking-widest text-[#85A69B] uppercase -mt-0.5 truncate">
-                      UPTD MERAK
+                      {portScopeLabel}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className="text-[10px] font-mono bg-[#143E33] text-[#D97706] border border-[#1E5748] font-bold px-1.5 py-0.5 rounded">
-                    UPT
+                    {user?.role === "SUPERADMIN" ? "ADMIN" : "UPT"}
                   </span>
                   <button
                     type="button"
@@ -165,23 +238,23 @@ export default function UptLayout({
               <div className="my-2 flex justify-center">
                 <div
                   className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs shadow-xs border border-[#164336] cursor-pointer"
-                  title="Capt. Ridwan H. (Supervisor Jaga Sif 1)"
+                  title={`${displayName} (${displayRole})`}
                   onClick={() => setIsSidebarCollapsed(false)}
                 >
-                  RH
+                  {initials}
                 </div>
               </div>
             ) : (
               <div className="p-3.5 mx-3 my-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center gap-3 shadow-2xs">
                 <div className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-[#164336]">
-                  RH
+                  {initials}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-[#0B241E] truncate">
-                    Capt. Ridwan Hakim
+                    {displayName}
                   </p>
                   <p className="text-[10px] text-[#64748B] truncate mt-0.5">
-                    Syahbandar & Supervisor Sif 1
+                    {displayRole}
                   </p>
                 </div>
               </div>
@@ -189,6 +262,98 @@ export default function UptLayout({
 
             {/* Navigation Menus with Real Next.js Links */}
             <div className={isSidebarCollapsed ? "px-2 space-y-4" : "px-3 space-y-5"}>
+              {/* Group 0: Administrasi Master (SUPERADMIN & ADMIN_PELABUHAN) */}
+              {canManageMaster && (
+                <div>
+                  {!isSidebarCollapsed && (
+                    <p className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8] mb-1.5">
+                      Administrasi Master
+                    </p>
+                  )}
+                  <div className="space-y-1">
+                    <Link
+                      href="/upt/pelabuhan"
+                      title="Master Pelabuhan & Dermaga"
+                      className={`transition-all flex items-center cursor-pointer ${
+                        isSidebarCollapsed
+                          ? `w-11 h-11 mx-auto rounded-lg justify-center ${
+                              pathname === "/upt/pelabuhan"
+                                ? "bg-[#0B241E] text-[#D97706] shadow-xs"
+                                : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                          : `w-full text-left px-3 py-2 rounded-lg text-xs font-bold justify-between gap-2.5 flex-nowrap ${
+                              pathname === "/upt/pelabuhan"
+                                ? "bg-[#0B241E] text-white shadow-xs"
+                                : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <Anchor
+                          className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} shrink-0 ${
+                            pathname === "/upt/pelabuhan" ? "text-[#D97706]" : "text-[#64748B]"
+                          }`}
+                        />
+                        {!isSidebarCollapsed && <span className="truncate whitespace-nowrap">Pelabuhan & Dermaga</span>}
+                      </div>
+                    </Link>
+
+                    <Link
+                      href="/upt/users"
+                      title="Manajemen Pengguna & RBAC"
+                      className={`transition-all flex items-center cursor-pointer ${
+                        isSidebarCollapsed
+                          ? `w-11 h-11 mx-auto rounded-lg justify-center ${
+                              pathname === "/upt/users"
+                                ? "bg-[#0B241E] text-[#D97706] shadow-xs"
+                                : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                          : `w-full text-left px-3 py-2 rounded-lg text-xs font-bold justify-between gap-2.5 flex-nowrap ${
+                              pathname === "/upt/users"
+                                ? "bg-[#0B241E] text-white shadow-xs"
+                                : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <Users
+                          className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} shrink-0 ${
+                            pathname === "/upt/users" ? "text-[#D97706]" : "text-[#64748B]"
+                          }`}
+                        />
+                        {!isSidebarCollapsed && <span className="truncate whitespace-nowrap">Manajemen Pengguna</span>}
+                      </div>
+                    </Link>
+
+                    <Link
+                      href="/upt/tarif"
+                      title="Master Tarif Perda & Kurs USD"
+                      className={`transition-all flex items-center cursor-pointer ${
+                        isSidebarCollapsed
+                          ? `w-11 h-11 mx-auto rounded-lg justify-center ${
+                              pathname === "/upt/tarif"
+                                ? "bg-[#0B241E] text-[#D97706] shadow-xs"
+                                : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                          : `w-full text-left px-3 py-2 rounded-lg text-xs font-bold justify-between gap-2.5 flex-nowrap ${
+                              pathname === "/upt/tarif"
+                                ? "bg-[#0B241E] text-white shadow-xs"
+                                : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                            }`
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <Receipt
+                          className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} shrink-0 ${
+                            pathname === "/upt/tarif" ? "text-[#D97706]" : "text-[#64748B]"
+                          }`}
+                        />
+                        {!isSidebarCollapsed && <span className="truncate whitespace-nowrap">Master Tarif Perda</span>}
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              )}
               {/* Group 1: Operasional & Dermaga */}
               <div>
                 {!isSidebarCollapsed && (
@@ -230,7 +395,9 @@ export default function UptLayout({
                     )}
                   </Link>
 
-                  {/* Link: Verifikasi Operator (/upt/verifikasi) */}
+                  {/* Link: Verifikasi Operator (/upt/verifikasi) - SUPERADMIN & ADMIN_PELABUHAN */}
+                  {canManageMaster && (
+                  <>
                   <Link
                     href="/upt/verifikasi"
                     title="Verifikasi Pendaftaran Operator & Kapal"
@@ -299,6 +466,8 @@ export default function UptLayout({
                       </span>
                     )}
                   </Link>
+                  </>
+                  )}
 
                   {/* Link 2: Pencatatan Kapal & Manifes (/upt/kapal) */}
                   <Link

@@ -1,359 +1,364 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Wrench,
-  AlertTriangle,
-  Camera,
-  MapPin,
-  CheckCircle2,
-  Clock,
-  Send,
   Building2,
-  Anchor,
-  Layers,
-  Zap,
-  Droplet,
-  UploadCloud,
-  FileCheck2,
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import { useFieldOpsStore } from "@/store/field-ops.store";
+import { usePortStore } from "@/store/port.store";
+import {
+  MaintenanceSeverity,
+  MaintenanceStatus,
+} from "@/types/field-ops.types";
 
-interface DamageReport {
-  id: string;
-  facility: string;
-  damageType: string;
-  severity: "critical" | "moderate" | "minor";
-  reportedAt: string;
-  status: "pending" | "in_progress" | "resolved";
-  reportedBy: string;
-}
+const SEVERITY_BADGE: Record<MaintenanceSeverity, string> = {
+  LOW: "bg-slate-100 text-slate-700",
+  MEDIUM: "bg-amber-50 text-amber-800",
+  HIGH: "bg-orange-100 text-orange-800",
+  CRITICAL: "bg-rose-100 text-rose-800",
+};
 
 export default function UptPemeliharaanPage() {
-  // New Report Form State
-  const [facility, setFacility] = useState<string>("Dermaga 4 (Mooring Dolphin)");
-  const [damageType, setDamageType] = useState<string>("Karet Fender Lepas / Terbentur Lambung Kapal");
-  const [severity, setSeverity] = useState<"critical" | "moderate" | "minor">("critical");
-  const [description, setDescription] = useState<string>("Karet fender dermaga 4 lepas setelah benturan KMP Sebuku saat arus deras.");
-  const [hasPhoto, setHasPhoto] = useState<boolean>(true);
+  const { user } = useAuthStore();
+  const {
+    maintenanceTickets,
+    portAssets,
+    isLoading,
+    isSubmitting,
+    error,
+    fetchMaintenanceData,
+    createMaintenance,
+    updateMaintenanceStatus,
+    clearError,
+  } = useFieldOpsStore();
+  const { ports, fetchPorts } = usePortStore();
 
-  // Active Reports List
-  const [reports, setReports] = useState<DamageReport[]>([
-    {
-      id: "REP-2026-081",
-      facility: "Dermaga 4 (Mooring Dolphin)",
-      damageType: "Karet Fender Lepas",
-      severity: "critical",
-      reportedAt: "Hari ini, 07:40 WIB",
-      status: "in_progress",
-      reportedBy: "Sdr. Danang (Petugas Patroli Dermaga)",
-    },
-    {
-      id: "REP-2026-079",
-      facility: "Jalur Utilitas Bunkering Air Dermaga 2",
-      damageType: "Pipa Saluran Air Bocor",
-      severity: "moderate",
-      reportedAt: "Kemarin, 14:20 WIB",
-      status: "pending",
-      reportedBy: "Sdr. Irfan (Teknisi Utilitas)",
-    },
-    {
-      id: "REP-2026-065",
-      facility: "Lampu Navigasi Trestle Selatan",
-      damageType: "Bohlam Lampu Suar Redup",
-      severity: "minor",
-      reportedAt: "14 Nov 2026",
-      status: "resolved",
-      reportedBy: "Capt. Ridwan H. (Syahbandar)",
-    },
-  ]);
+  const isSuperadmin = user?.role === "SUPERADMIN";
+  const [selectedPortId, setSelectedPortId] = useState<string>("");
+  const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
+  const activePortId = numericPortId || user?.portId || ports[0]?.id || 1;
 
-  const handleSubmitReport = (e: React.FormEvent) => {
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [severity, setSeverity] = useState<MaintenanceSeverity>("MEDIUM");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [berthId, setBerthId] = useState<string>("");
+  const [assetId, setAssetId] = useState<string>("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    fetchMaintenanceData(numericPortId);
+    fetchPorts();
+  }, [numericPortId, fetchMaintenanceData, fetchPorts]);
+
+  const activePortBerths =
+    ports.find((p) => p.id === activePortId)?.berths ||
+    ports.flatMap((p) => p.berths || []);
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newReport: DamageReport = {
-      id: `REP-2026-0${Math.floor(Math.random() * 80) + 82}`,
-      facility,
-      damageType,
-      severity,
-      reportedAt: "Baru saja",
-      status: "pending",
-      reportedBy: "Capt. Ridwan H. (Petugas UPT)",
-    };
+    setFeedback(null);
+    clearError();
+    await createMaintenance(
+      {
+        portId: activePortId,
+        berthId: berthId ? Number(berthId) : undefined,
+        assetId: assetId ? Number(assetId) : undefined,
+        severity,
+        title: title.trim(),
+        description: description.trim(),
+        evidenceFile,
+      },
+      numericPortId
+    );
+    setFeedback("Laporan kerusakan fasilitas berhasil dibuat.");
+    setIsModalOpen(false);
+    setTitle("");
+    setDescription("");
+    setEvidenceFile(null);
+  };
 
-    setReports([newReport, ...reports]);
-    alert("Laporan kerusakan berhasil dikirim ke Dinas Perhubungan & Tim Teknisi Lapangan.");
+  const handleStatusChange = async (id: number, status: MaintenanceStatus) => {
+    setFeedback(null);
+    clearError();
+    await updateMaintenanceStatus(id, { status }, numericPortId);
+    setFeedback(`Status tiket pemeliharaan #${id} diperbarui menjadi ${status}.`);
   };
 
   return (
     <div className="space-y-6">
-      {/* 1. TOP METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-          <span className="text-xs font-bold text-[#64748B] uppercase">Total Aset Dermaga</span>
-          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">28 Unit</p>
-          <p className="text-[11px] text-[#64748B] mt-1">4 Dermaga • 14 Kios • 2 Gudang • 8 Utilitas</p>
+      {/* Toolbar */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+        <div className="flex items-center gap-3">
+          {isSuperadmin && (
+            <select
+              value={selectedPortId}
+              onChange={(e) => setSelectedPortId(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
+            >
+              <option value="">Semua Pelabuhan</option>
+              {ports.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} - {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => fetchMaintenanceData(numericPortId)}
+            disabled={isLoading}
+            className="px-3 py-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-xs font-semibold text-[#475569] flex items-center gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
 
-        <div className="bg-white border border-rose-200 rounded-xl p-5 shadow-sm">
-          <span className="text-xs font-bold text-rose-700 uppercase">Gangguan Kritis</span>
-          <p className="text-2xl font-extrabold text-rose-700 font-mono mt-1">1 Titik</p>
-          <p className="text-[11px] text-[#64748B] mt-1">Dermaga 4 sedang diblokir sementara</p>
-        </div>
-
-        <div className="bg-white border border-amber-200 rounded-xl p-5 shadow-sm">
-          <span className="text-xs font-bold text-amber-800 uppercase">Dalam Pengerjaan</span>
-          <p className="text-2xl font-extrabold text-amber-700 font-mono mt-1">2 Tiket</p>
-          <p className="text-[11px] text-[#64748B] mt-1">Teknisi sedang berada di lokasi</p>
-        </div>
-
-        <div className="bg-white border border-emerald-200 rounded-xl p-5 shadow-sm">
-          <span className="text-xs font-bold text-emerald-800 uppercase">Tingkat Kesiapan Aset</span>
-          <p className="text-2xl font-extrabold text-emerald-700 font-mono mt-1">92.4%</p>
-          <p className="text-[11px] text-[#64748B] mt-1">Operasional penyeberangan lancar</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            clearError();
+            setIsModalOpen(true);
+          }}
+          className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="w-4 h-4 text-[#D97706]" />
+          Laporkan Kerusakan
+        </button>
       </div>
 
-      {/* 2. MAIN WORKSPACE: FORMULIR LAPORAN KERUSAKAN & PETA FASILITAS GIS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Module A: Formulir Laporan Kerusakan Lapangan (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
-            <div className="flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-[#D97706]" />
-              <h3 className="text-sm font-extrabold text-[#0B241E]">
-                Formulir Laporan Kerusakan Fisik
-              </h3>
-            </div>
-            <span className="text-[10px] font-mono bg-rose-50 text-rose-800 font-bold px-2 py-0.5 rounded">
-              Inspeksi Lapangan
-            </span>
-          </div>
-
-          <form onSubmit={handleSubmitReport} className="space-y-3.5 text-xs">
-            {/* Lokasi Fasilitas */}
-            <div>
-              <label className="font-bold text-[#0B241E] block mb-1">
-                Lokasi Fasilitas Pelabuhan
-              </label>
-              <select
-                value={facility}
-                onChange={(e) => setFacility(e.target.value)}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-[#0B241E] font-semibold focus:outline-none focus:border-[#D97706]"
-              >
-                <option value="Dermaga 1 (Dermaga Utama)">Dermaga 1 (Dermaga Utama)</option>
-                <option value="Dermaga 2 (Dermaga Truk)">Dermaga 2 (Dermaga Truk)</option>
-                <option value="Dermaga 3 (Dermaga Cepat)">Dermaga 3 (Dermaga Cepat)</option>
-                <option value="Dermaga 4 (Mooring Dolphin)">Dermaga 4 (Mooring Dolphin)</option>
-                <option value="Kios Pujasera B-04">Kios Pujasera B-04</option>
-                <option value="Jalur Utilitas Bunkering Air">Jalur Utilitas Bunkering Air</option>
-              </select>
-            </div>
-
-            {/* Jenis Kerusakan */}
-            <div>
-              <label className="font-bold text-[#0B241E] block mb-1">
-                Gejala / Jenis Kerusakan
-              </label>
-              <input
-                type="text"
-                value={damageType}
-                onChange={(e) => setDamageType(e.target.value)}
-                placeholder="Contoh: Karet fender lepas, beton retak..."
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-[#0B241E] font-medium focus:outline-none focus:border-[#D97706]"
-                required
-              />
-            </div>
-
-            {/* Tingkat Kritis / Severity */}
-            <div>
-              <label className="font-bold text-[#0B241E] block mb-1">
-                Tingkat Keparahan (Severity Level)
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSeverity("critical")}
-                  className={`py-2 px-1 rounded-lg font-bold text-center border cursor-pointer ${
-                    severity === "critical"
-                      ? "bg-rose-700 text-white border-rose-700 shadow-xs"
-                      : "bg-[#F8FAFC] text-rose-700 border-rose-200 hover:bg-rose-50"
-                  }`}
-                >
-                  Kritis (Stop)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSeverity("moderate")}
-                  className={`py-2 px-1 rounded-lg font-bold text-center border cursor-pointer ${
-                    severity === "moderate"
-                      ? "bg-amber-600 text-white border-amber-600 shadow-xs"
-                      : "bg-[#F8FAFC] text-amber-700 border-amber-200 hover:bg-amber-50"
-                  }`}
-                >
-                  Sedang (Waspada)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSeverity("minor")}
-                  className={`py-2 px-1 rounded-lg font-bold text-center border cursor-pointer ${
-                    severity === "minor"
-                      ? "bg-emerald-700 text-white border-emerald-700 shadow-xs"
-                      : "bg-[#F8FAFC] text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                  }`}
-                >
-                  Ringan (Rutin)
-                </button>
-              </div>
-            </div>
-
-            {/* Deskripsi Kronologi */}
-            <div>
-              <label className="font-bold text-[#0B241E] block mb-1">
-                Kronologi & Deskripsi Detail
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-[#0B241E] focus:outline-none focus:border-[#D97706]"
-              />
-            </div>
-
-            {/* Foto Bukti Kerusakan */}
-            <div className="p-3 bg-[#F8FAFC] border border-dashed border-[#CBD5E1] rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-[#D97706]" />
-                <div>
-                  <span className="font-bold text-[#0B241E] block">Foto Kamera Lapangan</span>
-                  <span className="text-[10px] text-[#64748B]">IMG_Dermaga4_Fender.jpg (1.8 MB)</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded">
-                Terlampir
-              </span>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 px-4 bg-[#0B241E] hover:bg-[#164336] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-            >
-              <Send className="w-4 h-4 text-[#D97706]" />
-              <span>Kirim Laporan ke Tim Teknisi Dinas</span>
-            </button>
-          </form>
+      {feedback && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{feedback}</span>
         </div>
+      )}
 
-        {/* Module B: Peta Fasilitas & Status Aset GIS (7 cols) */}
-        <div className="lg:col-span-7 bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#D97706]" />
-                <h3 className="text-sm font-extrabold text-[#0B241E]">
-                  Peta Spasial Fasilitas & Status Aset Pelabuhan (GIS)
-                </h3>
-              </div>
-              <span className="text-xs font-mono text-[#64748B]">UPTD Merak</span>
-            </div>
+      {error && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-            {/* GIS Interactive Visual Mockup */}
-            <div className="mt-4 bg-[#0F2620] border border-[#1B4B3D] rounded-xl p-5 relative overflow-hidden min-h-[250px] text-white">
-              {/* Sea Wave Lines */}
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#BED2CA_1px,transparent_1px)] [background-size:16px_16px]" />
-
-              <div className="relative z-10 space-y-4">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-mono text-[#D97706] font-bold">ZONA PERAIRAN DERMAGA UTAMA</span>
-                  <span className="text-[10px] bg-[#174338] px-2 py-0.5 rounded border border-[#2B7A67]/40">
-                    Kedalaman Kolam: -8.5m LWS
-                  </span>
-                </div>
-
-                {/* 4 Docks Visual Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
-                  <div className="p-3 bg-[#133D31] border border-emerald-400/50 rounded-lg">
-                    <Anchor className="w-4 h-4 text-emerald-400 mx-auto" />
-                    <strong className="block text-[11px] mt-1">Dermaga 1</strong>
-                    <span className="text-[9px] text-emerald-300 font-mono">AKTIF SANDAR</span>
-                  </div>
-
-                  <div className="p-3 bg-[#133D31] border border-emerald-400/50 rounded-lg">
-                    <Anchor className="w-4 h-4 text-emerald-400 mx-auto" />
-                    <strong className="block text-[11px] mt-1">Dermaga 2</strong>
-                    <span className="text-[9px] text-emerald-300 font-mono">AKTIF SANDAR</span>
-                  </div>
-
-                  <div className="p-3 bg-[#133D31] border border-blue-400/50 rounded-lg">
-                    <Anchor className="w-4 h-4 text-blue-400 mx-auto" />
-                    <strong className="block text-[11px] mt-1">Dermaga 3</strong>
-                    <span className="text-[9px] text-blue-300 font-mono">SIAP MASUK</span>
-                  </div>
-
-                  <div className="p-3 bg-rose-950/80 border border-rose-500 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-rose-400 mx-auto" />
-                    <strong className="block text-[11px] mt-1">Dermaga 4</strong>
-                    <span className="text-[9px] text-rose-400 font-mono font-bold">RUSAK (FENDER)</span>
-                  </div>
-                </div>
-
-                {/* Land Assets Map */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 text-xs">
-                  <div className="p-2.5 bg-[#174338] rounded-lg flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#D97706] shrink-0" />
-                    <div className="truncate">
-                      <span className="block font-bold text-[11px]">Kios Pujasera</span>
-                      <span className="text-[9px] text-[#BED2CA]">12/14 Tersewa</span>
+      {/* Tickets Table */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E] flex items-center gap-2">
+          <Wrench className="w-4 h-4 text-[#D97706]" />
+          Tiket Inspeksi & Pemeliharaan ({maintenanceTickets.length})
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B]">
+                <th className="py-3 px-4">No. Tiket</th>
+                <th className="py-3 px-4">Judul & Deskripsi</th>
+                <th className="py-3 px-4">Objek</th>
+                <th className="py-3 px-4">Urgensi</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Ubah Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F1F5F9] text-xs">
+              {maintenanceTickets.map((t) => (
+                <tr key={t.id}>
+                  <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                    {t.ticketNumber}
+                  </td>
+                  <td className="py-3 px-4 max-w-sm">
+                    <div className="font-bold text-[#1E293B]">{t.title}</div>
+                    <div className="text-[11px] text-[#64748B] truncate">
+                      {t.description}
                     </div>
-                  </div>
-
-                  <div className="p-2.5 bg-[#174338] rounded-lg flex items-center gap-2">
-                    <Droplet className="w-4 h-4 text-blue-400 shrink-0" />
-                    <div className="truncate">
-                      <span className="block font-bold text-[11px]">Bunkering Air</span>
-                      <span className="text-[9px] text-[#BED2CA]">Meteran Aktif</span>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 bg-[#174338] rounded-lg flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-                    <div className="truncate">
-                      <span className="block font-bold text-[11px]">Listrik Sandar</span>
-                      <span className="text-[9px] text-[#BED2CA]">380V Standby</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* List of Recent Reports */}
-            <div className="mt-4 space-y-2">
-              <span className="text-xs font-bold text-[#0B241E] block">
-                Riwayat Tiket Kerusakan Terkini
-              </span>
-              <div className="divide-y divide-[#F1F5F9] text-xs">
-                {reports.map((r) => (
-                  <div key={r.id} className="py-2.5 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-[#0B241E]">{r.facility}: {r.damageType}</p>
-                      <p className="text-[11px] text-[#64748B]">Pelapor: {r.reportedBy} • {r.reportedAt}</p>
-                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-[#475569]">
+                    {t.berth
+                      ? `Dermaga ${t.berth.code}`
+                      : t.asset
+                      ? `Aset ${t.asset.assetCode}`
+                      : "Umum"}
+                  </td>
+                  <td className="py-3 px-4">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${
-                        r.status === "in_progress"
-                          ? "bg-amber-100 text-amber-800"
-                          : r.status === "resolved"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-rose-100 text-rose-800"
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        SEVERITY_BADGE[t.severity]
                       }`}
                     >
-                      {r.status === "in_progress" ? "Dikerjakan" : r.status === "resolved" ? "Selesai" : "Pending"}
+                      {t.severity}
                     </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                  </td>
+                  <td className="py-3 px-4 font-semibold">{t.status}</td>
+                  <td className="py-3 px-4 text-right">
+                    <select
+                      disabled={isSubmitting}
+                      value={t.status}
+                      onChange={(e) =>
+                        handleStatusChange(t.id, e.target.value as MaintenanceStatus)
+                      }
+                      className="px-2.5 py-1 rounded-lg border border-[#CBD5E1] text-[11px] font-semibold"
+                    >
+                      <option value="REPORTED">REPORTED</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                      <option value="CLOSED">CLOSED</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+              {maintenanceTickets.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-[#94A3B8]">
+                    Belum ada laporan kerusakan fasilitas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {/* Assets Summary */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E] flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-[#D97706]" />
+          Inventaris Aset & Koordinat GIS ({portAssets.length})
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B]">
+                <th className="py-3 px-4">Kode</th>
+                <th className="py-3 px-4">Nama Aset</th>
+                <th className="py-3 px-4">Luas</th>
+                <th className="py-3 px-4">Koordinat GIS</th>
+                <th className="py-3 px-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F1F5F9] text-xs">
+              {portAssets.map((a) => (
+                <tr key={a.id}>
+                  <td className="py-3 px-4 font-mono font-bold">{a.assetCode}</td>
+                  <td className="py-3 px-4 font-semibold">{a.name}</td>
+                  <td className="py-3 px-4">{a.areaSqm} m²</td>
+                  <td className="py-3 px-4 font-mono text-[11px] text-[#64748B]">
+                    {a.gisCoordinates || "-"}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100">
+                      {a.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {portAssets.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-[#94A3B8]">
+                    Belum ada aset terdaftar.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal Report Damage */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleCreate}
+            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+          >
+            <h3 className="text-base font-extrabold text-[#0B241E]">
+              Laporkan Kerusakan Fasilitas
+            </h3>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Judul Kerusakan"
+              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+            />
+            <select
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value as MaintenanceSeverity)}
+              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+            >
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={berthId}
+                onChange={(e) => setBerthId(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+              >
+                <option value="">Dermaga (Opsional)</option>
+                {activePortBerths.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.code} - {b.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={assetId}
+                onChange={(e) => setAssetId(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+              >
+                <option value="">Aset (Opsional)</option>
+                {portAssets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.assetCode} - {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              required
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Deskripsi detail kerusakan..."
+              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+              className="w-full text-xs"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Kirim Laporan
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

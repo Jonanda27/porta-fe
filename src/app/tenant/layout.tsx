@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -28,21 +28,41 @@ import {
   KeyRound,
   LogOut,
 } from "lucide-react";
+import { AuthService } from "@/services/auth.service";
+import { useAuthStore } from "@/store/auth.store";
 
 export default function TenantLayout({
   children,
 }: {
-  children: any;
+  children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isAuthenticated, initialize: initAuth, logout: storeLogout } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+    const storedUser = AuthService.getStoredUser();
+    const token = AuthService.getStoredToken();
+
+    if (!token || !storedUser) {
+      router.replace("/login");
+      return;
+    }
+
+    if (storedUser.role !== "TENANT" && storedUser.role !== "SUPERADMIN") {
+      router.replace(AuthService.getRedirectRouteByRole(storedUser.role));
+    }
+  }, [initAuth, router]);
 
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const handleLogout = () => {
-    router.push("/");
+    AuthService.logout();
+    storeLogout();
+    router.push("/login");
   };
 
   const getPageTitle = () => {
@@ -72,6 +92,10 @@ export default function TenantLayout({
       return "Surat Ketetapan Retribusi Daerah (e-SKRD) pemanfaatan tempat usaha, pembayaran via VA Bank Kasda/QRIS, dan bukti setor SSRD sah.";
     return "Portal mandiri pelaku usaha kawasan pelabuhan: kelola unit sewa, pantau masa berlaku kontrak PKS, cek utilitas, dan bayar retribusi daerah.";
   };
+
+  if (!isAuthenticated && !AuthService.getStoredToken()) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#1E2922] font-sans flex antialiased selection:bg-[#D97706]/20 selection:text-[#0B241E]">

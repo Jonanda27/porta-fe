@@ -93,6 +93,9 @@ export class AuthService {
       case "OPERATOR_KAPAL":
         return "/kapal/dashboard";
 
+      case "TENANT":
+        return "/tenant";
+
       case "ADMIN_PELABUHAN":
       case "SUPERADMIN":
       case "BENDAHARA":
