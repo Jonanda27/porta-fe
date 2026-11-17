@@ -245,10 +245,6 @@ export default function LandingPage() {
   const videoRef0 = useRef<HTMLVideoElement | null>(null);
   const videoRef1 = useRef<HTMLVideoElement | null>(null);
 
-  // State Modal Masuk Portal
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [selectedRoleForLogin, setSelectedRoleForLogin] = useState<UserRoleType>("dinas");
-
   // State Kalkulator Retribusi Interaktif
   const [calcTab, setCalcTab] = useState<"kapal" | "tiket" | "sewa">("kapal");
   // Form Kapal
@@ -355,11 +351,6 @@ export default function LandingPage() {
     return { ratePerM2, zoneName, sewaPokokTahun, sewaPerBulan, estimasiUtilitas };
   };
 
-  const handleSelectRoleAndNavigate = (route: string) => {
-    setIsAuthModalOpen(false);
-    router.push(route);
-  };
-
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#1E2922] font-sans flex flex-col selection:bg-[#D97706]/20 selection:text-[#0B241E]">
       {/* ========================================================= */}
@@ -415,14 +406,13 @@ export default function LandingPage() {
                 <span>Cek Estimasi</span>
               </a>
 
-              <button
-                type="button"
-                onClick={() => setIsAuthModalOpen(true)}
+              <Link
+                href="/login"
                 className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#0B241E] bg-[#D97706] hover:bg-[#B45309] shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <Lock className="w-4 h-4" />
                 <span>Masuk Portal</span>
-              </button>
+              </Link>
             </div>
           </div>
         </header>
@@ -478,14 +468,13 @@ export default function LandingPage() {
 
               {/* Quick CTAs */}
               <div className="pt-2 flex flex-wrap items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setIsAuthModalOpen(true)}
+                <Link
+                  href="/login"
                   className="px-8 py-4 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold text-sm tracking-wide flex items-center gap-2.5 shadow-xl shadow-amber-950/40 transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <span>Akses Portal Layanan</span>
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-                </button>
+                </Link>
 
                 <a
                   href="#live-harbor"
@@ -606,14 +595,13 @@ export default function LandingPage() {
 
                   {/* Access Button */}
                   <div className="pt-6 mt-4 border-t border-slate-200/60">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectRoleAndNavigate(role.route)}
+                    <Link
+                      href="/login"
                       className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-[#0B241E] group-hover:bg-[#D97706] group-hover:text-[#0B241E] transition-all flex items-center justify-between cursor-pointer shadow-xs active:scale-95"
                     >
                       <span>Masuk ke {role.title.split(" ")[0]} Portal</span>
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
+                    </Link>
                   </div>
                 </div>
               );
@@ -1393,74 +1381,6 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
-
-      {/* ========================================================= */}
-      {/* 11. MODAL PEMILIHAN PORTAL & AUTENTIKASI MASUK            */}
-      {/* ========================================================= */}
-      {isAuthModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 relative">
-            <button
-              type="button"
-              onClick={() => setIsAuthModalOpen(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Modal Header */}
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-11 h-11 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shadow-xs border border-[#164336]">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-[#0B241E]">
-                  Pilih Kanal Masuk Portal
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Akses modul operasional dan dashboard sesuai hak wewenang Anda.
-                </p>
-              </div>
-            </div>
-
-            {/* 5 Role Selection Options */}
-            <div className="space-y-2.5">
-              {PORTAL_ROLES.map((r) => {
-                const IconC = r.icon;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => handleSelectRoleAndNavigate(r.route)}
-                    className="w-full p-3.5 rounded-2xl border border-slate-200 hover:border-[#D97706] hover:bg-amber-50/40 transition-all flex items-center justify-between text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.accentBg}`}
-                      >
-                        <IconC className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-extrabold text-[#0B241E] group-hover:text-[#D97706] transition-colors block">
-                          {r.title}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          {r.scope}
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#D97706] group-hover:translate-x-0.5 transition-all" />
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pt-2 text-center text-[11px] text-slate-400">
-              Sistem mencatat identitas dan aktivitas sesi login untuk audit keamanan SOLAS dan transparansi Kasda.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
