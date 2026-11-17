@@ -377,7 +377,7 @@ export default function LandingPage() {
                 className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-md group-hover:scale-105 transition-transform"
               />
               <div>
-                <span className="text-xl sm:text-2xl font-black tracking-wider text-white block leading-none">
+                <span className="text-xl sm:text-2xl font-black tracking-tight text-white block leading-none">
                   PORTA
                 </span>
                 <p className="text-[10px] text-[#85A69B] uppercase font-mono tracking-wider mt-1">
@@ -387,7 +387,7 @@ export default function LandingPage() {
             </Link>
 
             {/* Nav Links */}
-            <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-[#BED2CA]">
+            <nav className="hidden lg:flex items-center gap-8 text-xs font-semibold text-emerald-100/75 tracking-wide">
               <a href="#portal-gateway" className="hover:text-white transition-colors">
                 Portal Layanan
               </a>
@@ -409,16 +409,16 @@ export default function LandingPage() {
             <div className="flex items-center gap-3">
               <a
                 href="#kalkulator-tarif"
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#143E33] hover:bg-[#1E5748] border border-[#1E5748] transition-colors"
+                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 transition-all"
               >
-                <Calculator className="w-3.5 h-3.5 text-[#D97706]" />
+                <Calculator className="w-3.5 h-3.5 text-[#F59E0B]" />
                 <span>Cek Estimasi</span>
               </a>
 
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-[#0B241E] bg-[#D97706] hover:bg-[#B45309] shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#0B241E] bg-[#D97706] hover:bg-[#B45309] shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <Lock className="w-4 h-4" />
                 <span>Masuk Portal</span>
@@ -456,23 +456,23 @@ export default function LandingPage() {
             }`}
           />
 
-          {/* Clean Soft Vignette (Ultra-Translucent: Keeps Video Bright, Vibrant & Clear) */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent z-10 pointer-events-none" />
-          <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-[#0B241E] to-transparent z-10 pointer-events-none" />
+          {/* Directional Maritime Vignette: Protects Left Copy While Keeping Video Right Luminously Visible */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#04120E]/90 via-[#071914]/55 to-transparent z-10 pointer-events-none" />
+          <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-[#0B241E] via-[#0B241E]/30 to-transparent z-10 pointer-events-none" />
 
           {/* Content Container (Padded nicely for full-screen display) */}
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-8 py-6 lg:py-10 w-full flex-1 flex flex-col justify-between">
             {/* Main Headline & Value Proposition */}
             <div className="max-w-3xl space-y-5 my-auto">
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight text-white leading-[1.12] drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)]">
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-[-0.03em] text-white leading-[1.08] [text-wrap:balance] drop-shadow-[0_4px_24px_rgba(0,0,0,0.95)]">
                 Sistem Terpadu{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500">
+                <span className="text-[#F59E0B]">
                   Operasional Pelabuhan
                 </span>{" "}
                 & Penerimaan Daerah
               </h1>
 
-              <p className="text-sm sm:text-base lg:text-lg text-slate-100/95 leading-relaxed max-w-2xl font-normal drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)]">
+              <p className="text-base sm:text-lg text-emerald-100/90 leading-relaxed max-w-[56ch] font-normal [text-wrap:pretty] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)]">
                 Platform tata kelola maritim terintegrasi untuk percepatan alokasi dermaga, validasi manifes keselamatan SOLAS, pemanfaatan aset BMD, dan kepatuhan retribusi daerah secara transparan dan akuntabel.
               </p>
 
@@ -481,7 +481,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setIsAuthModalOpen(true)}
-                  className="px-7 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm flex items-center gap-2.5 shadow-xl shadow-amber-500/20 hover:shadow-amber-500/30 transition-all cursor-pointer active:scale-95"
+                  className="px-8 py-4 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold text-sm tracking-wide flex items-center gap-2.5 shadow-xl shadow-amber-950/40 transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <span>Akses Portal Layanan</span>
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -489,17 +489,35 @@ export default function LandingPage() {
 
                 <a
                   href="#live-harbor"
-                  className="px-6 py-3.5 rounded-xl bg-black/40 hover:bg-black/60 text-white font-bold text-sm border border-white/20 hover:border-white/40 backdrop-blur-md transition-all flex items-center gap-2 cursor-pointer shadow-lg"
+                  className="px-7 py-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-semibold text-sm border border-white/20 hover:border-white/40 backdrop-blur-md transition-all flex items-center gap-2.5 cursor-pointer shadow-sm active:scale-[0.98]"
                 >
-                  <Compass className="w-4 h-4 text-amber-400" />
+                  <Compass className="w-4 h-4 text-[#F59E0B]" />
                   <span>Papan Sandar Kapal Hari Ini</span>
                 </a>
+              </div>
+
+              {/* Regulatory Trust Footnote */}
+              <div className="pt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-mono text-emerald-300/70">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  PP No. 35 Tahun 2023
+                </span>
+                <span className="text-emerald-500/40">•</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                  Perbup Mimika No. 25 Tahun 2024
+                </span>
+                <span className="text-emerald-500/40">•</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  Manifes Terverifikasi SOLAS
+                </span>
               </div>
             </div>
 
             {/* Bottom Floating Bar (Scroll Cue & Port Status) */}
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10">
-              <div className="flex items-center gap-2.5 text-xs font-mono text-white/85 drop-shadow-sm">
+              <div className="flex items-center gap-2.5 text-xs font-mono text-emerald-200/80 drop-shadow-sm">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>Otoritas UPTD Pelabuhan Merak • Operasional Aktif 24/7</span>
               </div>
@@ -507,10 +525,10 @@ export default function LandingPage() {
               {/* Scroll Down Prompt */}
               <a
                 href="#portal-gateway"
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-xs font-mono text-white/90 hover:text-white hover:border-amber-400 transition-all group"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-xs font-mono text-emerald-100 hover:text-white transition-all group"
               >
                 <span>Jelajahi Portal Layanan</span>
-                <ChevronDown className="w-4 h-4 text-amber-400 group-hover:translate-y-0.5 transition-transform animate-bounce" />
+                <ChevronDown className="w-4 h-4 text-[#F59E0B] group-hover:translate-y-0.5 transition-transform" />
               </a>
             </div>
           </div>

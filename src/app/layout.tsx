@@ -1,5 +1,20 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "PORTA - Sistem Pengelolaan Pelabuhan dan Penerimaan Daerah",
@@ -23,8 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className="h-full">
-      <body className="antialiased h-full bg-slate-50 text-slate-900 selection:bg-[#D97706]/20 selection:text-[#0B241E]">
+    <html lang="id" className={`h-full ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
+      <body className="antialiased h-full font-sans bg-slate-50 text-slate-900 selection:bg-[#D97706]/20 selection:text-[#0B241E]">
         {children}
       </body>
     </html>
