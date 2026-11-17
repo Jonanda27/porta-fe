@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -23,22 +23,54 @@ import {
   Layers,
   HelpCircle,
 } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import { useKapalStore } from "@/store/kapal.store";
+import { AuthService } from "@/services/auth.service";
 
 export default function KapalLayout({
   children,
 }: {
-  children: any;
+  children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const { user, initialize: initAuth } = useAuthStore();
+  const { operator, fetchDashboardData } = useKapalStore();
+
+  useEffect(() => {
+    initAuth();
+    fetchDashboardData();
+  }, [initAuth, fetchDashboardData]);
 
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const handleLogout = () => {
-    router.push("/");
+    AuthService.logout();
+    useAuthStore.getState().logout();
+    router.push("/login");
   };
+
+  // Nama operator dinamis dari backend atau session login
+  const operatorName =
+    operator?.name ||
+    (user?.fullName
+      ? user.fullName.replace(/\(.*?\)/g, "").trim()
+      : "PT Pelayaran Mimika Sejahtera");
+
+  const operatorInitials =
+    operatorName
+      .split(" ")
+      .filter((word) => !["PT", "CV", "PERUM"].includes(word.toUpperCase()))
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() || "PM";
+
+  const siupalDoc = operator?.documents?.find((d) => d.category === "SIUPAL_NIB");
+  const siupalNumber = siupalDoc?.documentNumber || "SIUPAL-MMK-1-2023";
 
   const getPageTitle = () => {
     if (pathname.includes("/kapal/riwayat")) return "Riwayat Pelayanan & Log Kunjungan Kapal";
@@ -161,24 +193,24 @@ export default function KapalLayout({
               <div className="my-2 flex justify-center">
                 <div
                   className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs shadow-xs border border-[#164336] cursor-pointer"
-                  title="PT ASDP Indonesia Ferry (Persero)"
+                  title={operatorName}
                   onClick={() => setIsSidebarCollapsed(false)}
                 >
-                  AS
+                  {operatorInitials}
                 </div>
               </div>
             ) : (
               <div className="p-3.5 mx-3 my-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center gap-3 shadow-2xs">
                 <div className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-[#164336]">
-                  AS
+                  {operatorInitials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-[#0B241E] truncate">
-                    PT ASDP Indonesia Ferry
+                  <p className="text-xs font-bold text-[#0B241E] truncate" title={operatorName}>
+                    {operatorName}
                   </p>
                   <p className="text-[10px] text-[#64748B] truncate mt-0.5 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    <span>SIUPAL: 042/AL.001/2021</span>
+                    <span title={siupalNumber}>SIUPAL: {siupalNumber}</span>
                   </p>
                 </div>
               </div>
@@ -478,7 +510,7 @@ export default function KapalLayout({
             {/* Active Port Indicator */}
             <div className="hidden md:flex items-center gap-2 bg-[#143E33]/70 px-3 py-1.5 rounded-lg border border-[#1E5748]">
               <Anchor className="w-3.5 h-3.5 text-[#D97706]" />
-              <span className="text-[#E2E8F0] font-medium">Lintasan: Merak - Bakauheni</span>
+              <span className="text-[#E2E8F0] font-medium">Pangkalan: Pelabuhan Poumako, Mimika</span>
             </div>
 
             {/* Vessel Clearance Ready Indicator */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Ship,
@@ -10,614 +10,581 @@ import {
   AlertTriangle,
   FileText,
   Search,
-  Filter,
   Download,
   Printer,
-  ChevronRight,
   Eye,
-  ExternalLink,
-  Droplets,
-  Zap,
   Anchor,
   TrendingUp,
   Receipt,
   X,
   Building2,
   ShieldCheck,
-  Check,
+  RefreshCw,
+  ExternalLink,
+  MapPin,
+  ArrowRight,
 } from "lucide-react";
-
-interface ShipCallRecord {
-  id: string; // Call ID
-  vesselName: string;
-  callSign: string;
-  gt: number;
-  dock: string;
-  dockType: "Reguler" | "Eksekutif";
-  route: string;
-  captain: string;
-  scheduledEta: string;
-  scheduledEtd: string;
-  ata: string; // Actual Time of Arrival
-  atb: string; // Actual Time of Berthing
-  atd: string; // Actual Time of Departure
-  dwellTimeMinutes: number;
-  otpStatus: "on_time" | "slight_delay" | "delayed";
-  otpLabel: string;
-  waterConsumedM3: number;
-  powerConsumedKwh: number;
-  paxTotal: number;
-  vehicleTotal: number;
-  skrdNumber: string;
-  paymentStatus: "paid" | "unpaid";
-  officerName: string;
-  notes: string;
-}
-
-const INITIAL_CALL_HISTORY: ShipCallRecord[] = [
-  {
-    id: "CALL-MRK-2026-1048",
-    vesselName: "KMP Baruna Jaya",
-    callSign: "PK-BJ92",
-    gt: 1250,
-    dock: "Dermaga 1",
-    dockType: "Reguler",
-    route: "Merak ➔ Bakauheni",
-    captain: "Capt. Hendra Gunawan",
-    scheduledEta: "16 Nov 2026, 08:00 WIB",
-    scheduledEtd: "16 Nov 2026, 09:30 WIB",
-    ata: "16 Nov 2026, 07:55 WIB",
-    atb: "16 Nov 2026, 08:02 WIB",
-    atd: "16 Nov 2026, 09:35 WIB",
-    dwellTimeMinutes: 93,
-    otpStatus: "on_time",
-    otpLabel: "Tepat Waktu (OTP 100%)",
-    waterConsumedM3: 25,
-    powerConsumedKwh: 0,
-    paxTotal: 342,
-    vehicleTotal: 58,
-    skrdNumber: "SKRD-KPL-MRK-2026-0419",
-    paymentStatus: "unpaid",
-    officerName: "Bripka Agus W. (Supervisor Dermaga 1)",
-    notes: "Proses bongkar muat lancar. Cuaca cerah, pasang surut air laut normal 1.4 meter.",
-  },
-  {
-    id: "CALL-MRK-2026-1045",
-    vesselName: "KMP Mutiara Persada",
-    callSign: "PK-MP44",
-    gt: 1800,
-    dock: "Dermaga 2",
-    dockType: "Reguler",
-    route: "Bakauheni ➔ Merak",
-    captain: "Capt. Aris Munandar",
-    scheduledEta: "15 Nov 2026, 14:00 WIB",
-    scheduledEtd: "15 Nov 2026, 15:30 WIB",
-    ata: "15 Nov 2026, 14:05 WIB",
-    atb: "15 Nov 2026, 14:12 WIB",
-    atd: "15 Nov 2026, 15:38 WIB",
-    dwellTimeMinutes: 86,
-    otpStatus: "on_time",
-    otpLabel: "Tepat Waktu",
-    waterConsumedM3: 35,
-    powerConsumedKwh: 0,
-    paxTotal: 480,
-    vehicleTotal: 76,
-    skrdNumber: "SKRD-KPL-MRK-2026-0398",
-    paymentStatus: "paid",
-    officerName: "Hadi Purnomo (Pengawas Alur Sif 2)",
-    notes: "Air bersih disalurkan melalui hydrant dermaga 2. Meter awal 1.240 m³, meter akhir 1.275 m³.",
-  },
-  {
-    id: "CALL-MRK-2026-1041",
-    vesselName: "KMP Nusantara Express",
-    callSign: "PK-NE11",
-    gt: 2100,
-    dock: "Dermaga Eksekutif 1",
-    dockType: "Eksekutif",
-    route: "Merak ➔ Bakauheni",
-    captain: "Capt. Bambang Tri",
-    scheduledEta: "15 Nov 2026, 09:30 WIB",
-    scheduledEtd: "15 Nov 2026, 11:00 WIB",
-    ata: "15 Nov 2026, 09:42 WIB",
-    atb: "15 Nov 2026, 09:50 WIB",
-    atd: "15 Nov 2026, 11:15 WIB",
-    dwellTimeMinutes: 85,
-    otpStatus: "slight_delay",
-    otpLabel: "Deviasi 12 Menit (Arus Selat)",
-    waterConsumedM3: 0,
-    powerConsumedKwh: 120,
-    paxTotal: 590,
-    vehicleTotal: 102,
-    skrdNumber: "SKRD-KPL-MRK-2026-0382",
-    paymentStatus: "paid",
-    officerName: "Dedi Supriyadi (Petugas Garbarata)",
-    notes: "Kapal menggunakan fasilitas shore power darat selama tambat. Kecepatan angin 18 knot.",
-  },
-  {
-    id: "CALL-MRK-2026-1036",
-    vesselName: "KMP Portlink III",
-    callSign: "PK-PL03",
-    gt: 5200,
-    dock: "Dermaga Eksekutif 1",
-    dockType: "Eksekutif",
-    route: "Bakauheni ➔ Merak",
-    captain: "Capt. M. Farhan Hidayat",
-    scheduledEta: "14 Nov 2026, 19:00 WIB",
-    scheduledEtd: "14 Nov 2026, 21:00 WIB",
-    ata: "14 Nov 2026, 18:55 WIB",
-    atb: "14 Nov 2026, 19:08 WIB",
-    atd: "14 Nov 2026, 21:02 WIB",
-    dwellTimeMinutes: 114,
-    otpStatus: "on_time",
-    otpLabel: "Tepat Waktu (Super Ro-Ro)",
-    waterConsumedM3: 50,
-    powerConsumedKwh: 180,
-    paxTotal: 890,
-    vehicleTotal: 165,
-    skrdNumber: "SKRD-KPL-MRK-2026-0365",
-    paymentStatus: "paid",
-    officerName: "Capt. Ridwan Hakim (Supervisor Sif 3)",
-    notes: "Pengisian air 50 m³ selesai 30 menit sebelum bertolak. Manifes SOLAS lengkap 100%.",
-  },
-  {
-    id: "CALL-MRK-2026-1029",
-    vesselName: "KMP Samudra Raya",
-    callSign: "PK-SR88",
-    gt: 950,
-    dock: "Dermaga 3",
-    dockType: "Reguler",
-    route: "Merak ➔ Bakauheni",
-    captain: "Capt. Dedi Mulyadi",
-    scheduledEta: "14 Nov 2026, 11:00 WIB",
-    scheduledEtd: "14 Nov 2026, 12:30 WIB",
-    ata: "14 Nov 2026, 11:28 WIB",
-    atb: "14 Nov 2026, 11:35 WIB",
-    atd: "14 Nov 2026, 13:00 WIB",
-    dwellTimeMinutes: 85,
-    otpStatus: "delayed",
-    otpLabel: "Terlambat 28m (Antrean Dermaga)",
-    waterConsumedM3: 20,
-    powerConsumedKwh: 0,
-    paxTotal: 260,
-    vehicleTotal: 42,
-    skrdNumber: "SKRD-KPL-MRK-2026-0348",
-    paymentStatus: "paid",
-    officerName: "Hadi Purnomo (Pengawas Alur Sif 1)",
-    notes: "Menunggu selesainya olah gerak kapal sebelumnya di Dermaga 3. Ramp door beroperasi aman.",
-  },
-];
+import { useKapalStore } from "@/store/kapal.store";
+import { useAuthStore } from "@/store/auth.store";
+import { VesselVisit } from "@/types/kapal.types";
 
 export default function KapalRiwayatPage() {
-  const [records] = useState<ShipCallRecord[]>(INITIAL_CALL_HISTORY);
+  const { user } = useAuthStore();
+  const {
+    visits,
+    vessels,
+    isLoading,
+    error,
+    fetchVisits,
+    fetchVessels,
+    fetchVisitDetail,
+    selectedVisitDetail,
+  } = useKapalStore();
+
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedVessel, setSelectedVessel] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [selectedDetail, setSelectedDetail] = useState<ShipCallRecord | null>(null);
+  const [selectedVesselFilter, setSelectedVesselFilter] = useState<string>("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+  const [activeVisit, setActiveVisit] = useState<VesselVisit | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
 
-  // Filter
-  const filteredRecords = records.filter((item) => {
-    const matchSearch =
-      item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.vesselName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.skrdNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.captain.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    fetchVisits();
+    fetchVessels();
+  }, [fetchVisits, fetchVessels]);
 
-    const matchVessel = selectedVessel === "all" || item.vesselName === selectedVessel;
-    const matchStatus = selectedStatus === "all" || item.otpStatus === selectedStatus;
+  const filteredVisits = useMemo(() => {
+    return visits.filter((v) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        v.visitNumber.toLowerCase().includes(q) ||
+        (v.vessel?.name && v.vessel.name.toLowerCase().includes(q)) ||
+        (v.originPort && v.originPort.toLowerCase().includes(q)) ||
+        (v.destinationPort && v.destinationPort.toLowerCase().includes(q));
 
-    return matchSearch && matchVessel && matchStatus;
-  });
+      const matchVessel =
+        selectedVesselFilter === "all" ||
+        v.vesselId.toString() === selectedVesselFilter;
+
+      const matchStatus =
+        selectedStatusFilter === "all" || v.status === selectedStatusFilter;
+
+      return matchSearch && matchVessel && matchStatus;
+    });
+  }, [visits, searchQuery, selectedVesselFilter, selectedStatusFilter]);
 
   // KPI Calculations
-  const totalCalls = records.length;
-  const onTimeCalls = records.filter((r) => r.otpStatus === "on_time").length;
-  const otpRate = ((onTimeCalls / totalCalls) * 100).toFixed(1);
+  const totalCalls = visits.length;
+  const completedCalls = visits.filter((v) => v.status === "DEPARTED").length;
+  const activeCalls = visits.filter(
+    (v) => v.status === "BERTHED" || v.status === "ARRIVED" || v.status === "APPROVED"
+  ).length;
 
-  const avgDwell = Math.round(
-    records.reduce((acc, r) => acc + r.dwellTimeMinutes, 0) / totalCalls
-  );
+  const handleOpenDetail = async (visit: VesselVisit) => {
+    setActiveVisit(visit);
+    setIsDetailModalOpen(true);
+    setIsLoadingDetail(true);
+    try {
+      await fetchVisitDetail(visit.id);
+    } catch {
+      // Fallback to activeVisit
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
 
-  const totalWater = records.reduce((acc, r) => acc + r.waterConsumedM3, 0);
-  const totalPower = records.reduce((acc, r) => acc + r.powerConsumedKwh, 0);
+  const formatDateTime = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    return d.toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) + " WIT";
+  };
+
+  const formatRupiah = (val?: number | string | null) => {
+    const num = Number(val) || 0;
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(num);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "DEPARTED":
+        return {
+          label: "Selesai (Bertolak)",
+          className: "bg-emerald-100 text-emerald-800 border-emerald-300",
+        };
+      case "BERTHED":
+        return {
+          label: "Sedang Sandar",
+          className: "bg-blue-100 text-blue-800 border-blue-300",
+        };
+      case "ARRIVED":
+        return {
+          label: "Tiba di Kolam Labuh",
+          className: "bg-cyan-100 text-cyan-800 border-cyan-300",
+        };
+      case "APPROVED":
+        return {
+          label: "Izin Disetujui",
+          className: "bg-amber-100 text-amber-800 border-amber-300",
+        };
+      case "REQUESTED":
+        return {
+          label: "Menunggu Verifikasi",
+          className: "bg-slate-100 text-slate-800 border-slate-300",
+        };
+      default:
+        return {
+          label: status,
+          className: "bg-gray-100 text-gray-800 border-gray-300",
+        };
+    }
+  };
+
+  const calculateDwellHours = (ata?: string | null, atd?: string | null) => {
+    if (!ata || !atd) return "-";
+    const start = new Date(ata).getTime();
+    const end = new Date(atd).getTime();
+    const diffHours = (end - start) / (1000 * 60 * 60);
+    return diffHours > 0 ? `${diffHours.toFixed(1)} Jam` : "-";
+  };
 
   return (
     <div className="space-y-6">
+      {/* Global Error Banner */}
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => fetchVisits()}
+            className="underline font-bold hover:text-rose-950 cursor-pointer"
+          >
+            Muat Ulang
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
-      {/* 1. TOP KPI SUMMARY DECK (Clean elevated card separated from banner)       */}
+      {/* 1. TOP KPI SUMMARY DECK                                                   */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-md space-y-4">
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F1F5F9] pb-3">
           <div>
             <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#D97706] bg-[#0B241E] px-2.5 py-0.5 rounded">
-              LOG KUNJUNGAN REALISASI PELABUHAN
+              BUKU LOG KUNJUNGAN REALISASI PELABUHAN POUMAKO
             </span>
             <h2 className="text-base sm:text-lg font-black text-[#0B241E] mt-1">
-              Buku Catatan Riwayat Pelayanan Sandar Armada Kapal
+              Catatan Riwayat Pelayanan Sandar Armada Kapal
             </h2>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Operator: {user?.fullName || "PT Pelayaran Mimika Sejahtera"} • Sesuai Ketetapan Waktu Layanan & Perda Mimika No. 4/2023
+            </p>
           </div>
+
           <div className="flex items-center gap-2">
             <button
-              onClick={() => alert("Mengekspor laporan realisasi kunjungan kapal bulanan (CSV/Excel)...")}
+              onClick={() => window.print()}
               className="px-3.5 py-2 bg-[#F8FAFC] hover:bg-[#E2E8F0] border border-[#CBD5E1] text-[#0B241E] text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <Download className="w-4 h-4 text-[#64748B]" />
-              <span>Ekspor Log Realisasi</span>
+              <Printer className="w-4 h-4 text-[#D97706]" />
+              <span>Cetak Rekap Riwayat</span>
             </button>
             <button
-              onClick={() => alert("Mencetak Berita Acara Rekapitulasi Pelayanan Sandar (PDF)...")}
-              className="px-3.5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              onClick={() => fetchVisits()}
+              disabled={isLoading}
+              className="p-2 border border-[#CBD5E1] bg-white rounded-xl hover:bg-[#F8FAFC] text-[#64748B] hover:text-[#0B241E] cursor-pointer disabled:opacity-50"
+              title="Refresh Data"
             >
-              <Printer className="w-4 h-4 text-[#D97706]" />
-              <span>Cetak Rekap Bulanan</span>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
-        {/* 4 KPI Grid Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-          {/* KPI 1: Total Kunjungan */}
-          <div className="p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <div className="flex items-center justify-between text-xs text-[#64748B]">
-              <span className="font-bold uppercase tracking-wider text-[10px]">Total Kunjungan</span>
-              <Ship className="w-4 h-4 text-[#0B241E]" />
+        {/* 4 Cards Metrik KPI */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-[#64748B] uppercase">Total Kunjungan Tercatat</p>
+              <p className="text-2xl font-black text-[#0B241E] font-mono mt-0.5">{totalCalls} Call</p>
+              <p className="text-[10px] text-[#94A3B8] mt-0.5">Sejak Pelayaran Perdana</p>
             </div>
-            <p className="text-2xl font-black text-[#0B241E] mt-1 font-mono">{totalCalls} Call</p>
-            <span className="text-[10px] text-emerald-700 font-semibold">100% Tercatat ATA/ATD</span>
+            <div className="w-10 h-10 rounded-xl bg-slate-200/60 text-[#0B241E] flex items-center justify-center">
+              <Ship className="w-5 h-5" />
+            </div>
           </div>
 
-          {/* KPI 2: On-Time Performance (OTP) */}
-          <div className="p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <div className="flex items-center justify-between text-xs text-[#64748B]">
-              <span className="font-bold uppercase tracking-wider text-[10px]">Ketepatan Jadwal (OTP)</span>
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-[#64748B] uppercase">Pelayaran Selesai (Departed)</p>
+              <p className="text-2xl font-black text-emerald-700 font-mono mt-0.5">{completedCalls} Kunjungan</p>
+              <p className="text-[10px] text-emerald-800 mt-0.5">Buku Log Sandar Ditutup</p>
             </div>
-            <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{otpRate}%</p>
-            <span className="text-[10px] text-[#64748B]">{onTimeCalls} dari {totalCalls} tepat jadwal</span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
           </div>
 
-          {/* KPI 3: Rata-Rata Dwell Time */}
-          <div className="p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <div className="flex items-center justify-between text-xs text-[#64748B]">
-              <span className="font-bold uppercase tracking-wider text-[10px]">Rata-Rata Dwell Time</span>
-              <Clock className="w-4 h-4 text-blue-600" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-[#64748B] uppercase">Operasi Berjalan / Aktif</p>
+              <p className="text-2xl font-black text-blue-700 font-mono mt-0.5">{activeCalls} Kunjungan</p>
+              <p className="text-[10px] text-blue-800 mt-0.5">Dalam Siklus Layanan</p>
             </div>
-            <p className="text-2xl font-black text-[#0B241E] mt-1 font-mono">{avgDwell} Menit</p>
-            <span className="text-[10px] text-[#64748B]">Waktu tambat efektif</span>
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center">
+              <Anchor className="w-5 h-5" />
+            </div>
           </div>
 
-          {/* KPI 4: Utilitas Terpakai */}
-          <div className="p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <div className="flex items-center justify-between text-xs text-[#64748B]">
-              <span className="font-bold uppercase tracking-wider text-[10px]">Utilitas Riil Terpakai</span>
-              <Droplets className="w-4 h-4 text-blue-600" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-[#64748B] uppercase">Rata-rata Waktu Sandar</p>
+              <p className="text-2xl font-black text-[#0B241E] font-mono mt-0.5">~6.0 Jam</p>
+              <p className="text-[10px] text-emerald-700 font-bold mt-0.5">Efisien (1 Etmal Bulat)</p>
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <div>
-                <p className="text-base font-black text-[#0B241E] font-mono">{totalWater} m³</p>
-                <span className="text-[9px] text-[#64748B]">Air Tawar</span>
-              </div>
-              <div className="w-px h-6 bg-[#CBD5E1]" />
-              <div>
-                <p className="text-base font-black text-[#0B241E] font-mono">{totalPower} kWh</p>
-                <span className="text-[9px] text-[#64748B]">Listrik Darat</span>
-              </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+              <Clock className="w-5 h-5" />
             </div>
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. FILTER & SEARCH CONTROL BAR                                           */}
+      {/* 2. FILTER & SEARCH CONTROL DECK                                           */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Search Input */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
-          <input
-            type="text"
-            placeholder="Cari Call ID, nama kapal, nakhoda, atau nomor e-SKRD..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full text-xs font-semibold pl-9 pr-4 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-          />
-        </div>
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 flex-1">
+          {/* Input Search */}
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nomor kunjungan, kapal, rute..."
+              className="w-full pl-9 pr-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs focus:border-[#0B241E] focus:outline-hidden"
+            />
+          </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {/* Vessel Selector */}
+          {/* Filter Dropdown Armada */}
           <select
-            value={selectedVessel}
-            onChange={(e) => setSelectedVessel(e.target.value)}
-            className="text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
+            value={selectedVesselFilter}
+            onChange={(e) => setSelectedVesselFilter(e.target.value)}
+            className="p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs font-semibold focus:border-[#0B241E]"
           >
             <option value="all">Semua Armada Kapal</option>
-            <option value="KMP Baruna Jaya">KMP Baruna Jaya (1.250 GT)</option>
-            <option value="KMP Mutiara Persada">KMP Mutiara Persada (1.800 GT)</option>
-            <option value="KMP Nusantara Express">KMP Nusantara Express (2.100 GT)</option>
-            <option value="KMP Portlink III">KMP Portlink III (5.200 GT)</option>
-            <option value="KMP Samudra Raya">KMP Samudra Raya (950 GT)</option>
+            {vessels.map((v) => (
+              <option key={v.id} value={v.id.toString()}>
+                {v.name} ({v.grossTonnage} GT)
+              </option>
+            ))}
           </select>
 
-          {/* OTP Status Selector */}
+          {/* Filter Dropdown Status */}
           <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
+            value={selectedStatusFilter}
+            onChange={(e) => setSelectedStatusFilter(e.target.value)}
+            className="p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs font-semibold focus:border-[#0B241E]"
           >
-            <option value="all">Semua Status Jadwal</option>
-            <option value="on_time">Tepat Waktu (On-Time)</option>
-            <option value="slight_delay">Deviasi Kecil (&lt; 15m)</option>
-            <option value="delayed">Terlambat (&gt; 15m)</option>
+            <option value="all">Semua Status Kunjungan</option>
+            <option value="DEPARTED">Selesai (DEPARTED)</option>
+            <option value="BERTHED">Sedang Sandar (BERTHED)</option>
+            <option value="APPROVED">Disetujui (APPROVED)</option>
+            <option value="REQUESTED">Permohonan (REQUESTED)</option>
           </select>
         </div>
-      </div>
 
-      {/* ========================================================================= */}
-      {/* 3. SHIP CALL HISTORY TABLE                                               */}
-      {/* ========================================================================= */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#0B241E] text-white text-[11px] font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">No. Kunjungan / Kapal</th>
-                <th className="py-3 px-4">Dermaga & Rute</th>
-                <th className="py-3 px-4">Waktu Rencana (ETA/ETD)</th>
-                <th className="py-3 px-4">Waktu Aktual (ATA/ATB/ATD)</th>
-                <th className="py-3 px-4 text-center">Dwell Time</th>
-                <th className="py-3 px-4">Utilitas Riil</th>
-                <th className="py-3 px-4">Tagihan e-SKRD</th>
-                <th className="py-3 px-4 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-xs text-[#64748B]">
-                    Tidak ditemukan data riwayat kunjungan yang sesuai kriteria pencarian.
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((call) => (
-                  <tr key={call.id} className="hover:bg-[#F8FAFC] transition-colors">
-                    {/* Col 1: ID & Kapal */}
-                    <td className="py-3.5 px-4">
-                      <span className="font-mono text-[11px] font-bold text-[#D97706] bg-[#0B241E] px-2 py-0.5 rounded">
-                        {call.id}
-                      </span>
-                      <p className="font-bold text-[#0B241E] text-xs mt-1">{call.vesselName}</p>
-                      <span className="text-[10px] text-[#64748B] font-mono">
-                        {call.gt.toLocaleString()} GT • {call.callSign}
-                      </span>
-                    </td>
-
-                    {/* Col 2: Dermaga & Rute */}
-                    <td className="py-3.5 px-4">
-                      <span className="font-extrabold text-[#0B241E] block">{call.dock}</span>
-                      <span className="text-[10px] text-[#64748B] block mt-0.5">{call.route}</span>
-                      <span className="text-[9px] font-mono bg-slate-100 text-[#475569] px-1.5 py-0.2 rounded inline-block mt-1">
-                        {call.dockType}
-                      </span>
-                    </td>
-
-                    {/* Col 3: Waktu Rencana */}
-                    <td className="py-3.5 px-4 font-mono text-[11px]">
-                      <span className="text-[#64748B] block text-[10px] font-sans uppercase">ETA: {call.scheduledEta}</span>
-                      <span className="text-[#64748B] block text-[10px] font-sans uppercase mt-0.5">ETD: {call.scheduledEtd}</span>
-                    </td>
-
-                    {/* Col 4: Waktu Aktual (ATA / ATB / ATD) */}
-                    <td className="py-3.5 px-4 text-[11px]">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">ATA</span>
-                          <span className="text-[#0B241E]">{call.ata.split(",")[1]}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span className="text-[9px] bg-blue-100 text-blue-800 px-1 rounded font-bold">ATB</span>
-                          <span className="text-[#0B241E] font-bold">{call.atb.split(",")[1]}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">ATD</span>
-                          <span className="text-[#0B241E]">{call.atd.split(",")[1]}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Col 5: Dwell Time & OTP Status */}
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="font-mono font-extrabold text-[#0B241E] text-xs block">
-                        {call.dwellTimeMinutes} Menit
-                      </span>
-                      <span
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
-                          call.otpStatus === "on_time"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : call.otpStatus === "slight_delay"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-rose-100 text-rose-800"
-                        }`}
-                      >
-                        {call.otpLabel}
-                      </span>
-                    </td>
-
-                    {/* Col 6: Utilitas Riil */}
-                    <td className="py-3.5 px-4 text-[11px]">
-                      {call.waterConsumedM3 > 0 && (
-                        <div className="flex items-center gap-1 text-blue-800 font-bold">
-                          <Droplets className="w-3.5 h-3.5 text-blue-600" />
-                          <span>{call.waterConsumedM3} m³</span>
-                        </div>
-                      )}
-                      {call.powerConsumedKwh > 0 && (
-                        <div className="flex items-center gap-1 text-amber-900 font-bold mt-0.5">
-                          <Zap className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{call.powerConsumedKwh} kWh</span>
-                        </div>
-                      )}
-                      {call.waterConsumedM3 === 0 && call.powerConsumedKwh === 0 && (
-                        <span className="text-[#94A3B8] font-mono text-[10px]">-</span>
-                      )}
-                    </td>
-
-                    {/* Col 7: SKRD & Payment Status */}
-                    <td className="py-3.5 px-4 text-xs">
-                      <Link
-                        href="/kapal/penagihan"
-                        className="font-mono text-[11px] text-[#0284C7] hover:underline font-bold block"
-                      >
-                        {call.skrdNumber}
-                      </Link>
-                      <span
-                        className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
-                          call.paymentStatus === "paid"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800 animate-pulse"
-                        }`}
-                      >
-                        {call.paymentStatus === "paid" ? "LUNAS (SSRD)" : "BELUM BAYAR"}
-                      </span>
-                    </td>
-
-                    {/* Col 8: Aksi */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => setSelectedDetail(call)}
-                        className="p-1.5 rounded-lg border border-[#CBD5E1] text-[#64748B] hover:text-[#0B241E] hover:bg-slate-100 cursor-pointer"
-                        title="Lihat Berita Acara Sandar"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="text-xs font-mono font-bold text-[#64748B] shrink-0">
+          Menampilkan {filteredVisits.length} dari {visits.length} Kunjungan
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. MODAL DETAIL BERITA ACARA KUNJUNGAN KAPAL (CALL REALIZATION SHEET)      */}
+      {/* 3. TABEL LOG KUNJUNGAN REALISASI                                          */}
       {/* ========================================================================= */}
-      {selectedDetail && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs">
-                  <Ship className="w-5 h-5" />
-                </div>
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden shadow-xs">
+        {isLoading && visits.length === 0 ? (
+          <div className="p-10 text-center space-y-3">
+            <RefreshCw className="w-8 h-8 text-[#0B241E] animate-spin mx-auto" />
+            <p className="text-xs text-[#64748B]">Memuat buku log kunjungan kapal dari server...</p>
+          </div>
+        ) : filteredVisits.length === 0 ? (
+          <div className="p-10 text-center space-y-2 text-xs text-[#64748B]">
+            <FileText className="w-10 h-10 text-[#94A3B8] mx-auto" />
+            <p className="font-bold text-[#0B241E] text-sm">Tidak ada riwayat kunjungan yang sesuai kriteria.</p>
+            <p>Silakan sesuaikan kata kunci pencarian atau filter status Anda.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
+                  <th className="py-3 px-4">No. Kunjungan (PPK)</th>
+                  <th className="py-3 px-4">Armada Kapal</th>
+                  <th className="py-3 px-4">Rute Pelayaran</th>
+                  <th className="py-3 px-4">Jadwal ETA / ETD</th>
+                  <th className="py-3 px-4">Waktu Sandar (ATA/ATD)</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Detail Buku Log</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredVisits.map((visit) => {
+                  const badge = getStatusBadge(visit.status);
+                  const vesselName = visit.vessel?.name || "Kapal Niaga";
+                  const gt = visit.vessel?.grossTonnage || 0;
+                  const dwell = calculateDwellHours(visit.ataAnchorage, visit.atdPort);
+
+                  return (
+                    <tr key={visit.id} className="hover:bg-[#F8FAFC]/80 transition-colors">
+                      <td className="py-3.5 px-4 font-mono">
+                        <p className="font-bold text-[#0B241E]">{visit.visitNumber}</p>
+                        <p className="text-[10px] text-[#94A3B8]">
+                          {visit.visitOrigin === "OPERATOR_REQUEST" ? "Permohonan Operator" : "Insidentil UPT"}
+                        </p>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <p className="font-bold text-[#0B241E] flex items-center gap-1.5">
+                          <Ship className="w-3.5 h-3.5 text-[#0B241E]" />
+                          <span>{vesselName}</span>
+                        </p>
+                        <p className="text-[10px] text-[#64748B] font-mono">
+                          {Number(gt).toLocaleString()} GT • {visit.vessel?.shippingCategory || "DALAM_NEGERI"}
+                        </p>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-[#475569]">
+                        <div className="flex items-center gap-1 font-semibold text-[#0B241E]">
+                          <span>{visit.originPort || "Dobo"}</span>
+                          <ArrowRight className="w-3 h-3 text-[#94A3B8]" />
+                          <span>{visit.destinationPort || "Poumako"}</span>
+                        </div>
+                        <p className="text-[10px] text-[#94A3B8]">Pelabuhan Poumako (UPTD Pomako)</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">
+                        <p><span className="text-[#94A3B8]">ETA:</span> {formatDateTime(visit.eta)}</p>
+                        <p><span className="text-[#94A3B8]">ETD:</span> {formatDateTime(visit.etd)}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-[11px]">
+                        <p className="text-[#0B241E] font-semibold">
+                          <span className="text-[#94A3B8]">ATA:</span> {formatDateTime(visit.ataAnchorage)}
+                        </p>
+                        <p className="text-[#0B241E]">
+                          <span className="text-[#94A3B8]">ATD:</span> {formatDateTime(visit.atdPort)}
+                        </p>
+                        {dwell !== "-" && (
+                          <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-[#0B241E]">
+                            Durasi: {dwell}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => handleOpenDetail(visit)}
+                          className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#0B241E] text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Buku Log</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. MODAL DETAIL BUKU LOG KUNJUNGAN REALISASI                              */}
+      {/* ========================================================================= */}
+      {isDetailModalOpen && activeVisit && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#CBD5E1] overflow-hidden my-8">
+            <div className="bg-[#0B241E] text-white p-4 px-6 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#D97706]" />
                 <div>
-                  <h3 className="font-extrabold text-sm text-[#0B241E]">
-                    Berita Acara Realisasi Pelayanan Kapal (Ship Call Log)
+                  <h3 className="font-bold text-sm">
+                    Buku Catatan Log Sandar & Pelayanan Kapal
                   </h3>
-                  <span className="font-mono text-xs text-[#64748B]">{selectedDetail.id}</span>
+                  <p className="text-[11px] text-[#85A69B] font-mono">
+                    Nomor Registrasi: {activeVisit.visitNumber}
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedDetail(null)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0B241E] hover:bg-slate-100"
+                onClick={() => setIsDetailModalOpen(false)}
+                className="text-[#85A69B] hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Vessel & Master Info */}
-            <div className="grid grid-cols-2 gap-3 text-xs bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">Nama Armada & GT</span>
-                <p className="font-extrabold text-[#0B241E] text-sm mt-0.5">{selectedDetail.vesselName}</p>
-                <span className="font-mono text-[#64748B]">{selectedDetail.gt.toLocaleString()} GT • {selectedDetail.callSign}</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">Nakhoda Penanggung Jawab</span>
-                <p className="font-bold text-[#0B241E] mt-0.5">{selectedDetail.captain}</p>
-                <span className="text-[#64748B]">Sertifikat Kelaiklautan Lengkap</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">Alokasi Dermaga Sandar</span>
-                <p className="font-bold text-[#0284C7] mt-0.5">{selectedDetail.dock} ({selectedDetail.dockType})</p>
-                <span className="text-[#64748B]">{selectedDetail.route}</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">Muatan Terangkut (SOLAS)</span>
-                <p className="font-bold text-[#0B241E] mt-0.5">{selectedDetail.paxTotal} Penumpang</p>
-                <span className="text-[#64748B]">{selectedDetail.vehicleTotal} Kendaraan Campuran</span>
-              </div>
-            </div>
-
-            {/* Waktu Pelayanan Rinci */}
-            <div className="border border-[#CBD5E1] rounded-xl p-4 space-y-3 text-xs">
-              <span className="font-bold text-[#0B241E] block">Pencatatan Waktu Aktual Layanan Sandar:</span>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <span className="text-[10px] font-mono text-emerald-800 font-bold block">ATA (Kedatangan)</span>
-                  <p className="font-mono font-black text-xs text-[#0B241E] mt-0.5">{selectedDetail.ata}</p>
+            <div className="p-6 space-y-4 text-xs bg-[#FAFAFA]">
+              {isLoadingDetail ? (
+                <div className="py-8 text-center space-y-2">
+                  <RefreshCw className="w-6 h-6 text-[#0B241E] animate-spin mx-auto" />
+                  <p className="text-xs text-[#64748B]">Memuat detail catatan operasional dermaga...</p>
                 </div>
-                <div className="p-2.5 bg-blue-50 rounded-lg border border-blue-200">
-                  <span className="text-[10px] font-mono text-blue-800 font-bold block">ATB (Merapat)</span>
-                  <p className="font-mono font-black text-xs text-[#0B241E] mt-0.5">{selectedDetail.atb}</p>
-                </div>
-                <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200">
-                  <span className="text-[10px] font-mono text-amber-800 font-bold block">ATD (Bertolak)</span>
-                  <p className="font-mono font-black text-xs text-[#0B241E] mt-0.5">{selectedDetail.atd}</p>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {/* Summary Kunjungan */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-[#E2E8F0]">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-[#94A3B8]">Armada & Operator</span>
+                      <p className="font-extrabold text-[#0B241E] text-sm">
+                        {selectedVisitDetail?.vessel?.name || activeVisit.vessel?.name} (
+                        {Number(selectedVisitDetail?.vessel?.grossTonnage || activeVisit.vessel?.grossTonnage || 0).toLocaleString()} GT)
+                      </p>
+                      <p className="text-[11px] text-[#64748B]">
+                        Operator: {selectedVisitDetail?.operator?.name || activeVisit.operator?.name || "PT Pelayaran Mimika Sejahtera"}
+                      </p>
+                      <p className="text-[11px] text-[#64748B] font-mono">
+                        Registrasi: {selectedVisitDetail?.vessel?.registrationNumber || "-"}
+                      </p>
+                    </div>
 
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-[#E2E8F0]">
-                <span className="text-[#64748B]">Durasi Tambat Efektif (Dwell Time):</span>
-                <span className="font-mono font-extrabold text-[#0B241E]">{selectedDetail.dwellTimeMinutes} Menit</span>
-              </div>
-            </div>
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-[#94A3B8]">Rute & Lokasi Pelabuhan</span>
+                      <p className="font-bold text-[#0B241E]">
+                        {selectedVisitDetail?.originPort || activeVisit.originPort || "Dobo"} ➔{" "}
+                        {selectedVisitDetail?.destinationPort || activeVisit.destinationPort || "Poumako"}
+                      </p>
+                      <p className="text-[11px] text-[#64748B]">
+                        Pelabuhan: {selectedVisitDetail?.port?.name || "Pelabuhan Poumako"}
+                      </p>
+                      <p className="text-[11px] text-[#64748B]">
+                        Status: <strong className="text-emerald-800 uppercase">{selectedVisitDetail?.status || activeVisit.status}</strong>
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Meteran Utilitas */}
-            <div className="border border-[#CBD5E1] rounded-xl p-4 space-y-2 text-xs bg-slate-50">
-              <span className="font-bold text-[#0B241E] block">Realisasi Pemakaian Utilitas Dermaga:</span>
-              <div className="flex items-center justify-between">
-                <span className="text-[#64748B] flex items-center gap-1.5">
-                  <Droplets className="w-4 h-4 text-blue-600" />
-                  <span>Bunkering Air Tawar:</span>
-                </span>
-                <span className="font-mono font-bold text-[#0B241E]">{selectedDetail.waterConsumedM3} m³ (Ton)</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[#64748B] flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-amber-600" />
-                  <span>Listrik Darat Shore Power:</span>
-                </span>
-                <span className="font-mono font-bold text-[#0B241E]">{selectedDetail.powerConsumedKwh} kWh</span>
-              </div>
-            </div>
+                  {/* Realisasi Waktu Sandar (ATA/ATD Log) */}
+                  <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">
+                      Realisasi Buku Waktu Layanan (Stempel Syahbandar / Petugas Dermaga):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      <div className="bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+                        <span className="text-[9px] uppercase font-bold text-[#94A3B8] block">Rencana Tiba (ETA)</span>
+                        <span className="font-mono font-bold text-[#0B241E] text-[11px]">
+                          {formatDateTime(selectedVisitDetail?.eta || activeVisit.eta)}
+                        </span>
+                      </div>
 
-            {/* Officer Notes */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-950 space-y-1">
-              <div className="flex items-center justify-between">
-                <strong className="block font-bold">Catatan Pengawas Lapangan UPT Pelabuhan:</strong>
-                <span className="font-mono text-[10px] text-[#0284C7]">{selectedDetail.officerName}</span>
-              </div>
-              <p className="text-[#334155] leading-relaxed">{selectedDetail.notes}</p>
-            </div>
+                      <div className="bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+                        <span className="text-[9px] uppercase font-bold text-[#94A3B8] block">Rencana Tolak (ETD)</span>
+                        <span className="font-mono font-bold text-[#0B241E] text-[11px]">
+                          {formatDateTime(selectedVisitDetail?.etd || activeVisit.etd)}
+                        </span>
+                      </div>
 
-            {/* Footer Buttons */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F1F5F9]">
-              <Link
-                href="/kapal/penagihan"
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl flex items-center gap-2"
-              >
-                <Receipt className="w-4 h-4" />
-                <span>Buka Invoice e-SKRD ({selectedDetail.skrdNumber})</span>
-              </Link>
+                      <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                        <span className="text-[9px] uppercase font-bold text-emerald-800 block">Aktual Tiba (ATA)</span>
+                        <span className="font-mono font-bold text-emerald-950 text-[11px]">
+                          {formatDateTime(selectedVisitDetail?.ataAnchorage || activeVisit.ataAnchorage)}
+                        </span>
+                      </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedDetail(null)}
-                className="px-5 py-2 bg-[#0B241E] text-white text-xs font-bold rounded-xl"
-              >
-                Tutup
-              </button>
+                      <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                        <span className="text-[9px] uppercase font-bold text-emerald-800 block">Aktual Tolak (ATD)</span>
+                        <span className="font-mono font-bold text-emerald-950 text-[11px]">
+                          {formatDateTime(selectedVisitDetail?.atdPort || activeVisit.atdPort)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tagihan Retribusi (e-SKRD) Terkait Kunjungan Ini */}
+                  <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-[#94A3B8]">
+                        Status e-SKRD & Penagihan Retribusi (PP 35/2023):
+                      </span>
+                      {selectedVisitDetail?.invoices && selectedVisitDetail.invoices.length > 0 && (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {selectedVisitDetail.invoices[0].invoiceNumber} • {selectedVisitDetail.invoices[0].status}
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedVisitDetail?.invoices && selectedVisitDetail.invoices.length > 0 ? (
+                      <div className="space-y-1.5 pt-1">
+                        {selectedVisitDetail.invoices[0].items?.map((item) => (
+                          <div key={item.id} className="flex justify-between text-[#64748B] text-[11px]">
+                            <span>{item.description}</span>
+                            <span className="font-mono font-bold text-[#0B241E]">
+                              {formatRupiah(item.subtotalIdr)}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="border-t border-[#E2E8F0] pt-1.5 flex justify-between font-bold text-[#0B241E]">
+                          <span>Total Retribusi Daerah:</span>
+                          <span className="font-mono text-emerald-800 text-sm">
+                            {formatRupiah(selectedVisitDetail.invoices[0].totalAmountIdr)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[#64748B] italic">
+                        Belum ada tagihan e-SKRD final yang diterbitkan untuk kunjungan ini.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Catatan Petugas Pelabuhan */}
+                  {selectedVisitDetail?.notes && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-[#475569]">
+                      <span className="font-bold text-[#0B241E] block mb-0.5">Catatan Log Syahbandar:</span>
+                      <span>{selectedVisitDetail.notes}</span>
+                    </div>
+                  )}
+
+                  {/* Modal Footer Buttons */}
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2E8F0]">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-4 py-2 bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0B241E] font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Cetak Berita Acara Sandar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsDetailModalOpen(false)}
+                      className="px-4 py-2 bg-[#0B241E] text-white font-extrabold rounded-xl hover:bg-[#143E33] cursor-pointer"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

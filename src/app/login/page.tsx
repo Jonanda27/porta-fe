@@ -16,33 +16,44 @@ import {
   ArrowLeft,
   CheckCircle2,
 } from "lucide-react";
+import { AuthService } from "@/services/auth.service";
+import { UserRole } from "@/types/auth.types";
+import { useAuthStore } from "@/store/auth.store";
+import { ApiException } from "@/lib/api-client";
 
 const DEMO_ACCOUNTS = [
   {
+    roleLabel: "Operator Kapal (PT Pelayaran Mimika)",
+    email: "operator@mimika-shipping.co.id",
+    password: "Porta123!",
+    badge: "bg-blue-900/60 text-blue-200 border-blue-700",
+    targetRoute: "/kapal/dashboard",
+  },
+  {
     roleLabel: "Admin Pelabuhan (UPT)",
     email: "admin.pomako@porta.mimikakab.go.id",
-    password: "Admin123!",
+    password: "Porta123!",
     badge: "bg-emerald-800 text-emerald-200 border-emerald-700",
     targetRoute: "/upt/dashboard",
   },
   {
     roleLabel: "Kepala Dinas (Dishub)",
     email: "dishub@porta.mimikakab.go.id",
-    password: "Admin123!",
+    password: "Porta123!",
     badge: "bg-[#0B241E] text-[#D97706] border-[#1E5748]",
     targetRoute: "/dinas/dashboard",
   },
   {
     roleLabel: "Bendahara Kasda",
     email: "bendahara.pomako@porta.mimikakab.go.id",
-    password: "Admin123!",
+    password: "Porta123!",
     badge: "bg-amber-900/60 text-amber-200 border-amber-700",
     targetRoute: "/upt/dashboard",
   },
   {
     roleLabel: "Petugas Dermaga",
     email: "petugas.pomako@porta.mimikakab.go.id",
-    password: "Admin123!",
+    password: "Porta123!",
     badge: "bg-teal-900/60 text-teal-200 border-teal-700",
     targetRoute: "/upt/kapal",
   },
@@ -50,12 +61,12 @@ const DEMO_ACCOUNTS = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login: storeLogin, isLoading: isStoreLoading } = useAuthStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -75,95 +86,63 @@ export default function LoginPage() {
       return;
     }
 
-    setIsLoading(true);
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
-
     try {
-      const response = await fetch(`${apiUrl}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      // Panggil store terpusat (Store -> Service -> ApiClient -> Backend)
+      const data = await storeLogin({ email, password });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const message =
-          errorData?.message ||
-          (response.status === 401
-            ? "Email atau kata sandi tidak valid. Periksa kembali akun Anda."
-            : "Terjadi kesalahan saat memproses login. Silakan coba lagi.");
-        throw new Error(message);
-      }
+      setSuccessMessage(
+        `Login berhasil! Mengalihkan ke portal ${data.user?.fullName || ""}...`
+      );
 
-      const data = await response.json();
-
-      // Simpan session token & profile
-      if (typeof window !== "undefined") {
-        localStorage.setItem("porta_token", data.accessToken);
-        localStorage.setItem("porta_user", JSON.stringify(data.user));
-      }
-
-      setSuccessMessage(`Login berhasil! Mengalihkan ke portal ${data.user?.fullName || ""}...`);
-
-      // Navigasi otomatis sesuai peran backend
-      const role = data.user?.role;
+      // Arahkan ke rute yang sesuai berdasarkan role wewenang backend
+      const targetRoute = AuthService.getRedirectRouteByRole(data.user?.role);
       setTimeout(() => {
-        if (role === "DISHUB_EKSEKUTIF") {
-          router.push("/dinas/dashboard");
-        } else if (role === "OPERATOR_KAPAL") {
-          router.push("/kapal/dashboard");
-        } else if (
-          role === "ADMIN_PELABUHAN" ||
-          role === "PETUGAS_DERMAGA" ||
-          role === "SUPERADMIN" ||
-          role === "BENDAHARA"
-        ) {
-          router.push("/upt/dashboard");
-        } else {
-          router.push("/upt/dashboard");
-        }
+        router.push(targetRoute);
       }, 700);
     } catch (err: unknown) {
-      // Fallback offline / dev bypass jika server backend belum di-start oleh pengguna
-      const isConnectionRefused =
-        err instanceof Error &&
-        (err.message.includes("Failed to fetch") ||
-          err.message.includes("NetworkError") ||
-          err.message.includes("ERR_CONNECTION_REFUSED"));
-
-      if (isConnectionRefused) {
-        // Cek apakah akun demo cocok untuk mempermudah pengujian saat backend belum dinyalakan
-        const matchedDemo = DEMO_ACCOUNTS.find(
-          (d) => d.email.toLowerCase() === email.toLowerCase() && d.password === password
-        );
-
-        if (matchedDemo) {
-          setSuccessMessage(
-            "Backend offline (Mode Pratinjau Frontend). Mengalihkan langsung ke dashboard..."
+      if (err instanceof ApiException) {
+        // Jika server backend belum dinyalakan (status code 0 / network failure)
+        if (err.statusCode === 0) {
+          const matchedDemo = DEMO_ACCOUNTS.find(
+            (d) => d.email.toLowerCase() === email.toLowerCase() && d.password === password
           );
-          if (typeof window !== "undefined") {
-            localStorage.setItem(
-              "porta_user",
-              JSON.stringify({ email: matchedDemo.email, fullName: matchedDemo.roleLabel })
-            );
-          }
-          setTimeout(() => {
-            router.push(matchedDemo.targetRoute);
-          }, 800);
-          return;
-        }
 
-        setErrorMessage(
-          "Tidak dapat terhubung ke server backend (port 4000). Pastikan backend porta-be sudah berjalan dengan 'npm run start:dev', atau gunakan akun demo di bawah."
-        );
+          if (matchedDemo) {
+            setSuccessMessage(
+              "Backend offline (Mode Pratinjau Frontend). Mengalihkan langsung ke dashboard..."
+            );
+            AuthService.saveSession({
+              accessToken: "demo_offline_token",
+              user: {
+                id: 999,
+                email: matchedDemo.email,
+                fullName: matchedDemo.roleLabel,
+                role: (matchedDemo.roleLabel.includes("Dishub")
+                  ? "DISHUB_EKSEKUTIF"
+                  : matchedDemo.roleLabel.includes("Dermaga")
+                  ? "PETUGAS_DERMAGA"
+                  : matchedDemo.roleLabel.includes("Bendahara")
+                  ? "BENDAHARA"
+                  : "ADMIN_PELABUHAN") as UserRole,
+              },
+            });
+            setTimeout(() => {
+              router.push(matchedDemo.targetRoute);
+            }, 800);
+            return;
+          }
+
+          setErrorMessage(
+            "Tidak dapat terhubung ke server backend (port 4000). Pastikan backend porta-be sudah berjalan dengan 'npm run start:dev', atau gunakan akun demo di bawah."
+          );
+        } else {
+          setErrorMessage(err.message || "Email atau kata sandi tidak valid.");
+        }
       } else {
-        setErrorMessage(err instanceof Error ? err.message : "Gagal melakukan autentikasi.");
+        setErrorMessage(
+          err instanceof Error ? err.message : "Terjadi kesalahan saat memproses login."
+        );
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -348,10 +327,10 @@ export default function LoginPage() {
             {/* Tombol Submit */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isStoreLoading}
               className="w-full py-3.5 px-6 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
             >
-              {isLoading ? (
+              {isStoreLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Memverifikasi Akun...</span>
@@ -369,7 +348,7 @@ export default function LoginPage() {
           <div className="pt-4 border-t border-white/10 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono text-slate-400">
               <span>Akun Demo Cepat (Klik untuk Isi):</span>
-              <span className="text-[#F59E0B]">Pass: Admin123!</span>
+              <span className="text-[#F59E0B]">Pass: Porta123!</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map((acc) => (

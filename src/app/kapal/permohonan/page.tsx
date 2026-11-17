@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -31,7 +31,10 @@ import {
   RefreshCw,
   Search,
   Filter,
+  Loader2,
 } from "lucide-react";
+import { useKapalStore } from "@/store/kapal.store";
+import { useAuthStore } from "@/store/auth.store";
 
 // Types
 interface DockRequest {
@@ -69,67 +72,73 @@ interface DockRequest {
 }
 
 export default function KapalPermohonanPage() {
+  const { user, initialize: initAuth } = useAuthStore();
+  const { vessels, visits, isLoading, fetchDashboardData, createVisitRequest } = useKapalStore();
+
+  useEffect(() => {
+    initAuth();
+    fetchDashboardData();
+  }, [initAuth, fetchDashboardData]);
+
   const [activeTab, setActiveTab] = useState<"tracking" | "wizard">("tracking");
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [selectedDetailReq, setSelectedDetailReq] = useState<DockRequest | null>(null);
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Master fleet for selection
-  const fleetOptions = [
-    {
-      id: "VES-01",
-      name: "KMP Baruna Jaya",
-      callSign: "PK-BJ92",
-      gt: 1250,
-      loa: 72.5,
-      draft: 3.8,
-      defaultRoute: "Merak ➔ Bakauheni",
-    },
-    {
-      id: "VES-02",
-      name: "KMP Mutiara Persada",
-      callSign: "PK-MP44",
-      gt: 1800,
-      loa: 85.0,
-      draft: 4.2,
-      defaultRoute: "Bakauheni ➔ Merak",
-    },
-    {
-      id: "VES-03",
-      name: "KMP Nusantara Express",
-      callSign: "PK-NE11",
-      gt: 2100,
-      loa: 92.0,
-      draft: 4.5,
-      defaultRoute: "Bakauheni ➔ Merak",
-    },
-    {
-      id: "VES-04",
-      name: "KMP Portlink III",
-      callSign: "PK-PL03",
-      gt: 5200,
-      loa: 125.0,
-      draft: 5.5,
-      defaultRoute: "Merak ➔ Bakauheni",
-    },
-  ];
+  // Master fleet for selection dari real backend vessels
+  const fleetOptions =
+    vessels.length > 0
+      ? vessels.map((v) => ({
+          id: String(v.id),
+          numericId: v.id,
+          name: v.name,
+          callSign: v.registrationNumber,
+          gt: Number(v.grossTonnage) || 500,
+          loa: v.lengthMeters || 65.0,
+          draft: v.draftMeters || 3.5,
+          defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
+        }))
+      : [
+          {
+            id: "1",
+            numericId: 1,
+            name: "KM Poumako Jaya",
+            callSign: "REG-PMK-001",
+            gt: 500,
+            loa: 58.0,
+            draft: 3.2,
+            defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
+          },
+          {
+            id: "20",
+            numericId: 20,
+            name: "KN Salawaku 358",
+            callSign: "REG-KPLP-001",
+            gt: 320,
+            loa: 42.0,
+            draft: 2.8,
+            defaultRoute: "Wilayah Kerja Pomako ➔ Pelabuhan Poumako",
+          },
+        ];
 
   // ==========================================
   // WIZARD FORM STATE (5 Langkah PDF Halaman 9)
   // ==========================================
   // Langkah 1: Pilih Layanan & Fasilitas
-  const [selectedVesselId, setSelectedVesselId] = useState<string>("VES-02");
-  const [originPort, setOriginPort] = useState<string>("Pelabuhan Regional Bakauheni");
-  const [destinationPort, setDestinationPort] = useState<string>("Pelabuhan Regional Merak");
+  const [selectedVesselId, setSelectedVesselId] = useState<string>("1");
+  const [originPort, setOriginPort] = useState<string>("Pelabuhan Dobo");
+  const [destinationPort, setDestinationPort] = useState<string>("Pelabuhan Poumako");
 
   // Helper: Dapatkan nama singkat pelabuhan
   const getPortShortName = (fullName: string) => {
-    if (fullName.includes("Bakauheni")) return "Bakauheni";
-    if (fullName.includes("Merak")) return "Merak";
-    if (fullName.includes("Ciwandan")) return "Ciwandan";
-    if (fullName.includes("Panjang")) return "Panjang";
+    if (fullName.includes("Poumako") || fullName.includes("Pomako")) return "Poumako";
+    if (fullName.includes("Dobo")) return "Dobo";
+    if (fullName.includes("Agats") || fullName.includes("Asmat")) return "Agats";
+    if (fullName.includes("Merauke")) return "Merauke";
+    if (fullName.includes("Timika")) return "Timika";
     return fullName;
   };
 
@@ -166,21 +175,60 @@ export default function KapalPermohonanPage() {
   const [createdTicketId, setCreatedTicketId] = useState<string | null>(null);
 
   // ==========================================
-  // DUMMY ACTIVE & HISTORICAL REQUESTS DATASET
+  // REAL VISITS DARI BACKEND DI-MAP KE DOCK REQUEST
   // ==========================================
-  const [requests, setRequests] = useState<DockRequest[]>([
-    {
-      id: "REQ-DOCK-2026-088",
-      vesselName: "KMP Mutiara Persada",
-      callSign: "PK-MP44",
-      gt: 1800,
-      port: "Pelabuhan Regional Merak",
-      route: "Bakauheni ➔ Merak",
-      activityType: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
+  const backendRequests: DockRequest[] = visits.map((v) => {
+    const gt = v.vessel?.grossTonnage ? Number(v.vessel.grossTonnage) : 500;
+    const vesselName = v.vessel?.name || "Kapal Terdaftar";
+    const callSign = v.vessel?.registrationNumber || "REG-PMK-001";
+    const portName = v.port?.name || "Pelabuhan Poumako, Mimika";
+    const routeStr = `${v.originPort || "Pelabuhan Dobo"} ➔ ${v.destinationPort || "Pelabuhan Poumako"}`;
+
+    let status: "submitted" | "verified" | "approved" | "rejected" = "submitted";
+    let statusLabel = "Diajukan (Menunggu Review UPT)";
+
+    if (v.status === "APPROVED" || v.status === "BERTHED" || v.status === "DEPARTED") {
+      status = "approved";
+      statusLabel =
+        v.status === "BERTHED"
+          ? "Sandar Aktif di Dermaga"
+          : v.status === "DEPARTED"
+          ? "Pelayanan Selesai"
+          : "Alokasi Dermaga Terbit";
+    } else if (v.status === "ARRIVED") {
+      status = "verified";
+      statusLabel = "Tiba di Kolam Labuh (Diverifikasi)";
+    } else if (v.status === "REQUESTED") {
+      status = "submitted";
+      statusLabel = "Diajukan (Menunggu Review UPT)";
+    }
+
+    const etaStr = new Date(v.eta).toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) + " WIT";
+
+    const etdStr = new Date(v.etd).toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) + " WIT";
+
+    return {
+      id: v.visitNumber,
+      vesselName,
+      callSign,
+      gt,
+      port: portName,
+      route: routeStr,
+      activityType: v.activityMode === "NORMAL" ? "Bongkar Muat & Sandar Tambat" : "Labuh & Transit",
       dockType: "Reguler",
-      eta: "16 Nov 2026, 14:00 WIB",
-      etd: "16 Nov 2026, 15:30 WIB",
-      durationHours: 1.5,
+      eta: etaStr,
+      etd: etdStr,
+      durationHours: 24,
       utilities: {
         freshWater: true,
         waterVolume: 35,
@@ -188,116 +236,27 @@ export default function KapalPermohonanPage() {
         wasteDisposal: true,
       },
       costBreakdown: {
-        mooring: 324000,
-        anchorage: 72000,
-        water: 980000,
+        mooring: gt * 120 * 24,
+        anchorage: gt * 40,
+        water: 280000,
         power: 0,
         waste: 150000,
-        total: 1526000,
+        total: gt * 120 * 24 + gt * 40 + 280000 + 150000,
       },
-      status: "approved",
-      statusLabel: "Alokasi Dermaga Terbit",
-      allocatedDock: "Dermaga 2 (Slot: 14:00 - 15:30 WIB)",
-      officerNotes: "Permohonan disetujui. Sandar di Dermaga 2 setelah KMP Baruna Jaya bertolak. Wajib laporkan manifes 60 menit sebelum tiba.",
-      submittedAt: "16 Nov 2026, 09:15 WIB",
-    },
-    {
-      id: "REQ-DOCK-2026-089",
-      vesselName: "KMP Nusantara Express",
-      callSign: "PK-NE11",
-      gt: 2100,
-      port: "Pelabuhan Regional Merak",
-      route: "Bakauheni ➔ Merak",
-      activityType: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
-      dockType: "Eksekutif",
-      eta: "16 Nov 2026, 18:30 WIB",
-      etd: "16 Nov 2026, 20:00 WIB",
-      durationHours: 1.5,
-      utilities: {
-        freshWater: false,
-        shorePower: true,
-        powerKwh: 150,
-        wasteDisposal: true,
-      },
-      costBreakdown: {
-        mooring: 567000,
-        anchorage: 84000,
-        water: 0,
-        power: 480000,
-        waste: 150000,
-        total: 1281000,
-      },
-      status: "verified",
-      statusLabel: "Diverifikasi UPTD Merak",
-      allocatedDock: "Standby Alokasi Dermaga Eksekutif 1",
-      officerNotes: "Sedang menunggu verifikasi ketersediaan ramp door hidrolik oleh pengawas jaga dermaga eksekutif.",
-      submittedAt: "16 Nov 2026, 11:30 WIB",
-    },
-    {
-      id: "REQ-DOCK-2026-091",
-      vesselName: "KMP Portlink III",
-      callSign: "PK-PL03",
-      gt: 5200,
-      port: "Pelabuhan Regional Merak",
-      route: "Merak ➔ Bakauheni",
-      activityType: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
-      dockType: "Eksekutif",
-      eta: "17 Nov 2026, 06:00 WIB",
-      etd: "17 Nov 2026, 08:00 WIB",
-      durationHours: 2.0,
-      utilities: {
-        freshWater: true,
-        waterVolume: 50,
-        shorePower: true,
-        powerKwh: 200,
-        wasteDisposal: true,
-      },
-      costBreakdown: {
-        mooring: 1872000,
-        anchorage: 208000,
-        water: 1400000,
-        power: 640000,
-        waste: 150000,
-        total: 4270000,
-      },
-      status: "submitted",
-      statusLabel: "Menunggu Review UPT",
-      officerNotes: "Dokumen telah masuk antrean pemeriksaan verifikator pelabuhan.",
-      submittedAt: "16 Nov 2026, 15:45 WIB",
-    },
-    {
-      id: "REQ-DOCK-2026-085",
-      vesselName: "KMP Baruna Jaya",
-      callSign: "PK-BJ92",
-      gt: 1250,
-      port: "Pelabuhan Regional Merak",
-      route: "Merak ➔ Bakauheni",
-      activityType: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
-      dockType: "Reguler",
-      eta: "16 Nov 2026, 08:00 WIB",
-      etd: "16 Nov 2026, 09:30 WIB",
-      durationHours: 1.5,
-      utilities: {
-        freshWater: true,
-        waterVolume: 25,
-        shorePower: false,
-        wasteDisposal: false,
-      },
-      costBreakdown: {
-        mooring: 225000,
-        anchorage: 50000,
-        water: 700000,
-        power: 0,
-        waste: 0,
-        total: 975000,
-      },
-      status: "approved",
-      statusLabel: "Pelayanan Selesai",
-      allocatedDock: "Dermaga 1",
-      officerNotes: "Pelayanan selesai tepat waktu. e-SKRD telah diterbitkan di menu Penagihan.",
-      submittedAt: "15 Nov 2026, 20:00 WIB",
-    },
-  ]);
+      status,
+      statusLabel,
+      allocatedDock: v.berthingRecords?.[0]?.berth?.name || "Dermaga Pelabuhan Poumako",
+      officerNotes: v.notes || "Permohonan terdaftar di sistem backend PORTA.",
+      submittedAt: new Date(v.createdAt).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+    };
+  });
+
+  const [localRequests, setLocalRequests] = useState<DockRequest[]>([]);
+  const requests = [...localRequests, ...backendRequests];
 
   // Active vessel helper
   const activeVessel = fleetOptions.find((v) => v.id === selectedVesselId) || fleetOptions[0];
@@ -343,44 +302,72 @@ export default function KapalPermohonanPage() {
     }).format(val);
   };
 
-  // Submit Handler for Step 4
-  const handleFinalSubmit = () => {
+  // Submit Handler for Step 4 (Menyimpan data langsung ke REST API Backend)
+  const handleFinalSubmit = async () => {
     if (!agreementChecked) {
       alert("Harap setujui pakta integritas dan ketentuan estimasi retribusi sebelum mengirim.");
       return;
     }
 
-    const generatedId = `REQ-DOCK-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const newReq: DockRequest = {
-      id: generatedId,
-      vesselName: activeVessel.name,
-      callSign: activeVessel.callSign,
-      gt: activeVessel.gt,
-      port: destinationPort,
-      route: derivedRoute,
-      activityType: activityType,
-      dockType: dockPreference,
-      eta: `${etaDate}, ${etaTime} WIB`,
-      etd: `${etdDate}, ${etdTime} WIB`,
-      durationHours: serviceDurationHours,
-      utilities: {
-        freshWater: needFreshWater,
-        waterVolume: needFreshWater ? waterVolume : 0,
-        shorePower: needShorePower,
-        powerKwh: needShorePower ? powerKwh : 0,
-        wasteDisposal: needWasteDisposal,
-      },
-      costBreakdown: costs,
-      status: "submitted",
-      statusLabel: "Diajukan (Menunggu Review UPT)",
-      officerNotes: "Permohonan baru telah diterima sistem. Menunggu pemeriksaan verifikator pelabuhan.",
-      submittedAt: "Hari ini, Baru saja",
-    };
+    setIsSubmitting(true);
 
-    setRequests([newReq, ...requests]);
-    setCreatedTicketId(generatedId);
-    setWizardStep(5); // Pindah ke Langkah 5: Kirim & Pantau
-    setSuccessToast(`Permohonan ${generatedId} berhasil diajukan ke Petugas UPT!`);
+    try {
+      const etaIso = new Date(`${etaDate}T${etaTime}:00`).toISOString();
+      const etdIso = new Date(`${etdDate}T${etdTime}:00`).toISOString();
+
+      const newVisit = await createVisitRequest({
+        portId: 1, // Pelabuhan Poumako
+        vesselId: activeVessel.numericId,
+        visitOrigin: "OPERATOR_REQUEST",
+        activityMode: "NORMAL",
+        isTransitOnly: false,
+        originPort,
+        destinationPort,
+        eta: etaIso,
+        etd: etdIso,
+        notes:
+          additionalNote ||
+          `Permohonan sandar kapal ${activeVessel.name} (${activeVessel.gt} GT) di Pelabuhan Poumako. Kebutuhan: ${activityType}.`,
+      });
+
+      const newReq: DockRequest = {
+        id: newVisit.visitNumber,
+        vesselName: activeVessel.name,
+        callSign: activeVessel.callSign,
+        gt: activeVessel.gt,
+        port: destinationPort,
+        route: derivedRoute,
+        activityType: activityType,
+        dockType: dockPreference,
+        eta: `${etaDate}, ${etaTime} WIT`,
+        etd: `${etdDate}, ${etdTime} WIT`,
+        durationHours: serviceDurationHours,
+        utilities: {
+          freshWater: needFreshWater,
+          waterVolume: needFreshWater ? waterVolume : 0,
+          shorePower: needShorePower,
+          powerKwh: needShorePower ? powerKwh : 0,
+          wasteDisposal: needWasteDisposal,
+        },
+        costBreakdown: costs,
+        status: "submitted",
+        statusLabel: "Diajukan (Menunggu Review UPT)",
+        allocatedDock: "Menunggu penetapan dermaga oleh UPT",
+        officerNotes: "Permohonan baru berhasil dikirim ke backend PORTA dan masuk antrean verifikasi.",
+        submittedAt: "Hari ini, Baru saja",
+      };
+
+      setLocalRequests((prev) => [newReq, ...prev]);
+      setCreatedTicketId(newVisit.visitNumber);
+      setWizardStep(5); // Pindah ke Langkah 5: Kirim & Pantau
+      setSuccessToast(`Permohonan ${newVisit.visitNumber} berhasil diajukan ke server backend!`);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Gagal mengirim permohonan ke server backend.";
+      alert(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetForm = () => {
@@ -593,10 +580,11 @@ export default function KapalPermohonanPage() {
                       onChange={(e) => setOriginPort(e.target.value)}
                       className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
                     >
-                      <option value="Pelabuhan Regional Bakauheni">Pelabuhan Regional Bakauheni (Lampung)</option>
-                      <option value="Pelabuhan Regional Merak">Pelabuhan Regional Merak (Banten)</option>
-                      <option value="Pelabuhan Ciwandan Banten">Pelabuhan Ciwandan (Banten)</option>
-                      <option value="Pelabuhan Panjang Lampung">Pelabuhan Panjang (Lampung)</option>
+                      <option value="Pelabuhan Dobo">Pelabuhan Dobo (Kepulauan Aru)</option>
+                      <option value="Pelabuhan Agats">Pelabuhan Agats (Kabupaten Asmat)</option>
+                      <option value="Pelabuhan Merauke">Pelabuhan Merauke (Papua Selatan)</option>
+                      <option value="Wilayah Kerja Pomako">Wilayah Kerja Pomako (Lokal)</option>
+                      <option value="Pelabuhan Timika Barat">Pelabuhan Timika Barat</option>
                     </select>
                   </div>
 
@@ -611,10 +599,8 @@ export default function KapalPermohonanPage() {
                       onChange={(e) => setDestinationPort(e.target.value)}
                       className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
                     >
-                      <option value="Pelabuhan Regional Merak">Pelabuhan Regional Merak (Dermaga 1 - 7)</option>
-                      <option value="Pelabuhan Regional Bakauheni">Pelabuhan Regional Bakauheni (Dermaga 1 - 5)</option>
-                      <option value="Pelabuhan Ciwandan Banten">Pelabuhan Ciwandan (Dermaga Curah/Ro-Ro)</option>
-                      <option value="Pelabuhan Panjang Lampung">Pelabuhan Panjang (Lampung)</option>
+                      <option value="Pelabuhan Poumako">Pelabuhan Poumako (Dermaga UPTD Pomako)</option>
+                      <option value="Dermaga UPP Kemenhub">Dermaga UPP Kemenhub Pomako</option>
                     </select>
                   </div>
 
@@ -1355,11 +1341,21 @@ export default function KapalPermohonanPage() {
                   </button>
                   <button
                     type="button"
+                    disabled={isSubmitting}
                     onClick={handleFinalSubmit}
-                    className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                    className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    <Send className="w-4 h-4 text-[#D97706]" />
-                    <span>Kirim Permohonan ke UPT Pelabuhan</span>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-[#D97706]" />
+                        <span>Mengirim ke Backend...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 text-[#D97706]" />
+                        <span>Kirim Permohonan ke UPT Pelabuhan</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Ship,
@@ -12,91 +12,60 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
-  ExternalLink,
   ShieldCheck,
-  TrendingUp,
-  FileText,
-  Radio,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
+import { useKapalStore } from "@/store/kapal.store";
+import { useAuthStore } from "@/store/auth.store";
 
 export default function KapalDashboardPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
-  const vessels = [
-    {
-      id: "V-01",
-      name: "KMP Baruna Jaya",
-      callSign: "PK-BJ92",
-      gt: "1.250 GT",
-      route: "Merak ➔ Bakauheni",
-      eta: "08:00 WIB",
-      etd: "09:30 WIB",
-      dock: "Dermaga 1",
-      status: "active",
-      statusLabel: "Sandar Aktif",
-      manifestStatus: "submitted",
-      manifestLabel: "Manifes Terkirim",
-      clearanceStatus: "ready",
-      clearanceLabel: "SPB Siap Terbit",
-      captain: "Capt. Hendra Gunawan",
-    },
-    {
-      id: "V-02",
-      name: "KMP Mutiara Persada",
-      callSign: "PK-MP44",
-      gt: "1.800 GT",
-      route: "Merak ➔ Bakauheni",
-      eta: "14:00 WIB",
-      etd: "15:30 WIB",
-      dock: "Dermaga 2 (Menunggu)",
-      status: "scheduled",
-      statusLabel: "Jadwal Terverifikasi",
-      manifestStatus: "pending",
-      manifestLabel: "Wajib Lapor Manifes",
-      clearanceStatus: "waiting",
-      clearanceLabel: "Menunggu Manifes",
-      captain: "Capt. Aris Munandar",
-    },
-    {
-      id: "V-03",
-      name: "KMP Nusantara Express",
-      callSign: "PK-NE11",
-      gt: "2.100 GT",
-      route: "Merak ➔ Bakauheni",
-      eta: "18:30 WIB",
-      etd: "20:00 WIB",
-      dock: "Dermaga Eksekutif 1",
-      status: "scheduled",
-      statusLabel: "Permohonan Disetujui",
-      manifestStatus: "pending",
-      manifestLabel: "Belum Buka Manifes",
-      clearanceStatus: "waiting",
-      clearanceLabel: "Belum Diajukan",
-      captain: "Capt. Bambang Tri",
-    },
-    {
-      id: "V-04",
-      name: "KMP Samudra Raya",
-      callSign: "PK-SR88",
-      gt: "950 GT",
-      route: "Merak ➔ Bakauheni",
-      eta: "Kemarin, 21:00 WIB",
-      etd: "Kemarin, 22:30 WIB",
-      dock: "Dermaga 3",
-      status: "completed",
-      statusLabel: "Selesai Pelayanan",
-      manifestStatus: "verified",
-      manifestLabel: "Arsip Manifes Lengkap",
-      clearanceStatus: "completed",
-      clearanceLabel: "Berlayar Selesai",
-      captain: "Capt. Dedi Mulyadi",
-    },
-  ];
+  const { user, initialize: initAuth } = useAuthStore();
+  const { operator, vessels, visits, isLoading, fetchDashboardData } = useKapalStore();
 
-  const filteredVessels = vessels.filter((v) => {
+  useEffect(() => {
+    initAuth();
+    fetchDashboardData();
+  }, [initAuth, fetchDashboardData]);
+
+  // Nama operator dan dokumen legalitas
+  const operatorName =
+    operator?.name ||
+    (user?.fullName
+      ? user.fullName.replace(/\(.*?\)/g, "").trim()
+      : "PT Pelayaran Mimika Sejahtera");
+
+  const siupalDoc = operator?.documents?.find((d) => d.category === "SIUPAL_NIB");
+  const siupalNumber = siupalDoc?.documentNumber || "SIUPAL Aktif";
+
+  // Data kunjungan yang ditampilkan (jika backend telah memiliki visit)
+  const displayVisits = visits.length > 0 ? visits : [];
+
+  // Filter kunjungan kapal
+  const filteredVisits = displayVisits.filter((v) => {
     if (selectedStatus === "all") return true;
-    return v.status === selectedStatus;
+    if (selectedStatus === "active") return v.status === "BERTHED" || v.status === "ARRIVED";
+    if (selectedStatus === "scheduled") return v.status === "SCHEDULED";
+    if (selectedStatus === "completed") return v.status === "DEPARTED";
+    return true;
   });
+
+  const formatDateTime = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " WIT";
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -108,61 +77,67 @@ export default function KapalDashboardPage() {
             <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
               <Ship className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-full">
-              SIUPAL Aktif
+            <span
+              className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-full truncate max-w-[130px]"
+              title={siupalNumber}
+            >
+              {siupalNumber}
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
             Armada Kapal Terdaftar
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            6 Kapal
+            {isLoading && vessels.length === 0 ? "..." : `${vessels.length} Kapal`}
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1">
-            <span className="text-emerald-700 font-bold">4 Operasional</span>
-            <span>• 2 Standby / Perawatan</span>
+            <span className="text-emerald-700 font-bold">
+              {vessels.filter((v) => v.isActive).length} Terverifikasi
+            </span>
+            <span>• {operatorName}</span>
           </p>
         </div>
 
-        {/* KPI 2: Permohonan Dermaga */}
+        {/* KPI 2: Kunjungan & Permohonan Dermaga */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <Calendar className="w-5 h-5 stroke-[2.5]" />
             </div>
             <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
-              Hari Ini
+              Pelabuhan Poumako
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Jadwal Sandar Disetujui
+            Total Riwayat Kunjungan
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            3 Pelayaran
+            {isLoading && visits.length === 0 ? "..." : `${visits.length} Kunjungan`}
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            1 Sandar Aktif • 2 Menunggu Giliran
+            {visits.filter((v) => v.status === "BERTHED" || v.status === "ARRIVED").length} Sandar Aktif •{" "}
+            {visits.filter((v) => v.status === "DEPARTED").length} Selesai Pelayanan
           </p>
         </div>
 
-        {/* KPI 3: Status Manifes */}
+        {/* KPI 3: Status Manifes SOLAS */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
               <FileCheck2 className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded-full">
-              1 Perlu Tindakan
+            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
+              SOLAS Compliance
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Pelaporan Manifes SOLAS
+            Pelaporan Manifes Kapal
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            1 Pending
+            Sesuai Standar
           </p>
-          <p className="text-[11px] text-amber-800 font-semibold mt-1.5">
-            KMP Mutiara (Jadwal 14:00 WIB)
+          <p className="text-[11px] text-emerald-800 font-semibold mt-1.5">
+            Dokumen Keselamatan Muatan Valid
           </p>
         </div>
 
@@ -177,13 +152,13 @@ export default function KapalDashboardPage() {
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Tagihan Retribusi Jasa Kapal
+            Status Retribusi Jasa Labuh & Tambat
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            Rp 1.480.000
+            Tertib Bayar
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            1 Invoice Terbit • Jatuh tempo 3 hari
+            Tersinkronisasi Host-to-Host Kas Daerah
           </p>
         </div>
       </div>
@@ -195,10 +170,10 @@ export default function KapalDashboardPage() {
             <Anchor className="w-5 h-5 text-[#0B241E]" />
             <div>
               <h3 className="text-sm font-extrabold text-[#0B241E]">
-                Status Operasional Armada di Pelabuhan Merak
+                Status Operasional Armada di Pelabuhan Poumako, Mimika
               </h3>
               <p className="text-[11px] text-[#64748B]">
-                Pantau proses sandar, kelengkapan manifes, dan izin berlayar (SPB) real-time
+                Data langsung dari server backend untuk akun operator: <strong className="text-[#0B241E]">{operatorName}</strong>
               </p>
             </div>
           </div>
@@ -213,7 +188,7 @@ export default function KapalDashboardPage() {
                   : "text-[#64748B] hover:text-[#0B241E]"
               }`}
             >
-              Semua ({vessels.length})
+              Semua ({displayVisits.length})
             </button>
             <button
               onClick={() => setSelectedStatus("active")}
@@ -235,125 +210,171 @@ export default function KapalDashboardPage() {
             >
               Terjadwal
             </button>
+            <button
+              onClick={() => setSelectedStatus("completed")}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                selectedStatus === "completed"
+                  ? "bg-white text-[#0B241E] shadow-xs"
+                  : "text-[#64748B] hover:text-[#0B241E]"
+              }`}
+            >
+              Selesai
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                <th className="py-3 px-4">Nama Kapal & GT</th>
-                <th className="py-3 px-4">Lintasan & Dermaga</th>
-                <th className="py-3 px-4">Waktu (ETA / ETD)</th>
-                <th className="py-3 px-4">Status Sandar</th>
-                <th className="py-3 px-4">Pelaporan Manifes</th>
-                <th className="py-3 px-4">Izin Berlayar (SPB)</th>
-                <th className="py-3 px-4 text-center">Aksi Cepat</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {filteredVessels.map((v) => (
-                <tr key={v.id} className="hover:bg-[#F8FAFC]/80 transition-colors">
-                  {/* Vessel info */}
-                  <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-[#E2E8F0] text-[#0B241E] flex items-center justify-center font-bold text-xs">
-                        <Ship className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-extrabold text-xs text-[#0B241E]">{v.name}</p>
-                        <p className="text-[10px] text-[#64748B] font-mono">
-                          {v.callSign} • {v.gt}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Route & Dock */}
-                  <td className="py-3.5 px-4 text-[#475569]">
-                    <p className="font-semibold text-[#0B241E]">{v.route}</p>
-                    <p className="text-[10px] text-[#0284C7] font-semibold">{v.dock}</p>
-                  </td>
-
-                  {/* Timing */}
-                  <td className="py-3.5 px-4 text-[#475569] font-mono">
-                    <p className="text-[11px]">ETA: <strong className="text-[#0B241E]">{v.eta}</strong></p>
-                    <p className="text-[10px] text-[#64748B]">ETD: {v.etd}</p>
-                  </td>
-
-                  {/* Berth status */}
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                        v.status === "active"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : v.status === "scheduled"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {v.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                      <span>{v.statusLabel}</span>
-                    </span>
-                  </td>
-
-                  {/* Manifest Status */}
-                  <td className="py-3.5 px-4">
-                    {v.manifestStatus === "submitted" || v.manifestStatus === "verified" ? (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 w-fit">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>{v.manifestLabel}</span>
-                      </span>
-                    ) : (
-                      <Link
-                        href={`/kapal/manifes?ship=${encodeURIComponent(v.name)}`}
-                        className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 w-fit transition-colors"
-                      >
-                        <AlertTriangle className="w-3 h-3 text-amber-600" />
-                        <span>{v.manifestLabel} ➔</span>
-                      </Link>
-                    )}
-                  </td>
-
-                  {/* Clearance SPB Status */}
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        v.clearanceStatus === "ready"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : v.clearanceStatus === "waiting"
-                          ? "bg-slate-100 text-slate-700"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {v.clearanceLabel}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="py-3.5 px-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Link
-                        href={`/kapal/manifes?ship=${encodeURIComponent(v.name)}`}
-                        className="p-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#475569] transition-colors"
-                        title="Formulir Manifes"
-                      >
-                        <FileCheck2 className="w-4 h-4" />
-                      </Link>
-                      <Link
-                        href="/kapal/penagihan"
-                        className="p-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#475569] transition-colors"
-                        title="Lihat Tagihan"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </td>
+        {isLoading && displayVisits.length === 0 ? (
+          <div className="p-12 text-center flex flex-col items-center justify-center gap-2 text-slate-500">
+            <Loader2 className="w-6 h-6 animate-spin text-[#D97706]" />
+            <p className="text-xs">Memuat data armada dan kunjungan dari backend...</p>
+          </div>
+        ) : filteredVisits.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
+                  <th className="py-3 px-4">Nama Kapal & GT</th>
+                  <th className="py-3 px-4">No. Kunjungan & Lintasan</th>
+                  <th className="py-3 px-4">Estimasi / Waktu Sandar</th>
+                  <th className="py-3 px-4">Status Pelayanan</th>
+                  <th className="py-3 px-4">Alokasi Dermaga</th>
+                  <th className="py-3 px-4 text-center">Aksi Cepat</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredVisits.map((v) => {
+                  const vesselName = v.vessel?.name || "Kapal Terdaftar";
+                  const gt = v.vessel?.grossTonnage ? `${v.vessel.grossTonnage} GT` : "-";
+                  const regNo = v.vessel?.registrationNumber || "-";
+                  const berthName = v.berthingRecords?.[0]?.berth?.name || "Dermaga Umum Poumako";
+
+                  return (
+                    <tr key={v.id} className="hover:bg-[#F8FAFC]/80 transition-colors">
+                      {/* Vessel info */}
+                      <td className="py-3.5 px-4 font-bold text-[#0B241E]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[#E2E8F0] text-[#0B241E] flex items-center justify-center font-bold text-xs shrink-0">
+                            <Ship className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-xs text-[#0B241E]">{vesselName}</p>
+                            <p className="text-[10px] text-[#64748B] font-mono">
+                              {regNo} • {gt}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Route & Visit Number */}
+                      <td className="py-3.5 px-4 text-[#475569]">
+                        <p className="font-semibold text-[#0B241E]">
+                          {v.originPort || "Pelabuhan Dobo"} ➔ {v.destinationPort || "Pelabuhan Poumako"}
+                        </p>
+                        <p className="text-[10px] text-[#0284C7] font-mono font-semibold">
+                          {v.visitNumber}
+                        </p>
+                      </td>
+
+                      {/* Timing */}
+                      <td className="py-3.5 px-4 text-[#475569] font-mono">
+                        <p className="text-[11px]">
+                          ETA: <strong className="text-[#0B241E]">{formatDateTime(v.eta)}</strong>
+                        </p>
+                        <p className="text-[10px] text-[#64748B]">
+                          ETD: {formatDateTime(v.etd)}
+                        </p>
+                      </td>
+
+                      {/* Berth status */}
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                            v.status === "BERTHED" || v.status === "ARRIVED"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : v.status === "SCHEDULED"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {(v.status === "BERTHED" || v.status === "ARRIVED") && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          )}
+                          <span>
+                            {v.status === "BERTHED"
+                              ? "Sandar Aktif"
+                              : v.status === "ARRIVED"
+                              ? "Tiba di Kolam Labuh"
+                              : v.status === "SCHEDULED"
+                              ? "Jadwal Terverifikasi"
+                              : "Selesai Pelayanan"}
+                          </span>
+                        </span>
+                      </td>
+
+                      {/* Dermaga */}
+                      <td className="py-3.5 px-4 text-[#0B241E] font-medium">
+                        <p className="truncate max-w-[180px]" title={berthName}>
+                          {berthName}
+                        </p>
+                        <span className="text-[9.5px] text-emerald-700 font-mono">
+                          {v.vessel?.vesselCategory || "Campuran"}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link
+                            href={`/kapal/manifes?ship=${encodeURIComponent(vesselName)}`}
+                            className="p-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#475569] transition-colors"
+                            title="Formulir Manifes"
+                          >
+                            <FileCheck2 className="w-4 h-4" />
+                          </Link>
+                          <Link
+                            href="/kapal/penagihan"
+                            className="p-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#475569] transition-colors"
+                            title="Lihat Tagihan e-SKRD"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-8 text-center space-y-4">
+            <p className="text-xs text-slate-600">
+              Belum ada kunjungan kapal yang tercatat untuk filter ini.
+            </p>
+            {vessels.length > 0 && (
+              <div className="max-w-md mx-auto p-4 bg-slate-50 border border-slate-200 rounded-xl text-left">
+                <p className="text-xs font-bold text-[#0B241E] mb-2">
+                  Daftar Kapal Terdaftar Milik Anda:
+                </p>
+                <ul className="text-xs space-y-1.5 text-slate-600 font-mono">
+                  {vessels.map((v) => (
+                    <li key={v.id} className="flex justify-between items-center py-1 border-b border-slate-200/60 last:border-0">
+                      <span className="font-bold text-[#0B241E]">{v.name}</span>
+                      <span className="text-[11px] text-slate-500">{v.grossTonnage} GT ({v.shipType})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Link
+              href="/kapal/permohonan"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>+ Ajukan Permohonan Sandar Baru</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* 3. ALERTS & REGULATORY SUMMARY */}
@@ -364,7 +385,7 @@ export default function KapalDashboardPage() {
             <span>Alur Pelayanan Dermaga Terjadwal</span>
           </h4>
           <p className="text-xs text-[#64748B] leading-relaxed">
-            Permohonan sandar/tambat dermaga wajib diajukan minimal 4 jam sebelum estimasi kedatangan (ETA) untuk diverifikasi oleh petugas UPT dan disahkan oleh Syahbandar.
+            Permohonan sandar/tambat dermaga wajib diajukan minimal 4 jam sebelum estimasi kedatangan (ETA) untuk diverifikasi oleh petugas UPT Pelabuhan Poumako dan disahkan oleh Syahbandar.
           </p>
           <div className="pt-2">
             <Link
@@ -383,7 +404,7 @@ export default function KapalDashboardPage() {
             <span>Kewajiban Retribusi Jasa Kapal (PP 35/2023)</span>
           </h4>
           <p className="text-xs text-[#64748B] leading-relaxed">
-            Perhitungan retribusi sandar dihitung berdasarkan waktu aktual pelayanan (ATA/ATB/ATD). Tagihan e-SKRD otomatis tersinkronisasi ke rekening kas daerah (RKUD) setelah proses sandar selesai.
+            Perhitungan retribusi sandar dihitung berdasarkan waktu aktual pelayanan (ATA/ATB/ATD). Tagihan e-SKRD otomatis tersinkronisasi ke rekening kas daerah (RKUD) Kabupaten Mimika setelah proses sandar selesai.
           </p>
           <div className="pt-2">
             <Link
