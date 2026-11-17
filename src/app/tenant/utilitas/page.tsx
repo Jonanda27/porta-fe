@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { Zap, Loader2, RefreshCw } from "lucide-react";
 import { useTenantStore } from "@/store/tenant.store";
+import { formatLabel } from "@/lib/format-labels";
 
 export default function TenantUtilitasPage() {
   const { utilities, isLoading, error, fetchTenantData } = useTenantStore();
@@ -72,7 +73,7 @@ export default function TenantUtilitasPage() {
                     <td className="py-3 px-4">
                       {u.asset?.name || `Aset #${u.assetId ?? "-"}`}
                     </td>
-                    <td className="py-3 px-4 font-semibold">{u.utilityType}</td>
+                    <td className="py-3 px-4 font-semibold">{formatLabel(u.utilityType)}</td>
                     <td className="py-3 px-4 font-mono">
                       {u.meterStart} → {u.meterEnd}
                     </td>
@@ -84,13 +85,13 @@ export default function TenantUtilitasPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                           u.paymentStatus === "PAID"
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-amber-50 text-amber-800"
                         }`}
                       >
-                        {u.paymentStatus}
+                        {formatLabel(u.paymentStatus)}
                       </span>
                     </td>
                   </tr>

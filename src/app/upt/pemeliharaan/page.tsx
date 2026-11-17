@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 import {
   MaintenanceSeverity,
   MaintenanceStatus,
@@ -189,14 +190,14 @@ export default function UptPemeliharaanPage() {
                   </td>
                   <td className="py-3 px-4">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                         SEVERITY_BADGE[t.severity]
                       }`}
                     >
-                      {t.severity}
+                      {formatLabel(t.severity)}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-semibold">{t.status}</td>
+                  <td className="py-3 px-4 font-semibold">{formatLabel(t.status)}</td>
                   <td className="py-3 px-4 text-right">
                     <select
                       disabled={isSubmitting}
@@ -204,12 +205,12 @@ export default function UptPemeliharaanPage() {
                       onChange={(e) =>
                         handleStatusChange(t.id, e.target.value as MaintenanceStatus)
                       }
-                      className="px-2.5 py-1 rounded-lg border border-[#CBD5E1] text-[11px] font-semibold"
+                      className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] text-[11px] font-semibold"
                     >
-                      <option value="REPORTED">REPORTED</option>
-                      <option value="IN_PROGRESS">IN_PROGRESS</option>
-                      <option value="RESOLVED">RESOLVED</option>
-                      <option value="CLOSED">CLOSED</option>
+                      <option value="REPORTED">Baru Dilaporkan</option>
+                      <option value="IN_PROGRESS">Sedang Dikerjakan</option>
+                      <option value="RESOLVED">Selesai Diperbaiki</option>
+                      <option value="CLOSED">Ditutup</option>
                     </select>
                   </td>
                 </tr>
@@ -253,8 +254,8 @@ export default function UptPemeliharaanPage() {
                     {a.gisCoordinates || "-"}
                   </td>
                   <td className="py-3 px-4">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100">
-                      {a.status}
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100">
+                      {formatLabel(a.status)}
                     </span>
                   </td>
                 </tr>
@@ -273,10 +274,10 @@ export default function UptPemeliharaanPage() {
 
       {/* Modal Report Damage */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreate}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Laporkan Kerusakan Fasilitas
@@ -287,17 +288,17 @@ export default function UptPemeliharaanPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Judul Kerusakan"
-              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
             />
             <select
               value={severity}
               onChange={(e) => setSeverity(e.target.value as MaintenanceSeverity)}
-              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
             >
-              <option value="LOW">LOW</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="HIGH">HIGH</option>
-              <option value="CRITICAL">CRITICAL</option>
+              <option value="LOW">Urgensi Rendah</option>
+              <option value="MEDIUM">Urgensi Sedang</option>
+              <option value="HIGH">Urgensi Tinggi</option>
+              <option value="CRITICAL">Darurat / Kritis</option>
             </select>
             <div className="grid grid-cols-2 gap-2">
               <select

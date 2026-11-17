@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 
 export default function UptDashboardPage() {
   const { user } = useAuthStore();
@@ -236,8 +237,8 @@ export default function UptDashboardPage() {
                       {v.originPort || "-"} → {v.destinationPort || "-"}
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                    {v.status}
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                    {formatLabel(v.status)}
                   </span>
                 </div>
               ))}
@@ -261,11 +262,11 @@ export default function UptDashboardPage() {
                       {b.code} — {b.name}
                     </div>
                     <div className="text-[11px] text-[#64748B]">
-                      {b.portName} • {b.berthServiceCategory}
+                      {b.portName} • {formatLabel(b.berthServiceCategory)}
                     </div>
                   </div>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                       b.operationalStatus === "OPEN"
                         ? "bg-emerald-50 text-emerald-700"
                         : b.operationalStatus === "MAINTENANCE"
@@ -273,7 +274,7 @@ export default function UptDashboardPage() {
                         : "bg-rose-50 text-rose-700"
                     }`}
                   >
-                    {b.operationalStatus}
+                    {formatLabel(b.operationalStatus)}
                   </span>
                 </div>
               ))}
@@ -307,7 +308,7 @@ export default function UptDashboardPage() {
                 <div key={inv.id} className="p-4 flex items-center justify-between gap-3 text-xs">
                   <div>
                     <div className="font-mono font-bold text-[#0B241E]">
-                      {inv.documentNumber} ({inv.status})
+                      {inv.documentNumber} ({formatLabel(inv.status)})
                     </div>
                     <div className="text-[11px] text-[#64748B]">
                       {inv.operator?.name || "-"} • Rp{" "}
@@ -364,7 +365,7 @@ export default function UptDashboardPage() {
 
       {/* Modal Terbitkan Surat Teguran */}
       {warningInvoiceId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -377,10 +378,10 @@ export default function UptDashboardPage() {
                 },
                 numericPortId
               );
-              setWarningFeedback(`Surat ${warningLevel} untuk invoice #${warningInvoiceId} berhasil diterbitkan.`);
+              setWarningFeedback(`Surat ${formatLabel(warningLevel)} untuk invoice #${warningInvoiceId} berhasil diterbitkan.`);
               setWarningInvoiceId(null);
             }}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Terbitkan Surat Teguran Piutang
@@ -390,11 +391,11 @@ export default function UptDashboardPage() {
               onChange={(e) =>
                 setWarningLevel(e.target.value as "TEGURAN_1" | "TEGURAN_2" | "TEGURAN_3")
               }
-              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
             >
-              <option value="TEGURAN_1">TEGURAN_1</option>
-              <option value="TEGURAN_2">TEGURAN_2</option>
-              <option value="TEGURAN_3">TEGURAN_3</option>
+              <option value="TEGURAN_1">Surat Teguran I</option>
+              <option value="TEGURAN_2">Surat Teguran II</option>
+              <option value="TEGURAN_3">Surat Teguran III</option>
             </select>
             <textarea
               required

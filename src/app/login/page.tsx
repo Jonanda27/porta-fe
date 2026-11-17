@@ -27,7 +27,7 @@ const DEMO_ACCOUNTS = [
     email: "superadmin@porta.mimikakab.go.id",
     password: "Porta123!",
     badge: "bg-purple-900/60 text-purple-200 border-purple-700",
-    targetRoute: "/upt/dashboard",
+    targetRoute: "/upt/pelabuhan",
   },
   {
     roleLabel: "Operator Kapal (PT Pelayaran Mimika)",

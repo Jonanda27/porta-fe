@@ -86,5 +86,9 @@ export const API_CONFIG = {
       BASE: "/tariffs",
       USD_RATE: "/tariffs/exchange-rate/usd",
     },
+    PAYMENTS: {
+      CONFIG: "/payments/config",
+      CHECKOUT: "/payments/checkout",
+    },
   },
 } as const;

@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 import { TerminalClass } from "@/types/field-ops.types";
 
 type TabType = "books" | "manifests" | "routes";
@@ -225,19 +226,19 @@ export default function UptTiketPage() {
                   <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
                     {b.bookCode}
                   </td>
-                  <td className="py-3 px-4">{b.ticketCategory}</td>
-                  <td className="py-3 px-4 font-mono">
+                  <td className="py-3.5 px-4">{formatLabel(b.ticketCategory)}</td>
+                  <td className="py-3.5 px-4 font-mono">
                     {b.serialStart} – {b.serialEnd}
                   </td>
-                  <td className="py-3 px-4 font-bold">
+                  <td className="py-3.5 px-4 font-bold">
                     Rp {Number(b.nominalPerTicket).toLocaleString("id-ID")}
                   </td>
-                  <td className="py-3 px-4 text-[#64748B]">
+                  <td className="py-3.5 px-4 text-[#64748B]">
                     {b.porporasiNumber || "-"}
                   </td>
-                  <td className="py-3 px-4">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100">
-                      {b.status}
+                  <td className="py-3.5 px-4">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100">
+                      {formatLabel(b.status)}
                     </span>
                   </td>
                 </tr>
@@ -295,9 +296,9 @@ export default function UptTiketPage() {
                 onChange={(e) => setTerminalClass(e.target.value as TerminalClass)}
                 className="px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
               >
-                <option value="KELAS_A">KELAS_A</option>
-                <option value="KELAS_B">KELAS_B</option>
-                <option value="KELAS_C">KELAS_C</option>
+                <option value="KELAS_A">Terminal Kelas A</option>
+                <option value="KELAS_B">Terminal Kelas B</option>
+                <option value="KELAS_C">Terminal Kelas C</option>
               </select>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -441,10 +442,10 @@ export default function UptTiketPage() {
 
       {/* Modal Book */}
       {isBookModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateBook}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Tambah Buku Karcis / Porporasi

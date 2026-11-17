@@ -11,10 +11,13 @@ import {
   Loader2,
   RefreshCw,
   ShieldAlert,
+  Search,
 } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 
 type TabType = "visits" | "overrides" | "leases";
 
@@ -36,11 +39,15 @@ export default function AlokasiPage() {
   } = useUptStore();
   const { ports, fetchPorts } = usePortStore();
 
-  const isSuperadmin = user?.role === "SUPERADMIN";
-  const canAccess = isSuperadmin || user?.role === "ADMIN_PELABUHAN";
+  const isSuperadmin = false;
+  const canAccess = user?.role === "ADMIN_PELABUHAN";
 
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<TabType>("visits");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [rejectLeaseTarget, setRejectLeaseTarget] = useState<{
     id: number;
@@ -63,7 +70,7 @@ export default function AlokasiPage() {
         <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto mb-3" />
         <h2 className="text-base font-bold text-[#0B241E]">Akses Terbatas</h2>
         <p className="text-xs text-[#64748B] mt-1">
-          Persetujuan kunjungan, override dermaga, dan sewa aset hanya tersedia untuk Admin Pelabuhan dan Superadmin.
+          Persetujuan sandar dan sewa aset dikelola oleh Admin Pelabuhan.
         </p>
       </div>
     );
@@ -71,6 +78,58 @@ export default function AlokasiPage() {
 
   const requestedVisits = visits.filter((v) => v.status === "REQUESTED");
   const requestedLeases = leases.filter((l) => l.status === "REQUESTED");
+
+  const filteredVisits = visits.filter((v) => {
+    const matchStatus = !statusFilter || v.status === statusFilter;
+    const matchSearch =
+      !searchQuery ||
+      v.visitNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.vessel?.name && v.vessel.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (v.vessel?.registrationNumber &&
+        v.vessel.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const filteredOverrides = pendingOverrides.filter((o) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (o.berth?.name && o.berth.name.toLowerCase().includes(q)) ||
+      (o.berth?.code && o.berth.code.toLowerCase().includes(q)) ||
+      (o.overrideReason && o.overrideReason.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredLeases = leases.filter((l) => {
+    const matchStatus = !statusFilter || l.status === statusFilter;
+    const matchSearch =
+      !searchQuery ||
+      l.contractNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (l.tenantName && l.tenantName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.asset?.name && l.asset.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const currentListLength =
+    activeTab === "visits"
+      ? filteredVisits.length
+      : activeTab === "overrides"
+      ? filteredOverrides.length
+      : filteredLeases.length;
+
+  const totalPages = Math.ceil(currentListLength / itemsPerPage) || 1;
+  const pagedVisits = filteredVisits.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  const pagedOverrides = filteredOverrides.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  const pagedLeases = filteredLeases.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleApproveVisit = async (visitId: number, visitNumber: string) => {
     setFeedback(null);
@@ -173,21 +232,21 @@ export default function AlokasiPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {isSuperadmin && (
-            <select
-              value={selectedPortId}
-              onChange={(e) => setSelectedPortId(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
-            >
-              <option value="">Semua Pelabuhan</option>
-              {ports.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} - {p.name}
-                </option>
-              ))}
-            </select>
-          )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-full sm:w-60">
+            <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari kunjungan, kapal, tenant..."
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs focus:outline-none focus:ring-1 focus:ring-[#133D31]"
+            />
+          </div>
+
           <button
             type="button"
             onClick={() => fetchAllocationData(numericPortId)}
@@ -225,7 +284,7 @@ export default function AlokasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">No. Kunjungan</th>
                     <th className="py-3 px-4">Kapal & Operator</th>
                     <th className="py-3 px-4">Rute</th>
@@ -235,14 +294,14 @@ export default function AlokasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {visits.length === 0 ? (
+                  {pagedVisits.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
-                        Belum ada data kunjungan kapal.
+                        Belum ada data kunjungan kapal yang sesuai.
                       </td>
                     </tr>
                   ) : (
-                    visits.map((v) => (
+                    pagedVisits.map((v) => (
                       <tr key={v.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
                           {v.visitNumber}
@@ -262,15 +321,15 @@ export default function AlokasiPage() {
                           <div>ETA: {new Date(v.eta).toLocaleString("id-ID")}</div>
                           <div>ETD: {new Date(v.etd).toLocaleString("id-ID")}</div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                               v.status === "REQUESTED"
                                 ? "bg-amber-50 text-amber-800 border-amber-200"
                                 : "bg-emerald-50 text-emerald-700 border-emerald-200"
                             }`}
                           >
-                            {v.status}
+                            {formatLabel(v.status)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
@@ -299,7 +358,7 @@ export default function AlokasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">Kunjungan & Kapal</th>
                     <th className="py-3 px-4">Dermaga</th>
                     <th className="py-3 px-4">Hasil Validasi</th>
@@ -308,14 +367,14 @@ export default function AlokasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {pendingOverrides.length === 0 ? (
+                  {pagedOverrides.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-10 text-center text-[#94A3B8]">
                         Tidak ada permohonan override dermaga yang menunggu persetujuan.
                       </td>
                     </tr>
                   ) : (
-                    pendingOverrides.map((b) => (
+                    pagedOverrides.map((b) => (
                       <tr key={b.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4">
                           <div className="font-mono font-bold text-[#0B241E]">
@@ -328,9 +387,9 @@ export default function AlokasiPage() {
                         <td className="py-3 px-4 font-semibold text-[#334155]">
                           {b.berth ? `${b.berth.code} - ${b.berth.name}` : `Berth #${b.berthId}`}
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                            {b.validationResult} ({b.compatibilityStatus})
+                        <td className="py-3.5 px-4">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            {formatLabel(b.validationResult)} ({formatLabel(b.compatibilityStatus)})
                           </span>
                         </td>
                         <td className="py-3 px-4 text-[#475569] max-w-xs">
@@ -366,7 +425,7 @@ export default function AlokasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">No. Kontrak</th>
                     <th className="py-3 px-4">Tenant / Penyewa</th>
                     <th className="py-3 px-4">Aset Pelabuhan</th>
@@ -376,14 +435,14 @@ export default function AlokasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {leases.length === 0 ? (
+                  {pagedLeases.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
                         Belum ada data pengajuan atau kontrak sewa aset.
                       </td>
                     </tr>
                   ) : (
-                    leases.map((l) => (
+                    pagedLeases.map((l) => (
                       <tr key={l.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
                           {l.contractNumber}
@@ -406,9 +465,9 @@ export default function AlokasiPage() {
                             {new Date(l.endDate).toLocaleDateString("id-ID")}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                               l.status === "REQUESTED"
                                 ? "bg-amber-50 text-amber-800 border-amber-200"
                                 : l.status === "ACTIVE"
@@ -416,7 +475,7 @@ export default function AlokasiPage() {
                                 : "bg-slate-100 text-slate-700 border-slate-200"
                             }`}
                           >
-                            {l.status}
+                            {formatLabel(l.status)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
@@ -456,15 +515,24 @@ export default function AlokasiPage() {
               </table>
             </div>
           )}
+
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={currentListLength}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
       )}
 
       {/* Reject Lease Modal */}
       {rejectLeaseTarget && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleConfirmRejectLease}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Tolak Pengajuan Sewa {rejectLeaseTarget.contractNumber}

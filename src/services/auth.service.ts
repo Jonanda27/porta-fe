@@ -96,8 +96,10 @@ export class AuthService {
       case "TENANT":
         return "/tenant";
 
-      case "ADMIN_PELABUHAN":
       case "SUPERADMIN":
+        return "/upt/pelabuhan";
+
+      case "ADMIN_PELABUHAN":
       case "BENDAHARA":
         return "/upt/dashboard";
 

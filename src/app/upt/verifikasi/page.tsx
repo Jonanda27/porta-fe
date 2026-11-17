@@ -13,9 +13,12 @@ import {
   RefreshCw,
   FileText,
   ShieldAlert,
+  Search,
 } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { formatLabel } from "@/lib/format-labels";
 import { VerificationStatus } from "@/types/upt.types";
 
 type TabType = "operators" | "vessels" | "tenants";
@@ -42,11 +45,13 @@ export default function VerifikasiPage() {
     clearError,
   } = useUptStore();
 
-  const canAccess =
-    user?.role === "SUPERADMIN" || user?.role === "ADMIN_PELABUHAN";
+  const canAccess = user?.role === "ADMIN_PELABUHAN";
 
   const [activeTab, setActiveTab] = useState<TabType>("operators");
   const [statusFilter, setStatusFilter] = useState<VerificationStatus | "">("PENDING");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   // Reject modal state
@@ -69,7 +74,7 @@ export default function VerifikasiPage() {
         <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto mb-3" />
         <h2 className="text-base font-bold text-[#0B241E]">Akses Terbatas</h2>
         <p className="text-xs text-[#64748B] mt-1">
-          Verifikasi pendaftaran hanya dapat dilakukan oleh Admin Pelabuhan atau Superadmin.
+          Verifikasi mitra dan kapal dikelola oleh Admin Pelabuhan.
         </p>
       </div>
     );
@@ -79,14 +84,53 @@ export default function VerifikasiPage() {
   const pendingVessels = vessels.filter((v) => v.verificationStatus === "PENDING").length;
   const pendingTenants = tenants.filter((t) => t.verificationStatus === "PENDING").length;
 
-  const filteredOperators = operators.filter((o) =>
-    statusFilter ? o.verificationStatus === statusFilter : true
+  const filteredOperators = operators.filter((o) => {
+    const matchStatus = statusFilter ? o.verificationStatus === statusFilter : true;
+    const matchSearch =
+      !searchQuery ||
+      o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (o.npwp && o.npwp.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const filteredVessels = vessels.filter((v) => {
+    const matchStatus = statusFilter ? v.verificationStatus === statusFilter : true;
+    const matchSearch =
+      !searchQuery ||
+      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.operator?.name && v.operator.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const filteredTenants = tenants.filter((t) => {
+    const matchStatus = statusFilter ? t.verificationStatus === statusFilter : true;
+    const matchSearch =
+      !searchQuery ||
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.nib && t.nib.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchSearch;
+  });
+
+  const currentListLength =
+    activeTab === "operators"
+      ? filteredOperators.length
+      : activeTab === "vessels"
+      ? filteredVessels.length
+      : filteredTenants.length;
+
+  const totalPages = Math.ceil(currentListLength / itemsPerPage) || 1;
+  const pagedOperators = filteredOperators.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
-  const filteredVessels = vessels.filter((v) =>
-    statusFilter ? v.verificationStatus === statusFilter : true
+  const pagedVessels = filteredVessels.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
-  const filteredTenants = tenants.filter((t) =>
-    statusFilter ? t.verificationStatus === statusFilter : true
+  const pagedTenants = filteredTenants.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const handleApprove = async (type: TabType, id: number, name: string) => {
@@ -138,11 +182,10 @@ export default function VerifikasiPage() {
           <button
             type="button"
             onClick={() => setActiveTab("operators")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${
-              activeTab === "operators"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "operators"
+              ? "bg-[#0B241E] text-white"
+              : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
+              }`}
           >
             <Building2 className="w-4 h-4 text-[#D97706]" />
             Operator Kapal
@@ -154,11 +197,10 @@ export default function VerifikasiPage() {
           <button
             type="button"
             onClick={() => setActiveTab("vessels")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${
-              activeTab === "vessels"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "vessels"
+              ? "bg-[#0B241E] text-white"
+              : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
+              }`}
           >
             <Ship className="w-4 h-4 text-[#D97706]" />
             Armada Kapal
@@ -170,11 +212,10 @@ export default function VerifikasiPage() {
           <button
             type="button"
             onClick={() => setActiveTab("tenants")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${
-              activeTab === "tenants"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors ${activeTab === "tenants"
+              ? "bg-[#0B241E] text-white"
+              : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
+              }`}
           >
             <Store className="w-4 h-4 text-[#D97706]" />
             Tenant Mitra
@@ -184,15 +225,32 @@ export default function VerifikasiPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-full sm:w-60">
+            <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari nama, registrasi, kontak..."
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs focus:outline-none focus:ring-1 focus:ring-[#133D31]"
+            />
+          </div>
+
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as VerificationStatus | "")}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as VerificationStatus | "");
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
           >
-            <option value="PENDING">Menunggu Verifikasi (PENDING)</option>
-            <option value="VERIFIED">Terverifikasi (VERIFIED)</option>
-            <option value="REJECTED">Ditolak (REJECTED)</option>
+            <option value="PENDING">Menunggu Verifikasi</option>
+            <option value="VERIFIED">Terverifikasi</option>
+            <option value="REJECTED">Ditolak</option>
             <option value="">Semua Status</option>
           </select>
 
@@ -234,7 +292,7 @@ export default function VerifikasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">Perusahaan / Operator</th>
                     <th className="py-3 px-4">NPWP & Kontak</th>
                     <th className="py-3 px-4">Profil</th>
@@ -244,14 +302,14 @@ export default function VerifikasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {filteredOperators.length === 0 ? (
+                  {pagedOperators.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
                         Tidak ada data operator untuk filter ini.
                       </td>
                     </tr>
                   ) : (
-                    filteredOperators.map((op) => (
+                    pagedOperators.map((op) => (
                       <tr key={op.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-bold text-[#0B241E]">
                           {op.name}
@@ -267,22 +325,21 @@ export default function VerifikasiPage() {
                             {op.email || "-"} • {op.phone || "-"}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-mono text-[11px] text-[#475569]">
-                          {op.operatorProfile}
+                        <td className="py-3.5 px-4 font-semibold text-xs text-[#475569]">
+                          {formatLabel(op.operatorProfile)}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#334155]">
                             <FileText className="w-3.5 h-3.5 text-[#D97706]" />
                             {op.documents?.length ?? 0} Berkas
                           </span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              STATUS_BADGE[op.verificationStatus]
-                            }`}
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${STATUS_BADGE[op.verificationStatus]
+                              }`}
                           >
-                            {op.verificationStatus}
+                            {formatLabel(op.verificationStatus)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
@@ -323,7 +380,7 @@ export default function VerifikasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">Nama Kapal</th>
                     <th className="py-3 px-4">Operator</th>
                     <th className="py-3 px-4">No. Registrasi / IMO</th>
@@ -333,14 +390,14 @@ export default function VerifikasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {filteredVessels.length === 0 ? (
+                  {pagedVessels.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
                         Tidak ada data kapal untuk filter ini.
                       </td>
                     </tr>
                   ) : (
-                    filteredVessels.map((v) => (
+                    pagedVessels.map((v) => (
                       <tr key={v.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-bold text-[#0B241E]">
                           {v.name}
@@ -355,19 +412,18 @@ export default function VerifikasiPage() {
                           <div>{v.registrationNumber}</div>
                           <div className="text-[#94A3B8]">{v.imoNumber || "-"}</div>
                         </td>
-                        <td className="py-3 px-4 text-[#475569]">
-                          <div className="font-bold">{Number(v.grossTonnage)} GT</div>
-                          <div className="text-[10px] text-[#94A3B8]">
-                            {v.vesselCategory} • {v.shippingCategory}
+                        <td className="py-3.5 px-4 text-[#475569]">
+                          <div className="font-bold text-[#0B241E]">{Number(v.grossTonnage)} GT</div>
+                          <div className="text-[11px] text-[#64748B]">
+                            {formatLabel(v.vesselCategory)} • {formatLabel(v.shippingCategory)}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              STATUS_BADGE[v.verificationStatus]
-                            }`}
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${STATUS_BADGE[v.verificationStatus]
+                              }`}
                           >
-                            {v.verificationStatus}
+                            {formatLabel(v.verificationStatus)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
@@ -408,7 +464,7 @@ export default function VerifikasiPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] text-[11px] font-mono uppercase text-[#64748B] bg-[#F8FAFC]">
+                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">Nama Usaha / Tenant</th>
                     <th className="py-3 px-4">NIB / NPWP</th>
                     <th className="py-3 px-4">Kontak</th>
@@ -418,14 +474,14 @@ export default function VerifikasiPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {filteredTenants.length === 0 ? (
+                  {pagedTenants.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
                         Belum ada data tenant mitra untuk filter ini.
                       </td>
                     </tr>
                   ) : (
-                    filteredTenants.map((t) => (
+                    pagedTenants.map((t) => (
                       <tr key={t.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-bold text-[#0B241E]">
                           {t.name}
@@ -451,13 +507,12 @@ export default function VerifikasiPage() {
                             {t.documents?.length ?? 0} Berkas
                           </span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              STATUS_BADGE[t.verificationStatus]
-                            }`}
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${STATUS_BADGE[t.verificationStatus]
+                              }`}
                           >
-                            {t.verificationStatus}
+                            {formatLabel(t.verificationStatus)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
@@ -493,15 +548,24 @@ export default function VerifikasiPage() {
               </table>
             </div>
           )}
+
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={currentListLength}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
       )}
 
       {/* Reject Reason Modal */}
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleConfirmReject}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Tolak Verifikasi: {rejectTarget.name}

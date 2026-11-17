@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTenantStore } from "@/store/tenant.store";
 import { TenantDocumentCategory } from "@/types/tenant.types";
+import { formatLabel } from "@/lib/format-labels";
 
 export default function TenantDashboardPage() {
   const {
@@ -84,7 +85,7 @@ export default function TenantDashboardPage() {
             )}
             <div>
               <h2 className="text-sm font-extrabold">
-                {profile.name} — Status Akun: {profile.verificationStatus}
+                {profile.name} — Status Akun: {formatLabel(profile.verificationStatus)}
               </h2>
               <p className="text-xs mt-0.5 opacity-90">
                 {profile.verificationStatus === "VERIFIED"

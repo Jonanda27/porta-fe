@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 
 type TabType = "handovers" | "reports";
 
@@ -282,8 +283,8 @@ export default function UptShiftPage() {
                         : "Belum ditutup"}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100">
-                        {h.status}
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100">
+                        {formatLabel(h.status)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -379,13 +380,13 @@ export default function UptShiftPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                           r.status === "ACKNOWLEDGED"
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-amber-50 text-amber-800"
                         }`}
                       >
-                        {r.status}
+                        {formatLabel(r.status)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -419,10 +420,10 @@ export default function UptShiftPage() {
 
       {/* Close Handover Modal */}
       {closingId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCloseHandover}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Tutup Sif & Rekonsiliasi Kasir

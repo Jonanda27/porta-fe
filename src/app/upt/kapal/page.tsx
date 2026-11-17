@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 import {
   CargoCategory,
   PortEquipmentType,
@@ -306,10 +307,8 @@ export default function UptKapalPage() {
                       </span>
                       <span className="text-[10px] font-bold">
                         {occupyingVisit
-                          ? "TERISI"
-                          : berth.operationalStatus === "OPEN"
-                          ? "KOSONG"
-                          : berth.operationalStatus}
+                          ? "Terisi"
+                          : formatLabel(berth.operationalStatus)}
                       </span>
                     </div>
                     <p className="font-semibold text-[#1E293B] mt-0.5 truncate">
@@ -321,7 +320,7 @@ export default function UptKapalPage() {
                             occupyingVisit.vessel?.name ||
                             occupyingVisit.visitNumber
                           }`
-                        : berth.berthServiceCategory}
+                        : formatLabel(berth.berthServiceCategory)}
                     </p>
                   </div>
                 );
@@ -371,9 +370,9 @@ export default function UptKapalPage() {
                             {v.originPort || "-"} → {v.destinationPort || "-"}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
-                            {v.status}
+                        <td className="py-3.5 px-4">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800">
+                            {formatLabel(v.status)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-[11px] text-[#475569]">
@@ -474,12 +473,12 @@ export default function UptKapalPage() {
                   onChange={(e) => setCargoCategory(e.target.value as CargoCategory)}
                   className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
                 >
-                  <option value="ANTARPULAU">ANTARPULAU</option>
-                  <option value="IMPOR_EKSPOR">IMPOR_EKSPOR</option>
-                  <option value="BULOG_PUPUK">BULOG_PUPUK</option>
-                  <option value="HEWAN_TERNAK">HEWAN_TERNAK</option>
-                  <option value="PETI_KEMAS_20FT">PETI_KEMAS_20FT</option>
-                  <option value="PETI_KEMAS_40FT">PETI_KEMAS_40FT</option>
+                  <option value="ANTARPULAU">Muatan Antarpulau</option>
+                  <option value="IMPOR_EKSPOR">Muatan Ekspor / Impor</option>
+                  <option value="BULOG_PUPUK">Beras Bulog / Pupuk Subsidi</option>
+                  <option value="HEWAN_TERNAK">Hewan Ternak</option>
+                  <option value="PETI_KEMAS_20FT">Peti Kemas 20 Feet</option>
+                  <option value="PETI_KEMAS_40FT">Peti Kemas 40 Feet</option>
                 </select>
               </div>
               <div>
@@ -568,10 +567,10 @@ export default function UptKapalPage() {
                   onChange={(e) => setEquipType(e.target.value as PortEquipmentType)}
                   className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
                 >
-                  <option value="FORKLIFT">FORKLIFT</option>
-                  <option value="CRANE_LISTRIK_DIESEL">CRANE_LISTRIK_DIESEL</option>
-                  <option value="MOTOR_LONG_BOAT">MOTOR_LONG_BOAT</option>
-                  <option value="GEROBAK_DORONG">GEROBAK_DORONG</option>
+                  <option value="FORKLIFT">Forklift Pelabuhan</option>
+                  <option value="CRANE_LISTRIK_DIESEL">Crane Listrik / Diesel</option>
+                  <option value="MOTOR_LONG_BOAT">Motor Long Boat</option>
+                  <option value="GEROBAK_DORONG">Gerobak Dorong</option>
                 </select>
               </div>
               <div>
@@ -647,8 +646,8 @@ export default function UptKapalPage() {
                 onChange={(e) => setUtilType(e.target.value as UtilityType)}
                 className="px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
               >
-                <option value="AIR_BERSIH">AIR_BERSIH</option>
-                <option value="LISTRIK">LISTRIK</option>
+                <option value="AIR_BERSIH">Air Bersih Kapal / Kios</option>
+                <option value="LISTRIK">Aliran Listrik (kWh)</option>
               </select>
               <select
                 value={utilVisitId}
@@ -716,7 +715,7 @@ export default function UptKapalPage() {
                     <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
                       {u.readingNumber}
                     </td>
-                    <td className="py-3 px-4">{u.utilityType}</td>
+                    <td className="py-3 px-4">{formatLabel(u.utilityType)}</td>
                     <td className="py-3 px-4 font-mono">
                       {u.meterStart} → {u.meterEnd}
                     </td>
@@ -727,8 +726,8 @@ export default function UptKapalPage() {
                       Rp {Number(u.totalAmountIdr).toLocaleString("id-ID")}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100">
-                        {u.paymentStatus}
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100">
+                        {formatLabel(u.paymentStatus)}
                       </span>
                     </td>
                   </tr>
@@ -748,34 +747,34 @@ export default function UptKapalPage() {
 
       {/* Start Berthing Modal */}
       {berthingVisitId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleStartBerthing}
-            className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-md p-6 space-y-4 shadow-xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
           >
             <h3 className="text-base font-extrabold text-[#0B241E]">
               Mulai Sandar Kapal (ATB)
             </h3>
             <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
+              <label className="block text-xs font-bold text-[#334155] mb-1.5">
                 Pilih Dermaga
               </label>
               <select
                 required
                 value={berthId}
                 onChange={(e) => setBerthId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
               >
                 <option value="">-- Pilih Dermaga --</option>
                 {activePortBerths.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code} - {b.name} ({b.berthServiceCategory})
+                    {b.code} - {b.name} ({formatLabel(b.berthServiceCategory)})
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
+              <label className="block text-xs font-bold text-[#334155] mb-1.5">
                 Kategori Tambat
               </label>
               <select
@@ -783,10 +782,10 @@ export default function UptKapalPage() {
                 onChange={(e) =>
                   setBerthCategory(e.target.value as "UMUM" | "KHUSUS_TUKS")
                 }
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
               >
-                <option value="UMUM">UMUM</option>
-                <option value="KHUSUS_TUKS">KHUSUS_TUKS</option>
+                <option value="UMUM">Tambat Dermaga Umum</option>
+                <option value="KHUSUS_TUKS">Tambat Khusus / TUKS</option>
               </select>
             </div>
             <div>
