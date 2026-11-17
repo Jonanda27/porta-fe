@@ -284,7 +284,7 @@ export default function PelabuhanPage() {
           >
             <option value="">Semua Kategori Pelabuhan</option>
             <option value="BARANG">Pelabuhan Khusus Barang</option>
-            <option value="PENUMPANG">Pelabuhan Khusus Penumpang</option>
+            <option value="PENUMPANG">Pelabuhan Penumpang (Angkutan Orang)</option>
             <option value="CAMPURAN">Pelabuhan Campuran (Penumpang & Barang)</option>
           </select>
           <button

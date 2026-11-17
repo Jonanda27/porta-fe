@@ -2,6 +2,8 @@ import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
   CreateUserPayload,
+  ResetUserPasswordPayload,
+  UpdateUserPayload,
   UpdateUserStatusPayload,
   UserAccountItem,
 } from "@/types/user.types";
@@ -21,12 +23,29 @@ export const UserService = {
     return apiClient.post<UserAccountItem>(API_CONFIG.ENDPOINTS.USERS.BASE, payload);
   },
 
+  updateUser(userId: number, payload: UpdateUserPayload): Promise<UserAccountItem> {
+    return apiClient.patch<UserAccountItem>(
+      `${API_CONFIG.ENDPOINTS.USERS.BASE}/${userId}`,
+      payload
+    );
+  },
+
   updateUserStatus(
     userId: number,
     payload: UpdateUserStatusPayload
-  ): Promise<Pick<UserAccountItem, "id" | "email" | "role" | "isActive">> {
-    return apiClient.patch<Pick<UserAccountItem, "id" | "email" | "role" | "isActive">>(
+  ): Promise<UserAccountItem> {
+    return apiClient.patch<UserAccountItem>(
       `${API_CONFIG.ENDPOINTS.USERS.BASE}/${userId}/status`,
+      payload
+    );
+  },
+
+  resetUserPassword(
+    userId: number,
+    payload: ResetUserPasswordPayload
+  ): Promise<UserAccountItem> {
+    return apiClient.patch<UserAccountItem>(
+      `${API_CONFIG.ENDPOINTS.USERS.BASE}/${userId}/reset-password`,
       payload
     );
   },

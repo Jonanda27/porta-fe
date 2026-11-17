@@ -10,8 +10,12 @@ import {
   ShieldAlert,
   RefreshCw,
   Search,
+  Edit3,
+  KeyRound,
+  X,
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { UserAccountItem } from "@/types/user.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useUserStore } from "@/store/user.store";
 import { usePortStore } from "@/store/port.store";
@@ -50,7 +54,9 @@ export default function UsersPage() {
     error,
     fetchUsers,
     createUser,
+    updateUser,
     toggleUserStatus,
+    resetUserPassword,
     clearError,
   } = useUserStore();
   const { ports, fetchPorts } = usePortStore();
@@ -72,14 +78,23 @@ export default function UsersPage() {
 
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Create / Edit User modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserAccountItem | null>(null);
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>(
     isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA"
   );
   const [portId, setPortId] = useState<string>("");
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(true);
+
+  // Reset Password modal state
+  const [resetTarget, setResetTarget] = useState<UserAccountItem | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetMustChange, setResetMustChange] = useState(true);
 
   useEffect(() => {
     if (canAccess) {
@@ -113,7 +128,8 @@ export default function UsersPage() {
     const matchSearch =
       !searchUserQuery ||
       u.fullName.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchUserQuery.toLowerCase());
+      u.email.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
+      (u.username && u.username.toLowerCase().includes(searchUserQuery.toLowerCase()));
     return matchRole && matchSearch;
   });
 
@@ -145,7 +161,9 @@ export default function UsersPage() {
   };
 
   const openCreateModal = () => {
+    setEditingUser(null);
     setEmail("");
+    setUsername("");
     setPassword("");
     setFullName("");
     setRole(isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA");
@@ -156,25 +174,75 @@ export default function UsersPage() {
         ? String(ports[0].id)
         : ""
     );
+    setMustChangePassword(true);
     clearError();
     setIsModalOpen(true);
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const openEditModal = (u: UserAccountItem) => {
+    setEditingUser(u);
+    setEmail(u.email);
+    setUsername(u.username || "");
+    setPassword("");
+    setFullName(u.fullName);
+    setRole(u.role);
+    setPortId(u.portId ? String(u.portId) : "");
+    clearError();
+    setIsModalOpen(true);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
-    await createUser(
-      {
-        email: email.trim(),
-        password,
-        fullName: fullName.trim(),
-        role,
-        portId: requiresPortId && portId ? Number(portId) : undefined,
-      },
-      portFilter ? Number(portFilter) : undefined
-    );
-    setFeedback(`Akun ${email} berhasil dibuat.`);
+    const activeFilter = portFilter ? Number(portFilter) : undefined;
+
+    if (editingUser) {
+      await updateUser(
+        editingUser.id,
+        {
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          username: username.trim() ? username.trim().toLowerCase() : null,
+          ...(isSuperadmin ? { role, portId: requiresPortId && portId ? Number(portId) : null } : {}),
+        },
+        activeFilter
+      );
+      setFeedback(`Data akun ${email} berhasil diperbarui.`);
+    } else {
+      await createUser(
+        {
+          email: email.trim().toLowerCase(),
+          username: username.trim() ? username.trim().toLowerCase() : undefined,
+          password,
+          fullName: fullName.trim(),
+          role,
+          portId: requiresPortId && portId ? Number(portId) : undefined,
+          mustChangePassword,
+        },
+        activeFilter
+      );
+      setFeedback(`Akun ${email} berhasil dibuat.`);
+    }
     setIsModalOpen(false);
+  };
+
+  const openResetPasswordModal = (u: UserAccountItem) => {
+    setResetTarget(u);
+    setResetNewPassword("");
+    setResetMustChange(true);
+    clearError();
+  };
+
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTarget) return;
+    setFeedback(null);
+    await resetUserPassword(resetTarget.id, {
+      newPassword: resetNewPassword,
+      mustChangePassword: resetMustChange,
+    });
+    setFeedback(`Kata sandi akun ${resetTarget.email} berhasil direset.`);
+    setResetTarget(null);
   };
 
   const handleToggleStatus = async (userId: number, currentActive: boolean) => {
@@ -322,7 +390,14 @@ export default function UsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-[#475569]">{item.email}</td>
+                      <td className="py-3.5 px-4 text-[#475569]">
+                        <div>{item.email}</div>
+                        {item.username && (
+                          <div className="text-[11px] font-mono text-[#64748B] mt-0.5">
+                            @{item.username}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4">
                         <span
                           className={`inline-flex items-center whitespace-nowrap text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
@@ -346,12 +421,40 @@ export default function UsersPage() {
                           {item.isActive ? "Aktif" : "Nonaktif"}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          disabled={disableToggle}
+                          onClick={() => openEditModal(item)}
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold inline-flex items-center gap-1 transition-colors ${
+                            disableToggle
+                              ? "opacity-40 cursor-not-allowed border-[#E2E8F0] text-[#94A3B8]"
+                              : "border-[#CBD5E1] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
+                          }`}
+                          title="Ubah Email, Username, atau Peran"
+                        >
+                          <Edit3 className="w-3 h-3 text-[#D97706]" />
+                          Ubah
+                        </button>
+                        <button
+                          type="button"
+                          disabled={disableToggle}
+                          onClick={() => openResetPasswordModal(item)}
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold inline-flex items-center gap-1 transition-colors ${
+                            disableToggle
+                              ? "opacity-40 cursor-not-allowed border-[#E2E8F0] text-[#94A3B8]"
+                              : "border-amber-200 text-amber-800 hover:bg-amber-50 cursor-pointer"
+                          }`}
+                          title="Reset Kata Sandi"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          Reset Sandi
+                        </button>
                         <button
                           type="button"
                           disabled={disableToggle}
                           onClick={() => handleToggleStatus(item.id, item.isActive)}
-                          className={`px-3 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
                             disableToggle
                               ? "opacity-40 cursor-not-allowed border-[#E2E8F0] text-[#94A3B8]"
                               : item.isActive
@@ -450,20 +553,31 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Create User Modal */}
+      {/* Create / Edit User Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
-            onSubmit={handleCreateUser}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
+            onSubmit={handleSaveUser}
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-8 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto"
           >
-            <div>
-              <h3 className="text-base font-extrabold text-[#0B241E]">
-                Tambah Akun Pengguna Baru
-              </h3>
-              <p className="text-xs text-[#64748B] mt-0.5">
-                Daftarkan akun staf pelabuhan atau pengguna beserta wewenang perannya.
-              </p>
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#F1F5F9]">
+              <div>
+                <h3 className="text-base font-extrabold text-[#0B241E]">
+                  {editingUser
+                    ? `Ubah Akun: ${editingUser.fullName}`
+                    : "Tambah Akun Pengguna Baru"}
+                </h3>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Kelola nama, email, username login, dan peran pengguna sistem PORTA.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -494,32 +608,46 @@ export default function UsersPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Kata Sandi (min. 6 karakter)
+                  Username Login (Opsional)
                 </label>
                 <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="andi.dermaga (tanpa @)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
               </div>
+
+              {!editingUser && (
+                <div>
+                  <label className="block text-xs font-bold text-[#334155] mb-1.5">
+                    Kata Sandi Awal (min. 6 karakter)
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-[#334155] mb-1.5">
                   Peran & Wewenang (Role)
                 </label>
                 <select
+                  disabled={Boolean(editingUser && !isSuperadmin)}
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold disabled:bg-slate-100"
                 >
                   {creatableRoles.map((r) => (
                     <option key={r} value={r}>
@@ -528,31 +656,43 @@ export default function UsersPage() {
                   ))}
                 </select>
               </div>
+
+              {requiresPortId && (
+                <div>
+                  <label className="block text-xs font-bold text-[#334155] mb-1.5">
+                    Pelabuhan Penugasan
+                  </label>
+                  <select
+                    required
+                    disabled={!isSuperadmin && Boolean(currentUser?.portId)}
+                    value={portId}
+                    onChange={(e) => setPortId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs disabled:bg-slate-100"
+                  >
+                    <option value="">-- Pilih Pelabuhan --</option>
+                    {ports.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} - {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {requiresPortId && (
-              <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1">
-                  Pelabuhan Penugasan
-                </label>
-                <select
-                  required
-                  disabled={!isSuperadmin && Boolean(currentUser?.portId)}
-                  value={portId}
-                  onChange={(e) => setPortId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-                >
-                  <option value="">-- Pilih Pelabuhan --</option>
-                  {ports.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.code} - {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {!editingUser && (
+              <label className="flex items-center gap-2 text-xs text-[#334155] font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={mustChangePassword}
+                  onChange={(e) => setMustChangePassword(e.target.checked)}
+                  className="rounded border-[#CBD5E1]"
+                />
+                Wajibkan pengguna mengganti kata sandi saat login pertama kali
+              </label>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
@@ -563,10 +703,81 @@ export default function UsersPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Buat Akun
+                {editingUser ? "Simpan Perubahan" : "Buat Akun"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleConfirmResetPassword}
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-lg p-6 sm:p-8 space-y-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#F1F5F9]">
+              <div>
+                <h3 className="text-base font-extrabold text-[#0B241E]">
+                  Reset Kata Sandi Pengguna
+                </h3>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Atur kata sandi baru untuk <strong>{resetTarget.fullName}</strong> ({resetTarget.email}).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#334155] mb-1.5">
+                Kata Sandi Baru (min. 6 karakter)
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                placeholder="Masukkan kata sandi baru"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-[#334155] font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetMustChange}
+                onChange={(e) => setResetMustChange(e.target.checked)}
+                className="rounded border-[#CBD5E1]"
+              />
+              Wajibkan pengguna mengganti kata sandi setelah login
+            </label>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Reset Kata Sandi
               </button>
             </div>
           </form>

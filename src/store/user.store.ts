@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { UserService } from "@/services/user.service";
-import { CreateUserPayload, UserAccountItem } from "@/types/user.types";
+import {
+  CreateUserPayload,
+  ResetUserPasswordPayload,
+  UpdateUserPayload,
+  UserAccountItem,
+} from "@/types/user.types";
 
 interface UserState {
   users: UserAccountItem[];
@@ -10,7 +15,16 @@ interface UserState {
 
   fetchUsers: (portId?: number) => Promise<void>;
   createUser: (payload: CreateUserPayload, activePortFilter?: number) => Promise<void>;
+  updateUser: (
+    userId: number,
+    payload: UpdateUserPayload,
+    activePortFilter?: number
+  ) => Promise<void>;
   toggleUserStatus: (userId: number, isActive: boolean) => Promise<void>;
+  resetUserPassword: (
+    userId: number,
+    payload: ResetUserPasswordPayload
+  ) => Promise<void>;
   clearError: () => void;
 }
 
@@ -46,6 +60,24 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
+  updateUser: async (
+    userId: number,
+    payload: UpdateUserPayload,
+    activePortFilter?: number
+  ) => {
+    set({ isSubmitting: true, error: null });
+    try {
+      await UserService.updateUser(userId, payload);
+      await get().fetchUsers(activePortFilter);
+      set({ isSubmitting: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memperbarui data pengguna.";
+      set({ error: message, isSubmitting: false });
+      throw err;
+    }
+  },
+
   toggleUserStatus: async (userId: number, isActive: boolean) => {
     set({ isSubmitting: true, error: null });
     try {
@@ -59,6 +91,24 @@ export const useUserStore = create<UserState>((set, get) => ({
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal mengubah status pengguna.";
+      set({ error: message, isSubmitting: false });
+      throw err;
+    }
+  },
+
+  resetUserPassword: async (userId: number, payload: ResetUserPasswordPayload) => {
+    set({ isSubmitting: true, error: null });
+    try {
+      const updated = await UserService.resetUserPassword(userId, payload);
+      set((state) => ({
+        users: state.users.map((u) =>
+          u.id === userId ? { ...u, mustChangePassword: updated.mustChangePassword } : u
+        ),
+        isSubmitting: false,
+      }));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal mereset kata sandi pengguna.";
       set({ error: message, isSubmitting: false });
       throw err;
     }

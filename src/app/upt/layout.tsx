@@ -21,8 +21,10 @@ import {
   Building2,
   Warehouse,
   Store,
+  UserCog,
   LucideIcon,
 } from "lucide-react";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import { AuthService } from "@/services/auth.service";
 import { useAuthStore } from "@/store/auth.store";
 import { UserRole } from "@/types/auth.types";
@@ -62,6 +64,7 @@ export default function UptLayout({
 
   const [mounted, setMounted] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
@@ -431,17 +434,28 @@ export default function UptLayout({
           </div>
         </div>
 
-        {/* Footer Logout */}
+        {/* Footer Account & Logout */}
         <div
-          className={`p-3 border-t border-[#EDF2F7] border-r border-[#E2E8F0] bg-white shrink-0 flex ${
-            isSidebarCollapsed ? "justify-center" : "justify-between"
+          className={`p-3 border-t border-[#EDF2F7] border-r border-[#E2E8F0] bg-white shrink-0 flex flex-col gap-2 ${
+            isSidebarCollapsed ? "items-center" : ""
           }`}
         >
           <button
             type="button"
+            onClick={() => setIsAccountModalOpen(true)}
+            className={`rounded-xl text-xs font-bold text-[#0B241E] hover:bg-[#F1F5F9] border border-[#CBD5E1] transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+              isSidebarCollapsed ? "w-11 h-11 p-0" : "w-full py-2 px-3"
+            }`}
+            title="Pengaturan Akun & Sandi"
+          >
+            <UserCog className="w-4 h-4 text-[#133D31]" />
+            {!isSidebarCollapsed && <span>Pengaturan Akun</span>}
+          </button>
+          <button
+            type="button"
             onClick={handleLogout}
             className={`rounded-xl text-xs font-bold text-[#E11D48] hover:bg-[#FFF1F2] border border-[#FECDD3] transition-colors flex items-center justify-center gap-2 cursor-pointer ${
-              isSidebarCollapsed ? "w-11 h-11 p-0" : "w-full py-2.5 px-3"
+              isSidebarCollapsed ? "w-11 h-11 p-0" : "w-full py-2 px-3"
             }`}
             title="Keluar Akun"
           >
@@ -511,6 +525,11 @@ export default function UptLayout({
           {children}
         </main>
       </div>
+
+      <AccountSettingsModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+      />
     </div>
   );
 }

@@ -13,7 +13,9 @@ import {
   FileCheck2,
   KeyRound,
   LogOut,
+  UserCog,
 } from "lucide-react";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import { AuthService } from "@/services/auth.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useTenantStore } from "@/store/tenant.store";
@@ -51,6 +53,7 @@ export default function TenantLayout({
 
   const [mounted, setMounted] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
@@ -259,6 +262,18 @@ export default function TenantLayout({
           </div>
 
           <div className="p-3 border-r border-[#E2E8F0] bg-[#F8FAFC]">
+            <button
+              type="button"
+              onClick={() => setIsAccountModalOpen(true)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#0B241E] hover:bg-[#E2E8F0] rounded-xl transition-colors cursor-pointer mb-1 ${
+                isSidebarCollapsed ? "justify-center" : ""
+              }`}
+              title="Pengaturan Akun & Sandi"
+            >
+              <UserCog className="w-4 h-4 shrink-0 text-[#133D31]" />
+              {!isSidebarCollapsed && <span className="truncate">Pengaturan Akun</span>}
+            </button>
+
             <Link
               href="/"
               className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#64748B] hover:text-[#0B241E] hover:bg-[#E2E8F0] rounded-xl transition-colors ${
@@ -338,6 +353,11 @@ export default function TenantLayout({
           {children}
         </main>
       </div>
+
+      <AccountSettingsModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+      />
     </div>
   );
 }
