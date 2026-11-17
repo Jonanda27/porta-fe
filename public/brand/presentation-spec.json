@@ -1,0 +1,30 @@
+{
+  "brand": "PORTA",
+  "tagline": "Sistem Pengelolaan Pelabuhan dan Penerimaan Daerah",
+  "brief": "Platform digital terpadu tata kelola pelabuhan penyeberangan, kepatuhan manifes SOLAS, dan pemungutan retribusi kas daerah sesuai PP No. 35/2023.",
+  "adjectives": ["authoritative", "maritime", "secure", "integrated", "sovereign"],
+  "industry": "services",
+  "mockups": ["signage", "badge", "website", "app-icon", "business-card", "favicon-tab"],
+  "nav": ["Dinas", "UPT Pelabuhan", "Perusahaan Kapal", "Penumpang"],
+  "brand_color": "#0B241E",
+  "tile_color": "#0B241E",
+  "greyscale": false,
+  "final": true,
+  "round": 1,
+  "concepts": [
+    {
+      "name": "The Sovereign Anchor & Beacon",
+      "symbol": "symbol.svg",
+      "lockup": "lockup-horizontal.svg",
+      "stacked": "lockup-stacked.svg",
+      "avatar": "web/porta-square.svg",
+      "idea": "Jangkar kedaulatan maritim dipadukan dengan kompas navigasi keselamatan SOLAS dan balok suar emas kepatuhan retribusi daerah.",
+      "rationale": [
+        "Menampilkan wibawa institusional aparatur perhubungan dan otoritas pelabuhan daerah.",
+        "Balok suar emas merepresentasikan transparansi pemungutan PAD sesuai PP 35/2023.",
+        "Skalabilitas sempurna pada dokumen formal e-SKRD, stempel izin sandar, kartu pas masuk, hingga ikon digital aplikasi."
+      ]
+    }
+  ],
+  "recommendation": "Konsep B memberikan wibawa kedaulatan maritim dan kepatuhan regulasi tertinggi untuk tata kelola pelabuhan dan penerimaan daerah."
+}

@@ -1,0 +1,23 @@
+{
+  "name": "PORTA Design Tokens",
+  "version": "1.0.0",
+  "description": "Design tokens mapped from Figma Design System (PORTA Pelabuhan & Retribusi)",
+  "color": {
+    "ocean": {
+      "50": { "value": "#eff8ff", "type": "color" },
+      "100": { "value": "#dbeafe", "type": "color" },
+      "500": { "value": "#0284c7", "type": "color" },
+      "700": { "value": "#0369a1", "type": "color" },
+      "900": { "value": "#0c4a6e", "type": "color" }
+    },
+    "turquoise": {
+      "100": { "value": "#ccfbf1", "type": "color" },
+      "500": { "value": "#14b8a6", "type": "color" },
+      "700": { "value": "#0f766e", "type": "color" }
+    },
+    "surface": {
+      "white": { "value": "#ffffff", "type": "color" },
+      "canvas": { "value": "#f8fafc", "type": "color" }
+    }
+  }
+}

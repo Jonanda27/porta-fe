@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>PORTA - Concept A: The Maritime Gateway P</title>
+  <!-- Architectural Gateway P (Emerald) -->
+  <path fill-rule="evenodd" fill="#0B241E" d="
+    M 44,38
+    L 156,38
+    A 56,56 0 0,1 212,94
+    A 56,56 0 0,1 156,150
+    L 96,150
+    L 96,218
+    L 44,218
+    Z
+    M 96,76
+    L 150,76
+    A 18,18 0 0,1 168,94
+    A 18,18 0 0,1 150,112
+    L 96,112
+    Z" />
+  <!-- Golden Fairway Keel / Horizon Beam (Amber, 45° clean angle) -->
+  <path fill="#D97706" d="
+    M 104,182
+    L 184,182
+    L 212,210
+    L 104,210
+    Z" />
+</svg>

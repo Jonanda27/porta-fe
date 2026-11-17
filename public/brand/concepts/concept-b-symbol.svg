@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>PORTA - Concept B: The Sovereign Anchor &amp; Beacon</title>
+  <!-- Shank & Crown Ring (Emerald) -->
+  <path fill-rule="evenodd" fill="#0B241E" d="
+    M 116,84
+    L 116,168
+    L 140,168
+    L 140,84
+    Z
+    M 128,36
+    A 24,24 0 0,1 152,60
+    A 24,24 0 0,1 128,84
+    A 24,24 0 0,1 104,60
+    A 24,24 0 0,1 128,36
+    Z
+    M 128,48
+    A 12,12 0 0,1 140,60
+    A 12,12 0 0,1 128,72
+    A 12,12 0 0,1 116,60
+    A 12,12 0 0,1 128,48
+    Z" />
+  <!-- Anchor Base Arc & Flukes (Emerald) -->
+  <path fill="#0B241E" d="
+    M 44,140
+    L 68,140
+    L 68,160
+    A 60,60 0 0,0 116,212
+    L 116,220
+    L 140,220
+    L 140,212
+    A 60,60 0 0,0 188,160
+    L 188,140
+    L 212,140
+    L 212,164
+    A 84,84 0 0,1 140,224
+    L 116,224
+    A 84,84 0 0,1 44,164
+    Z" />
+  <!-- Fluke Arrowheads (45° clean angles) -->
+  <polygon fill="#0B241E" points="44,144 68,120 68,144" />
+  <polygon fill="#0B241E" points="212,144 188,120 188,144" />
+  <!-- Crossbar / Beacon (Amber, 45° chamfered ends) -->
+  <polygon fill="#D97706" points="68,96 188,96 198,106 188,116 68,116 58,106" />
+  <!-- Compass Star / Solas Diamond (Center) -->
+  <polygon fill="#0B241E" points="128,96 138,106 128,116 118,106" />
+</svg>
