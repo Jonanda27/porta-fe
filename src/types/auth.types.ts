@@ -8,23 +8,29 @@ export type UserRole =
   | "PETUGAS_DERMAGA"
   | "BENDAHARA"
   | "OPERATOR_KAPAL"
+  | "TENANT"
   | "DISHUB_EKSEKUTIF";
 
 export type OperatorProfile = "REGULAR_SCHEDULED" | "INCIDENTAL";
 
 export interface LoginCredentials {
-  email: string;
+  identifier?: string;
+  email?: string;
   password: string;
 }
 
 export interface AuthUser {
   id: number | string;
   email: string;
+  username?: string | null;
   fullName: string;
   role: UserRole;
   portId?: number | string | null;
   operatorId?: number | string | null;
   operatorVerificationStatus?: string | null;
+  tenantId?: number | null;
+  tenantVerificationStatus?: string | null;
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {
@@ -53,4 +59,21 @@ export interface RegisterOperatorResponse {
     operatorId: number | string;
     operatorVerificationStatus: string;
   };
+}
+
+export interface UpdateMyProfilePayload {
+  fullName?: string;
+  email?: string;
+  username?: string | null;
+  currentPassword?: string;
+}
+
+export interface ChangeMyPasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ChangeMyPasswordResponse {
+  message: string;
+  accessToken: string;
 }

@@ -1,384 +1,428 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Ship,
-  Calendar,
-  Truck,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  AlertCircle,
-  Radio,
-  ChevronRight,
   Anchor,
+  AlertTriangle,
+  Wallet,
+  CalendarCheck2,
   ShieldCheck,
-  Waves,
-  ArrowUpRight,
-  Eye,
-  FileCheck2,
+  Loader2,
+  RefreshCw,
+  ArrowRight,
 } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import { useUptStore } from "@/store/upt.store";
+import { usePortStore } from "@/store/port.store";
+import { formatLabel } from "@/lib/format-labels";
 
 export default function UptDashboardPage() {
-  const [selectedDock, setSelectedDock] = useState<string>("all");
+  const { user } = useAuthStore();
+  const {
+    visits,
+    unbilledVisits,
+    leases,
+    invoices,
+    warnings,
+    revenueSummary,
+    isLoading,
+    isSubmitting,
+    error,
+    fetchDashboardData,
+    issueWarning,
+  } = useUptStore();
+  const { ports, fetchPorts } = usePortStore();
+
+  const isSuperadmin = user?.role === "SUPERADMIN";
+  const canIssueWarning = isSuperadmin || user?.role === "ADMIN_PELABUHAN";
+  const [selectedPortId, setSelectedPortId] = useState<string>("");
+  const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
+  const [warningInvoiceId, setWarningInvoiceId] = useState<number | null>(null);
+  const [warningLevel, setWarningLevel] = useState<"TEGURAN_1" | "TEGURAN_2" | "TEGURAN_3">("TEGURAN_1");
+  const [warningMessage, setWarningMessage] = useState("Tagihan SKRD telah melewati jatuh tempo. Harap segera dilunasi.");
+  const [warningFeedback, setWarningFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDashboardData(numericPortId);
+    fetchPorts();
+  }, [numericPortId, fetchDashboardData, fetchPorts]);
+
+  const activeVisits = visits.filter((v) =>
+    ["APPROVED", "ANCHORED", "BERTHED"].includes(v.status)
+  );
+  const requestedVisitsCount = visits.filter((v) => v.status === "REQUESTED").length;
+  const requestedLeasesCount = leases.filter((l) => l.status === "REQUESTED").length;
+
+  const visiblePorts = numericPortId
+    ? ports.filter((p) => p.id === numericPortId)
+    : user?.portId && !isSuperadmin
+    ? ports.filter((p) => p.id === user.portId)
+    : ports;
+
+  const allBerths = visiblePorts.flatMap((p) =>
+    (p.berths || []).map((b) => ({ ...b, portName: p.name }))
+  );
 
   return (
     <div className="space-y-6">
-      {/* 1. OVERLAPPING OPERATIONAL KPI CARDS (Pusat Komando UPT) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Jadwal Hari Ini */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
-              <Calendar className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-full">
-              18 Tepat Waktu
-            </span>
-          </div>
-          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Jadwal Pelayaran Hari Ini
+      {/* Top Filter Bar */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+        <div>
+          <p className="text-xs font-bold text-[#0B241E]">
+            Ringkasan Operasional & Penerimaan Real-Time
           </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            24 Jadwal
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1">
-            <span>Delay Cuaca:</span>
-            <strong className="text-amber-700">1 Kapal</strong>
+          <p className="text-[11px] text-[#64748B]">
+            Data tersinkron langsung dari modul Kunjungan, Dermaga, Aset, dan Retribusi Daerah.
           </p>
         </div>
 
-        {/* KPI 2: Kapal Bersandar */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-              <Ship className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
-              80% Dermaga Terisi
-            </span>
-          </div>
-          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Kapal Sandar Real-Time
-          </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            4 Kapal Aktif
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5">
-            Dermaga 1, 2, 3 terisi • Dermaga 4 standby
-          </p>
-        </div>
-
-        {/* KPI 3: Antrean Kendaraan */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-              <Truck className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded-full">
-              Waktu Tunggu 18 Mnt
-            </span>
-          </div>
-          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Antrean Kendaraan Kantong Parkir
-          </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            142 Unit
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5">
-            86 Gol IV (Mobil) • 56 Gol V-VII (Truk)
-          </p>
-        </div>
-
-        {/* KPI 4: Laporan Sif Aktif */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
-              <Clock className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100/60 px-2 py-0.5 rounded-full">
-              Sif 1 Berjalan
-            </span>
-          </div>
-          <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Personil & Status Sif
-          </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            14 Personil
-          </p>
-          <p className="text-[11px] text-purple-700 font-semibold mt-1.5">
-            Berakhir pukul 15:00 WIB
-          </p>
-        </div>
-      </div>
-
-      {/* 2. LINIMASA ALOKASI DERMAGA (VISUAL GANTT CHART) */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F1F5F9]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Radio className="w-4 h-4 text-[#D97706] animate-pulse" />
-              <h2 className="text-base font-extrabold text-[#0B241E]">
-                Linimasa Alokasi & Penjadwalan Dermaga (Gantt Chart Real-Time)
-              </h2>
-            </div>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Visualisasi alokasi blok waktu sandar kapal per dermaga untuk mencegah tabrakan jadwal (*zero collision*).
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-[#64748B]">Filter Dermaga:</span>
+        <div className="flex items-center gap-2">
+          {isSuperadmin && (
             <select
-              value={selectedDock}
-              onChange={(e) => setSelectedDock(e.target.value)}
-              className="bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#0B241E] focus:outline-none cursor-pointer"
+              value={selectedPortId}
+              onChange={(e) => setSelectedPortId(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
             >
-              <option value="all">Semua Dermaga (1-4)</option>
-              <option value="1">Dermaga 1</option>
-              <option value="2">Dermaga 2</option>
-              <option value="3">Dermaga 3</option>
-              <option value="4">Dermaga 4</option>
+              <option value="">Semua Pelabuhan</option>
+              {ports.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} - {p.name}
+                </option>
+              ))}
             </select>
-          </div>
-        </div>
-
-        {/* Visual Timeline Hours Header */}
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px] space-y-3">
-            {/* Hour Markers */}
-            <div className="grid grid-cols-9 text-center text-[11px] font-mono font-bold text-[#64748B] border-b border-[#CBD5E1] pb-2">
-              <span>07:00</span>
-              <span>08:00</span>
-              <span>09:00</span>
-              <span>10:00</span>
-              <span>11:00</span>
-              <span>12:00</span>
-              <span>13:00</span>
-              <span>14:00</span>
-              <span>15:00</span>
-            </div>
-
-            {/* Row Dermaga 1 */}
-            {(selectedDock === "all" || selectedDock === "1") && (
-              <div className="flex items-center gap-3">
-                <div className="w-24 shrink-0 font-extrabold text-xs text-[#0B241E] flex items-center gap-1.5">
-                  <Anchor className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Dermaga 1</span>
-                </div>
-                <div className="flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg h-12 relative p-1">
-                  {/* Ship Schedule Block 1: 08:00 - 09:30 */}
-                  <div
-                    className="absolute left-[12.5%] w-[18.75%] top-1 bottom-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md p-1.5 text-xs shadow-xs cursor-pointer transition-all flex flex-col justify-center"
-                    title="KMP Baruna Jaya (08:00 - 09:30) - Status: Sandar Aktif Bongkar Muat"
-                    onClick={() => alert("KMP Baruna Jaya: Sandar aktif di Dermaga 1. Manifes 210 pax, 42 kendaraan.")}
-                  >
-                    <span className="font-bold truncate text-[11px] flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
-                      KMP Baruna Jaya
-                    </span>
-                    <span className="text-[9px] text-emerald-200 truncate">08:00 - 09:30 (Sandar)</span>
-                  </div>
-
-                  {/* Ship Schedule Block 2: 12:30 - 14:00 */}
-                  <div
-                    className="absolute left-[68.75%] w-[18.75%] top-1 bottom-1 bg-[#0B241E] hover:bg-[#164336] text-white rounded-md p-1.5 text-xs shadow-xs cursor-pointer transition-all flex flex-col justify-center"
-                    title="KMP Sebuku (12:30 - 14:00) - Status: Terjadwal Sesuai SPB"
-                    onClick={() => alert("KMP Sebuku: Jadwal sandar siang 12:30 WIB. Manifes terverifikasi.")}
-                  >
-                    <span className="font-bold truncate text-[11px]">KMP Sebuku</span>
-                    <span className="text-[9px] text-[#BED2CA] truncate">12:30 - 14:00 (Terjadwal)</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Row Dermaga 2 */}
-            {(selectedDock === "all" || selectedDock === "2") && (
-              <div className="flex items-center gap-3">
-                <div className="w-24 shrink-0 font-extrabold text-xs text-[#0B241E] flex items-center gap-1.5">
-                  <Anchor className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Dermaga 2</span>
-                </div>
-                <div className="flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg h-12 relative p-1">
-                  {/* Ship Schedule Block: 09:00 - 11:00 */}
-                  <div
-                    className="absolute left-[25%] w-[25%] top-1 bottom-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md p-1.5 text-xs shadow-xs cursor-pointer transition-all flex flex-col justify-center"
-                    title="KMP Dharma Rucitra (09:00 - 11:00) - Status: Memuat Kendaraan Berat"
-                    onClick={() => alert("KMP Dharma Rucitra: Proses muat truk ekspedisi logistik.")}
-                  >
-                    <span className="font-bold truncate text-[11px] flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-ping" />
-                      KMP Dharma Rucitra
-                    </span>
-                    <span className="text-[9px] text-amber-100 truncate">09:00 - 11:00 (Memuat)</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Row Dermaga 3 */}
-            {(selectedDock === "all" || selectedDock === "3") && (
-              <div className="flex items-center gap-3">
-                <div className="w-24 shrink-0 font-extrabold text-xs text-[#0B241E] flex items-center gap-1.5">
-                  <Anchor className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Dermaga 3</span>
-                </div>
-                <div className="flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg h-12 relative p-1">
-                  {/* Ship Schedule Block: 10:00 - 12:00 */}
-                  <div
-                    className="absolute left-[37.5%] w-[25%] top-1 bottom-1 bg-blue-700 hover:bg-blue-800 text-white rounded-md p-1.5 text-xs shadow-xs cursor-pointer transition-all flex flex-col justify-center"
-                    title="KMP Portlink III (10:00 - 12:00) - Status: Menunggu Giliran Sandar di Perairan"
-                    onClick={() => alert("KMP Portlink III: Kapal labuh di perairan luar, menunggu Dermaga 3 kosong.")}
-                  >
-                    <span className="font-bold truncate text-[11px]">KMP Portlink III</span>
-                    <span className="text-[9px] text-blue-200 truncate">10:00 - 12:00 (Antre Sandar)</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Row Dermaga 4 */}
-            {(selectedDock === "all" || selectedDock === "4") && (
-              <div className="flex items-center gap-3">
-                <div className="w-24 shrink-0 font-extrabold text-xs text-[#0B241E] flex items-center gap-1.5">
-                  <Anchor className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Dermaga 4</span>
-                </div>
-                <div className="flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg h-12 relative p-1">
-                  {/* Maintenance Block: 11:30 - 14:30 */}
-                  <div
-                    className="absolute left-[56.25%] w-[37.5%] top-1 bottom-1 bg-rose-50 border border-rose-300 text-rose-800 rounded-md p-1.5 text-xs flex flex-col justify-center font-bold"
-                    title="Inspeksi Karet Fender & Trestle - Dermaga Tidak Dapat Digunakan"
-                  >
-                    <span className="text-[11px] flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                      Maintenance Fender (Blokir Sementara)
-                    </span>
-                    <span className="text-[9px] text-rose-600 font-normal">11:30 - 14:30 WIB</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Legend and Quick Approval Bar */}
-        <div className="pt-3 border-t border-[#F1F5F9] flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-4 text-[11px] text-[#64748B]">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-emerald-700" />
-              <span>Sandar Aktif</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-amber-600" />
-              <span>Sedang Memuat</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-blue-700" />
-              <span>Antre di Perairan</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-rose-200 border border-rose-400" />
-              <span>Pemeliharaan</span>
-            </span>
-          </div>
-
-          <Link
-            href="/upt/kapal"
-            className="px-3.5 py-1.5 bg-[#0B241E] hover:bg-[#164336] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Buka Formulir Izin Sandar (ATB)</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-
-      {/* 3. SISTEM PERINGATAN GANGGUAN & ALERT OPERASIONAL */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Warning 1: Cuaca & Gelombang (BMKG) */}
-        <div className="bg-white border border-rose-200 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-rose-100">
-              <div className="flex items-center gap-1.5 text-rose-700 font-bold text-xs">
-                <Waves className="w-4 h-4" />
-                <span>Peringatan Cuaca Maritim</span>
-              </div>
-              <span className="text-[10px] font-mono bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded">
-                BMKG Selat Sunda
-              </span>
-            </div>
-            <div className="mt-3 space-y-1">
-              <p className="font-extrabold text-[#0B241E] text-sm">Angin 22 Knot • Ombak 1.8 Meter</p>
-              <p className="text-[11px] text-[#64748B] leading-relaxed">
-                Diperkirakan terjadi peningkatan turbulensi arus laut pukul 13:00 - 16:00 WIB. Nahkoda diwajibkan ekstra hati-hati saat olah gerak sandar Dermaga 3.
-              </p>
-            </div>
-          </div>
+          )}
           <button
             type="button"
-            onClick={() => alert("Menyiarkan Maklumat Pelayaran Cuaca ke Seluruh Radio Kapal (VHF Saluran 16).")}
-            className="mt-4 w-full py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer transition-colors"
+            onClick={() => fetchDashboardData(numericPortId)}
+            disabled={isLoading}
+            className="px-3 py-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-xs font-semibold text-[#475569] flex items-center gap-1.5 cursor-pointer"
           >
-            Siarkan Peringatan Radio VHF →
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
         </div>
+      </div>
 
-        {/* Warning 2: Masalah Fasilitas Lapangan */}
-        <div className="bg-white border border-amber-200 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-amber-100">
-              <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Sensor Gate 2 Bermasalah</span>
-              </div>
-              <span className="text-[10px] font-mono bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">
-                Gate Truk
-              </span>
-            </div>
-            <div className="mt-3 space-y-1">
-              <p className="font-extrabold text-[#0B241E] text-sm">Barcode Scanner Mengalami Penurunan Akurasi</p>
-              <p className="text-[11px] text-[#64748B] leading-relaxed">
-                Kamera reader gate kendaraan logistik tertutup debu dermaga. 15% truk dialihkan ke verifikasi manual handheld oleh petugas pos 2.
-              </p>
-            </div>
+      {error && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+          {error}
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#0B241E] text-white rounded-2xl p-5 shadow-xs">
+          <div className="flex items-center justify-between text-[#85A69B] text-xs font-bold">
+            <span>Total Penerimaan Terverifikasi</span>
+            <Wallet className="w-4 h-4 text-[#D97706]" />
           </div>
-          <Link
-            href="/upt/pemeliharaan"
-            className="mt-4 w-full py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg cursor-pointer transition-colors text-center block"
-          >
-            Buka Tiket Perbaikan Fasilitas →
-          </Link>
+          <p className="text-xl font-extrabold mt-2">
+            Rp{" "}
+            {(revenueSummary?.totalVerifiedRevenueIdr ?? 0).toLocaleString("id-ID")}
+          </p>
+          <p className="text-[11px] text-[#BED2CA] mt-1">
+            Kapal: Rp {(revenueSummary?.vesselRevenueIdr ?? 0).toLocaleString("id-ID")}
+          </p>
         </div>
 
-        {/* Status 3: Konektivitas Host-to-Host */}
-        <div className="bg-white border border-emerald-200 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
-              <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Integrasi e-SKRD Bapenda</span>
-              </div>
-              <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
-                Online (Latensi 38ms)
-              </span>
-            </div>
-            <div className="mt-3 space-y-1">
-              <p className="font-extrabold text-[#0B241E] text-sm">Host-to-Host Kasda 100% Aktif</p>
-              <p className="text-[11px] text-[#64748B] leading-relaxed">
-                Penerbitan nomor bayar e-SKRD otomatis tersinkronisasi ke Kas Daerah tanpa antrean antrian data (*zero queue backlog*).
-              </p>
-            </div>
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
+            <span>Kunjungan Aktif di Pelabuhan</span>
+            <Ship className="w-4 h-4 text-[#0B241E]" />
           </div>
-          <Link
-            href="/upt/shift"
-            className="mt-4 w-full py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg cursor-pointer transition-colors text-center block"
-          >
-            Lihat Rekonsiliasi Kasir Sif 1 →
-          </Link>
+          <p className="text-2xl font-extrabold text-[#0B241E] mt-2">
+            {activeVisits.length}
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            {requestedVisitsCount} permohonan menunggu persetujuan
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
+            <span>Dermaga Terbuka (OPEN)</span>
+            <Anchor className="w-4 h-4 text-emerald-600" />
+          </div>
+          <p className="text-2xl font-extrabold text-[#0B241E] mt-2">
+            {allBerths.filter((b) => b.operationalStatus === "OPEN").length} /{" "}
+            {allBerths.length}
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            {requestedLeasesCount} pengajuan sewa aset menunggu
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
+            <span>Surat Teguran Piutang</span>
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+          </div>
+          <p className="text-2xl font-extrabold text-[#0B241E] mt-2">
+            {warnings.length}
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            {warnings.filter((w) => w.status === "SENT").length} belum terselesaikan
+          </p>
         </div>
       </div>
+
+      {/* Quick Action Links */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link
+          href="/upt/verifikasi"
+          className="bg-white border border-[#E2E8F0] hover:border-[#0B241E] rounded-2xl p-5 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-[#0B241E]">
+                Antrean Verifikasi Operator, Kapal & Tenant
+              </h3>
+              <p className="text-xs text-[#64748B]">
+                Periksa legalitas SIUPAL, NIB, NPWP, dan Surat Ukur GT.
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-[#0B241E]" />
+        </Link>
+
+        <Link
+          href="/upt/alokasi"
+          className="bg-white border border-[#E2E8F0] hover:border-[#0B241E] rounded-2xl p-5 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <CalendarCheck2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-[#0B241E]">
+                Persetujuan Sandar & Sewa Aset ({requestedVisitsCount + requestedLeasesCount})
+              </h3>
+              <p className="text-xs text-[#64748B]">
+                Proses permohonan kunjungan kapal, override dermaga, dan kontrak PKS.
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-[#0B241E]" />
+        </Link>
+      </div>
+
+      {/* Active Berths & Recent Visits */}
+      {isLoading ? (
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-10 flex items-center justify-center gap-2 text-xs text-[#64748B]">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Memuat data operasional...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+            <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E]">
+              Kunjungan Kapal Terbaru ({visits.length})
+            </div>
+            <div className="divide-y divide-[#F1F5F9]">
+              {visits.slice(0, 6).map((v) => (
+                <div key={v.id} className="p-4 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-[#0B241E]">
+                      {v.vessel?.name || `Kapal #${v.vesselId}`}{" "}
+                      <span className="font-mono text-[11px] text-[#64748B]">
+                        ({v.visitNumber})
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#64748B]">
+                      {v.originPort || "-"} → {v.destinationPort || "-"}
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                    {formatLabel(v.status)}
+                  </span>
+                </div>
+              ))}
+              {visits.length === 0 && (
+                <div className="p-8 text-center text-xs text-[#94A3B8]">
+                  Belum ada kunjungan kapal tercatat.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+            <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E]">
+              Status Dermaga ({allBerths.length})
+            </div>
+            <div className="divide-y divide-[#F1F5F9]">
+              {allBerths.map((b) => (
+                <div key={b.id} className="p-4 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-[#0B241E]">
+                      {b.code} — {b.name}
+                    </div>
+                    <div className="text-[11px] text-[#64748B]">
+                      {b.portName} • {formatLabel(b.berthServiceCategory)}
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      b.operationalStatus === "OPEN"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : b.operationalStatus === "MAINTENANCE"
+                        ? "bg-amber-50 text-amber-800"
+                        : "bg-rose-50 text-rose-700"
+                    }`}
+                  >
+                    {formatLabel(b.operationalStatus)}
+                  </span>
+                </div>
+              ))}
+              {allBerths.length === 0 && (
+                <div className="p-8 text-center text-xs text-[#94A3B8]">
+                  Belum ada dermaga terdaftar.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pengendalian Piutang, Kunjungan Belum Tertagih, & Surat Teguran */}
+      {warningFeedback && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+          {warningFeedback}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+          <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E]">
+            Tagihan SKRD / Piutang Aktif ({invoices.filter((i) => i.status === "ISSUED" || i.status === "PARTIAL").length})
+          </div>
+          <div className="divide-y divide-[#F1F5F9]">
+            {invoices
+              .filter((i) => i.status === "ISSUED" || i.status === "PARTIAL")
+              .slice(0, 6)
+              .map((inv) => (
+                <div key={inv.id} className="p-4 flex items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="font-mono font-bold text-[#0B241E]">
+                      {inv.documentNumber} ({formatLabel(inv.status)})
+                    </div>
+                    <div className="text-[11px] text-[#64748B]">
+                      {inv.operator?.name || "-"} • Rp{" "}
+                      {Number(inv.totalAmountIdr).toLocaleString("id-ID")}
+                    </div>
+                  </div>
+                  {canIssueWarning && (
+                    <button
+                      type="button"
+                      onClick={() => setWarningInvoiceId(inv.id)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold cursor-pointer"
+                    >
+                      Terbitkan Teguran
+                    </button>
+                  )}
+                </div>
+              ))}
+            {invoices.filter((i) => i.status === "ISSUED" || i.status === "PARTIAL").length === 0 && (
+              <div className="p-6 text-center text-xs text-[#94A3B8]">
+                Tidak ada tagihan piutang yang menunggak.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
+          <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E]">
+            Kunjungan Berangkat Belum Terbit SKRD Final ({unbilledVisits.length})
+          </div>
+          <div className="divide-y divide-[#F1F5F9]">
+            {unbilledVisits.slice(0, 6).map((v) => (
+              <div key={v.id} className="p-4 flex items-center justify-between text-xs">
+                <div>
+                  <div className="font-mono font-bold text-[#0B241E]">
+                    {v.visitNumber}
+                  </div>
+                  <div className="text-[11px] text-[#64748B]">
+                    {v.vessel?.name || `Kapal #${v.vesselId}`} • {v.operator?.name || "-"}
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">
+                  Belum SKRD Final
+                </span>
+              </div>
+            ))}
+            {unbilledVisits.length === 0 && (
+              <div className="p-6 text-center text-xs text-[#94A3B8]">
+                Semua kunjungan yang telah berangkat sudah memiliki SKRD Final.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Terbitkan Surat Teguran */}
+      {warningInvoiceId && (
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setWarningFeedback(null);
+              await issueWarning(
+                {
+                  invoiceId: warningInvoiceId,
+                  warningLevel,
+                  message: warningMessage.trim(),
+                },
+                numericPortId
+              );
+              setWarningFeedback(`Surat ${formatLabel(warningLevel)} untuk invoice #${warningInvoiceId} berhasil diterbitkan.`);
+              setWarningInvoiceId(null);
+            }}
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
+          >
+            <h3 className="text-base font-extrabold text-[#0B241E]">
+              Terbitkan Surat Teguran Piutang
+            </h3>
+            <select
+              value={warningLevel}
+              onChange={(e) =>
+                setWarningLevel(e.target.value as "TEGURAN_1" | "TEGURAN_2" | "TEGURAN_3")
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+            >
+              <option value="TEGURAN_1">Surat Teguran I</option>
+              <option value="TEGURAN_2">Surat Teguran II</option>
+              <option value="TEGURAN_3">Surat Teguran III</option>
+            </select>
+            <textarea
+              required
+              rows={3}
+              value={warningMessage}
+              onChange={(e) => setWarningMessage(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setWarningInvoiceId(null)}
+                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold cursor-pointer"
+              >
+                Kirim Teguran
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

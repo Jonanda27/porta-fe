@@ -48,10 +48,14 @@ class ApiClient {
     const { body, params, headers, ...customConfig } = options;
 
     const token = this.getAuthToken();
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
     const defaultHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
       Accept: "application/json",
     };
+
+    if (!isFormData) {
+      defaultHeaders["Content-Type"] = "application/json";
+    }
 
     if (token) {
       defaultHeaders["Authorization"] = `Bearer ${token}`;
@@ -66,7 +70,11 @@ class ApiClient {
     };
 
     if (body !== undefined) {
-      config.body = typeof body === "string" ? body : JSON.stringify(body);
+      config.body = isFormData
+        ? (body as FormData)
+        : typeof body === "string"
+        ? body
+        : JSON.stringify(body);
     }
 
     const targetUrl = this.buildUrl(path, params);

@@ -2,10 +2,13 @@ import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
   AuthUser,
+  ChangeMyPasswordPayload,
+  ChangeMyPasswordResponse,
   LoginCredentials,
   LoginResponse,
   RegisterOperatorDto,
   RegisterOperatorResponse,
+  UpdateMyProfilePayload,
   UserRole,
 } from "@/types/auth.types";
 
@@ -48,6 +51,43 @@ export class AuthService {
    */
   public static async getCurrentUser(): Promise<AuthUser> {
     return apiClient.get<AuthUser>(API_CONFIG.ENDPOINTS.AUTH.ME);
+  }
+
+  /**
+   * Mengubah profil (nama, email, username) user yang sedang login
+   */
+  public static async updateMyProfile(payload: UpdateMyProfilePayload): Promise<AuthUser> {
+    const updated = await apiClient.patch<AuthUser>(
+      `${API_CONFIG.ENDPOINTS.AUTH.ME}/profile`,
+      payload
+    );
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+    }
+    return updated;
+  }
+
+  /**
+   * Mengubah kata sandi user yang sedang login (dan memperbarui token JWT)
+   */
+  public static async changeMyPassword(
+    payload: ChangeMyPasswordPayload
+  ): Promise<ChangeMyPasswordResponse> {
+    const res = await apiClient.patch<ChangeMyPasswordResponse>(
+      `${API_CONFIG.ENDPOINTS.AUTH.ME}/password`,
+      payload
+    );
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.TOKEN, res.accessToken);
+      const stored = this.getStoredUser();
+      if (stored) {
+        localStorage.setItem(
+          STORAGE_KEYS.USER,
+          JSON.stringify({ ...stored, mustChangePassword: false })
+        );
+      }
+    }
+    return res;
   }
 
   /**
@@ -111,8 +151,13 @@ export class AuthService {
       case "BENDAHARA":
         return "/bendahara/dashboard";
 
-      case "ADMIN_PELABUHAN":
+      case "TENANT":
+        return "/tenant";
+
       case "SUPERADMIN":
+        return "/upt/pelabuhan";
+
+      case "ADMIN_PELABUHAN":
         return "/upt/dashboard";
 
       case "PETUGAS_DERMAGA":

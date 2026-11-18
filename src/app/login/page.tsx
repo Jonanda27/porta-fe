@@ -23,6 +23,13 @@ import { ApiException } from "@/lib/api-client";
 
 const DEMO_ACCOUNTS = [
   {
+    roleLabel: "Superadmin PORTA Mimika",
+    email: "superadmin@porta.mimikakab.go.id",
+    password: "Porta123!",
+    badge: "bg-purple-900/60 text-purple-200 border-purple-700",
+    targetRoute: "/upt/pelabuhan",
+  },
+  {
     roleLabel: "Operator Kapal (PT Pelayaran Mimika)",
     email: "operator@mimika-shipping.co.id",
     password: "Porta123!",
@@ -56,6 +63,13 @@ const DEMO_ACCOUNTS = [
     password: "Porta123!",
     badge: "bg-teal-900/60 text-teal-200 border-teal-700",
     targetRoute: "/upt/kapal",
+  },
+  {
+    roleLabel: "Tenant / Mitra Usaha",
+    email: "tenant@sinarpapua.co.id",
+    password: "Porta123!",
+    badge: "bg-indigo-900/60 text-indigo-200 border-indigo-700",
+    targetRoute: "/tenant",
   },
 ];
 
@@ -99,7 +113,7 @@ export default function LoginPage() {
 
     try {
       // Panggil store terpusat (Store -> Service -> ApiClient -> Backend)
-      const data = await storeLogin({ email, password });
+      const data = await storeLogin({ identifier: email.trim(), email: email.trim(), password });
 
       setSuccessMessage(
         `Login berhasil! Mengalihkan ke portal ${data.user?.fullName || ""}...`
@@ -128,12 +142,18 @@ export default function LoginPage() {
                 id: 999,
                 email: matchedDemo.email,
                 fullName: matchedDemo.roleLabel,
-                role: (matchedDemo.roleLabel.includes("Dishub")
+                role: (matchedDemo.roleLabel.includes("Superadmin")
+                  ? "SUPERADMIN"
+                  : matchedDemo.roleLabel.includes("Dishub")
                   ? "DISHUB_EKSEKUTIF"
                   : matchedDemo.roleLabel.includes("Dermaga")
                   ? "PETUGAS_DERMAGA"
                   : matchedDemo.roleLabel.includes("Bendahara")
                   ? "BENDAHARA"
+                  : matchedDemo.roleLabel.includes("Operator Kapal")
+                  ? "OPERATOR_KAPAL"
+                  : matchedDemo.roleLabel.includes("Tenant")
+                  ? "TENANT"
                   : "ADMIN_PELABUHAN") as UserRole,
               },
             });
@@ -268,19 +288,19 @@ export default function LoginPage() {
 
           {/* Form Login */}
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Field Email */}
+            {/* Field Email atau Username */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
-                Email Pengguna
+                Email atau Username
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin.pomako@porta.mimikakab.go.id"
+                  placeholder="Email atau username Anda"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.06] border border-white/15 focus:border-[#D97706] focus:bg-black/40 text-white placeholder-slate-500 text-sm outline-none transition-all font-sans"
                 />
               </div>
@@ -383,11 +403,19 @@ export default function LoginPage() {
           </div>
 
           {/* Register Link Footer */}
-          <div className="text-center text-xs text-slate-400 pt-2">
-            <span>Operator Kapal baru yang belum terdaftar? </span>
-            <Link href="/register" className="text-[#F59E0B] font-bold hover:underline">
-              Registrasi Akun Perusahaan
-            </Link>
+          <div className="text-center text-xs text-slate-400 pt-2 space-y-1">
+            <div>
+              <span>Operator Kapal baru? </span>
+              <Link href="/register" className="text-[#F59E0B] font-bold hover:underline">
+                Registrasi Perusahaan Kapal
+              </Link>
+            </div>
+            <div>
+              <span>Mitra / Penyewa Kios & Gudang? </span>
+              <Link href="/register-tenant" className="text-[#F59E0B] font-bold hover:underline">
+                Registrasi Tenant Usaha
+              </Link>
+            </div>
           </div>
         </div>
       </div>

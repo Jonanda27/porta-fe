@@ -64,7 +64,9 @@ export default function DermagaPage() {
         const query = searchQuery.toLowerCase();
         const matchName = item.name.toLowerCase().includes(query);
         const matchCode = item.code.toLowerCase().includes(query);
-        const matchLegal = item.legalBasis.toLowerCase().includes(query);
+        const matchLegal = item.legalBasis
+          ? item.legalBasis.toLowerCase().includes(query)
+          : false;
         return matchName || matchCode || matchLegal;
       }
 
