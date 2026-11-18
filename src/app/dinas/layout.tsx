@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Landmark,
   Receipt,
@@ -21,7 +21,84 @@ import {
   FileText,
   ShieldCheck,
   ExternalLink,
+  Wrench,
+  LogOut,
 } from "lucide-react";
+import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
+import { useAuthStore } from "@/store/auth.store";
+
+function DinasHeaderFilters() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const currentPort = searchParams.get("portId") || "all";
+  const currentPeriod = searchParams.get("period") || "month";
+
+  const handlePortChange = (portVal: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (portVal === "all") {
+      params.delete("portId");
+    } else {
+      params.set("portId", portVal);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handlePeriodChange = (periodVal: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (periodVal === "month") {
+      params.delete("period");
+    } else {
+      params.set("period", periodVal);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start md:self-auto pt-1">
+      {/* Filter Pelabuhan Reaktif */}
+      <div className="bg-[#12362C] border border-[#1C4D3F] rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
+        <Anchor className="w-3.5 h-3.5 text-[#D97706]" />
+        <select
+          value={currentPort}
+          onChange={(e) => handlePortChange(e.target.value)}
+          className="bg-transparent text-white focus:outline-none cursor-pointer text-xs font-semibold"
+        >
+          <option value="all" className="bg-[#0B241E] text-white">Semua Pelabuhan (Kab. Mimika)</option>
+          <option value="1" className="bg-[#0B241E] text-white">Pelabuhan Poumako (Utama)</option>
+          <option value="2" className="bg-[#0B241E] text-white">Dolphin MB Ferry Penyeberangan</option>
+          <option value="3" className="bg-[#0B241E] text-white">Dermaga Rakyat / PPI Poumako</option>
+          <option value="4" className="bg-[#0B241E] text-white">Dermaga Perintis Kokonao</option>
+        </select>
+      </div>
+
+      {/* Filter Periode Reaktif */}
+      <div className="bg-[#12362C] border border-[#1C4D3F] rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
+        <Calendar className="w-3.5 h-3.5 text-[#D97706]" />
+        <select
+          value={currentPeriod}
+          onChange={(e) => handlePeriodChange(e.target.value)}
+          className="bg-transparent text-white focus:outline-none cursor-pointer text-xs font-semibold"
+        >
+          <option value="today" className="bg-[#0B241E] text-white">Hari Ini (Real-time)</option>
+          <option value="month" className="bg-[#0B241E] text-white">Bulan Berjalan</option>
+          <option value="year" className="bg-[#0B241E] text-white">Tahun Anggaran 2026</option>
+        </select>
+      </div>
+
+      {/* Export Button */}
+      <button
+        type="button"
+        onClick={() => alert("Mengunduh Laporan Eksekutif PAD Pelabuhan Kab. Mimika (Format PDF Rekonsiliasi)...")}
+        className="bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+      >
+        <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+        <span>Unduh Laporan Eksekutif</span>
+      </button>
+    </div>
+  );
+}
 
 export default function DinasLayout({
   children,
@@ -33,19 +110,21 @@ export default function DinasLayout({
 
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-
-  // Global Filter State
-  const [selectedPort, setSelectedPort] = useState<string>("all");
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("month");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
 
-  const handleLogout = () => {
-    router.push("/");
+  const { user, logout } = useAuthStore();
+
+  const handleConfirmLogout = () => {
+    logout();
+    setShowLogoutModal(false);
+    router.replace("/login");
   };
 
   // Determine Active Header Title & Breadcrumb based on URL
   const getPageTitle = () => {
     if (pathname.includes("/dinas/monitoring")) return "Monitoring Realisasi PAD & Piutang";
+    if (pathname.includes("/dinas/operasional")) return "Pengawasan Operasional & Log Harian UPT";
     if (pathname.includes("/dinas/evaluasi")) return "Evaluasi Komparasi UPTD & Simulasi PAD";
     if (pathname.includes("/dinas/pengaduan")) return "Pemantauan Pelayanan Publik & SLA Pengaduan";
     return "Dashboard Eksekutif Dinas Perhubungan";
@@ -53,6 +132,7 @@ export default function DinasLayout({
 
   const getBreadcrumbLabel = () => {
     if (pathname.includes("/dinas/monitoring")) return "Penerimaan & Piutang Retribusi";
+    if (pathname.includes("/dinas/operasional")) return "Operasional & Fasilitas";
     if (pathname.includes("/dinas/evaluasi")) return "Evaluasi Kinerja & Simulasi";
     if (pathname.includes("/dinas/pengaduan")) return "Kualitas Layanan & Pengaduan";
     return "Ringkasan Eksekutif";
@@ -61,6 +141,8 @@ export default function DinasLayout({
   const getPageDescription = () => {
     if (pathname.includes("/dinas/monitoring"))
       return "Monitoring rincian objek retribusi daerah, realisasi target APBD, status piutang, serta kepatuhan PP No. 35/2023.";
+    if (pathname.includes("/dinas/operasional"))
+      return "Pengawasan catatan shift harian perwira jaga UPT, armada kapal sandar, dan kelaikan fasilitas fisik dermaga Pelabuhan Poumako.";
     if (pathname.includes("/dinas/evaluasi"))
       return "Benchmarking efisiensi 4 UPTD, kalkulator simulasi penyesuaian tarif PAD, dan eksplorasi GIS peluang investasi.";
     if (pathname.includes("/dinas/pengaduan"))
@@ -78,18 +160,18 @@ export default function DinasLayout({
           isSidebarCollapsed ? "w-20" : "w-64"
         } bg-white flex flex-col justify-between shrink-0 shadow-xs z-30 sticky top-0 h-screen transition-all duration-300 ease-in-out relative`}
       >
-        {/* Sleek Floating Seam Toggle Button - Positioned safely at the dark header seam (top-8) */}
+        {/* Floating Circular Sidebar Toggle Button (Gambar 2 Reference: Clean Circular Button on Seam) */}
         <button
           type="button"
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3.5 top-8 -translate-y-1/2 z-40 w-7 h-7 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
+          className="absolute right-0 top-[138px] translate-x-1/2 -translate-y-1/2 z-40 w-8 h-8 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
           title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
           aria-label={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
         >
           {isSidebarCollapsed ? (
-            <ChevronRight className="w-3.5 h-3.5 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
+            <ChevronRight className="w-4 h-4 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
           ) : (
-            <ChevronLeft className="w-3.5 h-3.5 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
+            <ChevronLeft className="w-4 h-4 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
           )}
         </button>
 
@@ -136,15 +218,6 @@ export default function DinasLayout({
                   <span className="text-[10px] font-mono bg-[#143E33] text-[#D97706] border border-[#1E5748] font-bold px-1.5 py-0.5 rounded">
                     v2.4
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsSidebarCollapsed(true)}
-                    className="w-7 h-7 rounded-lg bg-[#143E33] hover:bg-[#1E5748] text-[#BED2CA] hover:text-white border border-[#1E5748] flex items-center justify-center transition-colors cursor-pointer"
-                    title="Ciutkan Sidebar"
-                    aria-label="Ciutkan Sidebar"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
                 </div>
               </>
             )}
@@ -253,6 +326,39 @@ export default function DinasLayout({
                     ) : (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
                         3 Alert
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Link 3: Operasional & Fasilitas (/dinas/operasional) */}
+                  <Link
+                    href="/dinas/operasional"
+                    title="Operasional & Fasilitas Dermaga"
+                    className={`transition-all flex items-center cursor-pointer relative ${
+                      isSidebarCollapsed
+                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
+                            pathname === "/dinas/operasional"
+                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
+                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                          }`
+                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
+                            pathname === "/dinas/operasional"
+                              ? "bg-[#0B241E] text-white shadow-xs"
+                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
+                          }`
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Wrench
+                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
+                          pathname === "/dinas/operasional" ? "text-[#D97706]" : "text-[#64748B]"
+                        }`}
+                      />
+                      {!isSidebarCollapsed && <span>Operasional & Fasilitas</span>}
+                    </div>
+                    {!isSidebarCollapsed && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                        Log UPT
                       </span>
                     )}
                   </Link>
@@ -423,13 +529,13 @@ export default function DinasLayout({
         >
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             className={`rounded-lg text-xs font-bold text-[#E11D48] hover:bg-[#FFF1F2] border border-[#FECDD3] transition-colors flex items-center justify-center gap-2 cursor-pointer ${
               isSidebarCollapsed ? "w-11 h-11 p-0" : "w-full py-2.5 px-3"
             }`}
             title="Keluar / Ganti Akun"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <LogOut className="w-4 h-4" />
             {!isSidebarCollapsed && <span>Keluar / Ganti Akun</span>}
           </button>
         </div>
@@ -441,21 +547,8 @@ export default function DinasLayout({
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* A. TOP NAVIGATION BAR */}
         <header className="h-16 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-6 text-white sticky top-0 z-20 shadow-xs">
-          {/* Left search bar with Sidebar Toggle */}
-          <div className="flex items-center flex-1 max-w-md gap-3">
-            <button
-              type="button"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-2 rounded-lg bg-[#12362C] hover:bg-[#1A493B] text-[#BED2CA] hover:text-white border border-[#1C4D3F] transition-colors cursor-pointer shrink-0"
-              title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-              aria-label="Toggle Sidebar"
-            >
-              {isSidebarCollapsed ? (
-                <ChevronRight className="w-4 h-4 text-[#D97706]" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </button>
+          {/* Left search bar */}
+          <div className="flex items-center flex-1 max-w-md">
             <div className="relative w-full">
               <Search className="w-4 h-4 text-[#85A69B] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -506,9 +599,19 @@ export default function DinasLayout({
               </div>
               <div className="hidden sm:block text-left">
                 <span className="block text-xs font-bold leading-tight">Kepala Dinas</span>
-                <span className="block text-[10px] text-[#85A69B]">Provinsi Banten</span>
+                <span className="block text-[10px] text-[#85A69B]">Dishub Kab. Mimika</span>
               </div>
             </div>
+
+            {/* Quick Logout Header Action */}
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(true)}
+              className="p-2 rounded-lg bg-[#12362C] hover:bg-rose-950/80 hover:text-rose-400 text-slate-300 transition-colors cursor-pointer border border-transparent hover:border-rose-900/50"
+              title="Keluar / Akhiri Sesi Kerja"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
@@ -535,48 +638,16 @@ export default function DinasLayout({
               </p>
             </div>
 
-            {/* Global Filters on Header */}
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start md:self-auto pt-1">
-              {/* Filter Pelabuhan */}
-              <div className="bg-[#12362C] border border-[#1C4D3F] rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
-                <Anchor className="w-3.5 h-3.5 text-[#D97706]" />
-                <select
-                  value={selectedPort}
-                  onChange={(e) => setSelectedPort(e.target.value)}
-                  className="bg-transparent text-white focus:outline-none cursor-pointer text-xs font-semibold"
-                >
-                  <option value="all" className="bg-[#0B241E] text-white">Semua Pelabuhan (4 UPTD)</option>
-                  <option value="merak" className="bg-[#0B241E] text-white">UPTD Pelabuhan Merak</option>
-                  <option value="bakauheni" className="bg-[#0B241E] text-white">UPTD Pelabuhan Bakauheni</option>
-                  <option value="ketapang" className="bg-[#0B241E] text-white">UPTD Pelabuhan Ketapang</option>
-                  <option value="gilimanuk" className="bg-[#0B241E] text-white">UPTD Pelabuhan Gilimanuk</option>
-                </select>
-              </div>
-
-              {/* Filter Periode */}
-              <div className="bg-[#12362C] border border-[#1C4D3F] rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
-                <Calendar className="w-3.5 h-3.5 text-[#D97706]" />
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="bg-transparent text-white focus:outline-none cursor-pointer text-xs font-semibold"
-                >
-                  <option value="today" className="bg-[#0B241E] text-white">Hari Ini (Real-time)</option>
-                  <option value="month" className="bg-[#0B241E] text-white">Bulan Berjalan (Nov 2026)</option>
-                  <option value="year" className="bg-[#0B241E] text-white">Tahun Anggaran 2026</option>
-                </select>
-              </div>
-
-              {/* Export Button */}
-              <button
-                type="button"
-                onClick={() => alert("Mengunduh Laporan Eksekutif PAD Pelabuhan (Format PDF / Excel Rekonsiliasi)...")}
-                className="bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Unduh Laporan</span>
-              </button>
-            </div>
+            {/* Global Filters on Header (Reaktif dengan Suspense Boundary) */}
+            <Suspense
+              fallback={
+                <div className="text-xs text-emerald-400 font-mono py-1.5">
+                  Memuat filter pelabuhan...
+                </div>
+              }
+            >
+              <DinasHeaderFilters />
+            </Suspense>
           </div>
         </section>
 
@@ -585,6 +656,16 @@ export default function DinasLayout({
           {children}
         </main>
       </div>
+
+      {/* Modal Validasi Logout */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+        userName={user?.fullName || "Kepala Dinas Perhubungan"}
+        userRole="DISHUB EKSEKUTIF"
+        userEmail={user?.email || "kadis.dishub@porta.mimikakab.go.id"}
+      />
     </div>
   );
 }

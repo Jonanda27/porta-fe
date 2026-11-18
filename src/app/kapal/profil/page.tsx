@@ -148,7 +148,7 @@ export default function KapalProfilPage() {
   const handleOpenAddVessel = () => {
     setVesselFormData({
       name: "",
-      registrationNumber: `REG-PMK-${Date.now().toString().slice(-4)}`,
+      registrationNumber: "",
       imoNumber: "",
       grossTonnage: 500,
       shipType: "NIAGA",
@@ -198,8 +198,8 @@ export default function KapalProfilPage() {
     setSelectedVesselForDoc(vessel);
     setDocFormData({
       category: "SURAT_UKUR",
-      documentNumber: `SU-${vessel.name.replace(/\s+/g, "").slice(0, 4)}-${Date.now().toString().slice(-4)}`,
-      notes: `Dokumen resmi Surat Ukur untuk ${vessel.name}`,
+      documentNumber: "",
+      notes: "",
       file: null,
     });
     setErrorMessage(null);
@@ -241,8 +241,8 @@ export default function KapalProfilPage() {
   const handleOpenUploadOpDoc = () => {
     setOpDocFormData({
       category: "SIUPAL_NIB",
-      documentNumber: `SIUPAL-MMK-${Date.now().toString().slice(-4)}`,
-      notes: "Dokumen legalitas izin usaha angkutan laut resmi",
+      documentNumber: "",
+      notes: "",
       file: null,
     });
     setErrorMessage(null);

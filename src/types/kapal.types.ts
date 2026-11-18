@@ -132,7 +132,7 @@ export interface CreateVisitPayload {
 }
 
 export interface CreateVesselPayload {
-  operatorId: number;
+  operatorId: number | string;
   registrationNumber: string;
   imoNumber?: string;
   name: string;

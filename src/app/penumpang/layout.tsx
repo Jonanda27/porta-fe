@@ -22,7 +22,10 @@ import {
   MapPin,
   Clock,
   Sparkles,
+  LogOut,
 } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
 
 export default function PenumpangLayout({
   children,
@@ -32,6 +35,15 @@ export default function PenumpangLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const { user, logout } = useAuthStore();
+
+  const handleConfirmLogout = () => {
+    logout();
+    setShowLogoutModal(false);
+    router.replace("/login");
+  };
 
   const navItems = [
     {
@@ -84,10 +96,11 @@ export default function PenumpangLayout({
               <span>Portal Resmi Pemda & PP 35/2023</span>
             </span>
             <button
-              onClick={() => router.push("/")}
+              type="button"
+              onClick={() => setShowLogoutModal(true)}
               className="text-[#93C5FD] hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5" />
               <span>Ganti Akun / Keluar</span>
             </button>
           </div>
@@ -343,6 +356,16 @@ export default function PenumpangLayout({
           </div>
         </div>
       </footer>
+
+      {/* Modal Validasi Logout */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+        userName={user?.fullName || "Masyarakat / Penumpang"}
+        userRole="PENGGUNA PUBLIK"
+        userEmail={user?.email || "penumpang@portal.id"}
+      />
     </div>
   );
 }

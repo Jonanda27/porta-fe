@@ -58,7 +58,7 @@ export class KapalService {
    * Upload dokumen legalitas perusahaan operator (SIUPAL, NIB, NPWP)
    */
   public static async uploadOperatorDocument(
-    operatorId: number,
+    operatorId: number | string,
     payload: UploadDocumentPayload,
     file: File | Blob
   ): Promise<OperatorDocument> {

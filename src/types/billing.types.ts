@@ -123,3 +123,161 @@ export interface SubmitPaymentProofDto {
   idempotencyKey: string;
   paidAt?: string;
 }
+
+export type BillingAdjustmentType =
+  | "INSTALLMENT_PLAN"
+  | "PAYMENT_DEFERRAL"
+  | "OVERPAYMENT_REFUND"
+  | "CREDIT_TRANSFER";
+
+export type AdjustmentApprovalStatus = "REQUESTED" | "APPROVED" | "REJECTED";
+
+export interface BillingAdjustment {
+  id: number;
+  requestNumber: string;
+  portId: number;
+  invoiceId: number;
+  adjustmentType: BillingAdjustmentType;
+  requestedAmountIdr: number | string;
+  installmentCount?: number | null;
+  deferredUntil?: string | null;
+  reason: string;
+  status: AdjustmentApprovalStatus;
+  requestedById: number;
+  approvedById?: number | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  invoice?: BillingInvoice;
+  requestedBy?: {
+    id: number;
+    fullName?: string;
+    email: string;
+  };
+}
+
+export interface CreateBillingAdjustmentDto {
+  adjustmentType: BillingAdjustmentType;
+  requestedAmountIdr: number;
+  installmentCount?: number;
+  deferredUntil?: string;
+  reason: string;
+}
+
+export type WarningLevel = "TEGURAN_1" | "TEGURAN_2" | "TEGURAN_3";
+export type WarningStatus = "SENT" | "ACKNOWLEDGED" | "RESOLVED";
+
+export interface CreateWarningDto {
+  invoiceId: number;
+  warningLevel: WarningLevel;
+  message: string;
+}
+
+export interface GateHandoverRecord {
+  id: number;
+  bookId: number;
+  wardenName: string;
+  openedAt: string;
+  closedAt?: string | null;
+  status: "OPEN" | "SETTLED";
+  actualCashSettledIdr?: number | string | null;
+  notes?: string | null;
+  book?: {
+    bookCode: string;
+    ticketCategory: string;
+    nominalPerTicket: number | string;
+    serialStart: number;
+    serialEnd: number;
+  };
+}
+
+export interface WarningRecord {
+  id: number;
+  warningNumber: string;
+  portId: number;
+  operatorId: number;
+  invoiceId: number;
+  warningLevel: WarningLevel;
+  message: string;
+  status: WarningStatus;
+  createdAt: string;
+  updatedAt: string;
+  invoice?: {
+    id: number;
+    invoiceNumber: string;
+    totalAmountIdr: number | string;
+    status: string;
+  };
+}
+
+export interface RecordPaymentDto {
+  amountIdr: number;
+  method: PaymentMethod;
+  referenceNo?: string;
+  idempotencyKey: string;
+  paidAt?: string;
+}
+
+export interface GenerateBillingDto {
+  currency?: string;
+  exchangeRateUsd?: number;
+  dueDate?: string;
+}
+
+export interface VoidInvoiceDto {
+  voidReason: string;
+}
+
+export interface DecideBillingAdjustmentDto {
+  approved: boolean;
+  notes?: string;
+}
+
+export interface RevenueSummary {
+  vesselRevenueIdr: number;
+  gateTicketingRevenueIdr: number;
+  assetLeaseRevenueIdr: number;
+  cargoEquipmentRevenueIdr: number;
+  utilityRevenueIdr: number;
+  totalVerifiedRevenueIdr: number;
+  verifiedPaymentCount: number;
+  outstandingReceivablesIdr: number;
+  outstandingInvoiceCount: number;
+  unbilledDepartedVisitsCount: number;
+  passengerTraffic: {
+    totalPassengers: number;
+    totalVehicles: number;
+    terminalPassengerFeeIdr: number;
+  };
+  vesselCategoryBreakdown?: Record<
+    string,
+    { visitCount: number; verifiedRevenueIdr: number }
+  >;
+}
+
+export interface UnbilledVisit {
+  id: number;
+  visitNumber: string;
+  vesselId: number;
+  portId: number;
+  berthId?: number | null;
+  status: string;
+  eta: string;
+  etd: string;
+  actualBerthTime?: string | null;
+  actualDepartureTime?: string | null;
+  vessel?: {
+    id: number;
+    name: string;
+    callSign?: string | null;
+    grossTonnage: number | string;
+    shipType: string;
+    vesselCategory?: string;
+  };
+  berth?: {
+    id: number;
+    code: string;
+    name: string;
+    authorityType?: string;
+  };
+}

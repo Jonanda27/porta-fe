@@ -1,6 +1,13 @@
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
+const nextConfig = (phase) => {
+  const isDev = phase === PHASE_DEVELOPMENT_SERVER;
+
+  return {
+    reactStrictMode: true,
+    distDir: isDev ? ".next-dev" : ".next",
+  };
 };
 
 export default nextConfig;

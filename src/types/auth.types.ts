@@ -10,22 +10,47 @@ export type UserRole =
   | "OPERATOR_KAPAL"
   | "DISHUB_EKSEKUTIF";
 
+export type OperatorProfile = "REGULAR_SCHEDULED" | "INCIDENTAL";
+
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
 export interface AuthUser {
-  id: number;
+  id: number | string;
   email: string;
   fullName: string;
   role: UserRole;
-  portId?: number | null;
-  operatorId?: number | null;
+  portId?: number | string | null;
+  operatorId?: number | string | null;
   operatorVerificationStatus?: string | null;
 }
 
 export interface LoginResponse {
   accessToken: string;
   user: AuthUser;
+}
+
+export interface RegisterOperatorDto {
+  email: string;
+  password: string;
+  fullName: string;
+  companyName: string;
+  npwp?: string;
+  phone?: string;
+  address?: string;
+  operatorProfile?: OperatorProfile;
+}
+
+export interface RegisterOperatorResponse {
+  accessToken: string;
+  user: {
+    id: number | string;
+    email: string;
+    fullName: string;
+    role: string;
+    operatorId: number | string;
+    operatorVerificationStatus: string;
+  };
 }

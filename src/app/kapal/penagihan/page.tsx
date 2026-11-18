@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import {
   CreditCard,
   Receipt,
@@ -20,6 +21,7 @@ import {
   Search,
   RefreshCw,
   Anchor,
+  Scale,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -461,13 +463,24 @@ export default function KapalPenagihanPage() {
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => handleOpenPayment(inv)}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <CreditCard className="w-4 h-4 text-[#D97706]" />
-                      <span>Bayar Tagihan e-SKRD Sekarang</span>
-                    </button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Link
+                        href="/kapal/keberatan"
+                        className="w-full sm:w-auto px-4 py-2.5 bg-white border border-[#CBD5E1] hover:bg-[#F8FAFC] text-[#0B241E] text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Ajukan penundaan atau angsuran e-SKRD sesuai Perbup 25/2024"
+                      >
+                        <Scale className="w-3.5 h-3.5 text-[#D97706]" />
+                        <span>Keringanan e-SKRD</span>
+                      </Link>
+
+                      <button
+                        onClick={() => handleOpenPayment(inv)}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <CreditCard className="w-4 h-4 text-[#D97706]" />
+                        <span>Bayar Tagihan Sekarang</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

@@ -22,7 +22,10 @@ import {
   AlertTriangle,
   HelpCircle,
   ExternalLink,
+  LogOut,
 } from "lucide-react";
+import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
+import { useAuthStore } from "@/store/auth.store";
 
 export default function UptLayout({
   children,
@@ -35,9 +38,14 @@ export default function UptLayout({
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
 
-  const handleLogout = () => {
-    router.push("/");
+  const { user, logout } = useAuthStore();
+
+  const handleConfirmLogout = () => {
+    logout();
+    setShowLogoutModal(false);
+    router.replace("/login");
   };
 
   const getPageTitle = () => {
@@ -86,18 +94,18 @@ export default function UptLayout({
           isSidebarCollapsed ? "w-20" : "w-72"
         } bg-white flex flex-col justify-between shrink-0 shadow-xs z-30 sticky top-0 h-screen transition-all duration-300 ease-in-out relative`}
       >
-        {/* Sleek Floating Seam Toggle Button - Positioned safely at the dark header seam (top-8), avoiding card collision */}
+        {/* Floating Circular Sidebar Toggle Button (Gambar 2 Reference: Clean Circular Button on Seam) */}
         <button
           type="button"
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3.5 top-8 -translate-y-1/2 z-40 w-7 h-7 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
+          className="absolute right-0 top-[138px] translate-x-1/2 -translate-y-1/2 z-40 w-8 h-8 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
           title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
           aria-label={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
         >
           {isSidebarCollapsed ? (
-            <ChevronRight className="w-3.5 h-3.5 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
+            <ChevronRight className="w-4 h-4 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
           ) : (
-            <ChevronLeft className="w-3.5 h-3.5 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
+            <ChevronLeft className="w-4 h-4 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
           )}
         </button>
 
@@ -144,15 +152,6 @@ export default function UptLayout({
                   <span className="text-[10px] font-mono bg-[#143E33] text-[#D97706] border border-[#1E5748] font-bold px-1.5 py-0.5 rounded">
                     UPT
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsSidebarCollapsed(true)}
-                    className="w-7 h-7 rounded-lg bg-[#143E33] hover:bg-[#1E5748] text-[#BED2CA] hover:text-white border border-[#1E5748] flex items-center justify-center transition-colors cursor-pointer"
-                    title="Ciutkan Sidebar"
-                    aria-label="Ciutkan Sidebar"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
                 </div>
               </>
             )}
@@ -456,13 +455,13 @@ export default function UptLayout({
         >
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             className={`rounded-lg text-xs font-bold text-[#E11D48] hover:bg-[#FFF1F2] border border-[#FECDD3] transition-colors flex items-center justify-center gap-2 cursor-pointer ${
               isSidebarCollapsed ? "w-11 h-11 p-0" : "w-full py-2.5 px-3"
             }`}
             title="Keluar / Ganti Akun"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <LogOut className="w-4 h-4" />
             {!isSidebarCollapsed && <span>Keluar / Ganti Akun</span>}
           </button>
         </div>
@@ -474,21 +473,8 @@ export default function UptLayout({
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* A. TOP NAVIGATION BAR */}
         <header className="h-16 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-6 text-white sticky top-0 z-20 shadow-xs">
-          {/* Left search bar with Sidebar Toggle */}
-          <div className="flex items-center flex-1 max-w-md gap-3">
-            <button
-              type="button"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-2 rounded-lg bg-[#12362C] hover:bg-[#1A493B] text-[#BED2CA] hover:text-white border border-[#1C4D3F] transition-colors cursor-pointer shrink-0"
-              title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-              aria-label="Toggle Sidebar"
-            >
-              {isSidebarCollapsed ? (
-                <ChevronRight className="w-4 h-4 text-[#D97706]" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </button>
+          {/* Left search bar */}
+          <div className="flex items-center flex-1 max-w-md">
             <div className="relative w-full">
               <Search className="w-4 h-4 text-[#85A69B] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -535,10 +521,24 @@ export default function UptLayout({
                 UP
               </div>
               <div className="hidden sm:block text-left">
-                <span className="block text-xs font-bold leading-tight">Admin UPT</span>
-                <span className="block text-[10px] text-[#85A69B]">Pelabuhan Merak</span>
+                <span className="block text-xs font-bold leading-tight">
+                  {user?.fullName || "Admin UPT Pelabuhan"}
+                </span>
+                <span className="block text-[10px] text-[#85A69B]">
+                  {user?.portId ? `UPTD Pelabuhan (ID: ${user.portId})` : "UPTD Pelabuhan Poumako"}
+                </span>
               </div>
             </div>
+
+            {/* Quick Logout Header Action */}
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(true)}
+              className="p-2 rounded-lg bg-[#12362C] hover:bg-rose-950/80 hover:text-rose-400 text-slate-300 transition-colors cursor-pointer border border-transparent hover:border-rose-900/50"
+              title="Keluar / Akhiri Sesi Kerja"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
@@ -588,6 +588,16 @@ export default function UptLayout({
           {children}
         </main>
       </div>
+
+      {/* Modal Validasi Logout */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+        userName={user?.fullName || "Petugas Operasional UPT"}
+        userRole={user?.role || "ADMIN_PELABUHAN"}
+        userEmail={user?.email || "upt.pomako@porta.mimikakab.go.id"}
+      />
     </div>
   );
 }

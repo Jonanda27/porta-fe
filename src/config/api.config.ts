@@ -43,5 +43,13 @@ export const API_CONFIG = {
     ASSETS: {
       LEASES: "/assets-leases",
     },
+    NOTIFICATIONS: {
+      LIST: "/notifications",
+      READ: (id: number | string) => `/notifications/${id}/read`,
+    },
+    PORTS: {
+      LIST: "/ports",
+      BERTHS: (portId: number | string) => `/ports/${portId}/berths`,
+    },
   },
 } as const;

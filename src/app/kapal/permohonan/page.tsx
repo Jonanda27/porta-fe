@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -32,9 +32,13 @@ import {
   Search,
   Filter,
   Loader2,
+  Anchor,
+  Info,
+  AlertCircle,
 } from "lucide-react";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
+import { usePortStore } from "@/store/port.store";
 
 // Types
 interface DockRequest {
@@ -74,11 +78,132 @@ interface DockRequest {
 export default function KapalPermohonanPage() {
   const { user, initialize: initAuth } = useAuthStore();
   const { vessels, visits, isLoading, fetchDashboardData, createVisitRequest } = useKapalStore();
+  const { berths, fetchBerths } = usePortStore();
+
+  const [selectedBerthId, setSelectedBerthId] = useState<number>(1);
+
+  // Master fasilitas dermaga Pelabuhan Poumako dengan fallback data resmi Perda No. 4/2023
+  const displayBerths = useMemo(() => {
+    if (berths && berths.length > 0) return berths;
+    return [
+      {
+        id: 1,
+        portId: 1,
+        code: "DRM-PEMDA-01",
+        name: "Dermaga Beton Nusantara Pemda",
+        berthType: "DERMAGA_BESI_BETON_KAYU" as const,
+        berthServiceCategory: "DERMAGA_CAMPURAN" as const,
+        authorityType: "PEMDA_DISHUB" as const,
+        billingEligibility: "BILLABLE" as const,
+        maxLengthMeters: 120,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: 2,
+        portId: 1,
+        code: "TLD-PEMDA-01",
+        name: "Tambatan Talud Cenderawasih",
+        berthType: "PINGGIRAN_TALUD" as const,
+        berthServiceCategory: "DERMAGA_BARANG" as const,
+        authorityType: "PEMDA_DISHUB" as const,
+        billingEligibility: "BILLABLE" as const,
+        maxLengthMeters: 60,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: 3,
+        portId: 1,
+        code: "DOL-PEMDA-01",
+        name: "Dolphin Bressing MB Penyeberangan Ferry",
+        berthType: "BRESSING_DOLPHIN_PELAMPUNG" as const,
+        berthServiceCategory: "DERMAGA_PENUMPANG" as const,
+        authorityType: "PEMDA_DISHUB" as const,
+        billingEligibility: "BILLABLE" as const,
+        maxLengthMeters: 90,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: 4,
+        portId: 1,
+        code: "DRM-UPP-01",
+        name: "Dermaga UPP Kemenhub (Non-Retribusi Pemda)",
+        berthType: "DERMAGA_BESI_BETON_KAYU" as const,
+        berthServiceCategory: "DERMAGA_CAMPURAN" as const,
+        authorityType: "UPP_KEMENHUB" as const,
+        billingEligibility: "NOT_BILLABLE" as const,
+        maxLengthMeters: 150,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "PM Perhubungan No. 36 Tahun 2012",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: 5,
+        portId: 1,
+        code: "DRM-PELRA-01",
+        name: "Dermaga Pelabuhan Rakyat Muara Pomako",
+        berthType: "DERMAGA_BESI_BETON_KAYU" as const,
+        berthServiceCategory: "DERMAGA_BARANG" as const,
+        authorityType: "PEMDA_DISHUB" as const,
+        billingEligibility: "BILLABLE" as const,
+        maxLengthMeters: 50,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: 6,
+        portId: 1,
+        code: "TUKS-LPS-01",
+        name: "Dermaga TUKS Logistik Pantai Selatan",
+        berthType: "DERMAGA_BESI_BETON_KAYU" as const,
+        berthServiceCategory: "DERMAGA_BARANG" as const,
+        authorityType: "TUKS_TERSUS" as const,
+        billingEligibility: "NOT_BILLABLE" as const,
+        maxLengthMeters: 80,
+        operationalStatus: "OPEN" as const,
+        legalBasis: "Izin Operasional TUKS Kemenhub",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+  }, [berths]);
+
+  // Dermaga aktif terpilih
+  const activeBerth =
+    displayBerths.find((b) => b.id === selectedBerthId) || displayBerths[0];
 
   useEffect(() => {
     initAuth();
     fetchDashboardData();
-  }, [initAuth, fetchDashboardData]);
+    fetchBerths(1);
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const prefId = params.get("preferredBerthId");
+      if (prefId) {
+        setSelectedBerthId(Number(prefId));
+        setActiveTab("wizard");
+        setWizardStep(1); // Tetap di Langkah 1 agar pemohon dapat memilih armada kapal
+      }
+    }
+  }, [initAuth, fetchDashboardData, fetchBerths]);
 
   const [activeTab, setActiveTab] = useState<"tracking" | "wizard">("tracking");
   const [wizardStep, setWizardStep] = useState<number>(1);
@@ -89,48 +214,32 @@ export default function KapalPermohonanPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Master fleet for selection dari real backend vessels
-  const fleetOptions =
-    vessels.length > 0
-      ? vessels.map((v) => ({
-          id: String(v.id),
-          numericId: v.id,
-          name: v.name,
-          callSign: v.registrationNumber,
-          gt: Number(v.grossTonnage) || 500,
-          loa: v.lengthMeters || 65.0,
-          draft: v.draftMeters || 3.5,
-          defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
-        }))
-      : [
-          {
-            id: "1",
-            numericId: 1,
-            name: "KM Poumako Jaya",
-            callSign: "REG-PMK-001",
-            gt: 500,
-            loa: 58.0,
-            draft: 3.2,
-            defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
-          },
-          {
-            id: "20",
-            numericId: 20,
-            name: "KN Salawaku 358",
-            callSign: "REG-KPLP-001",
-            gt: 320,
-            loa: 42.0,
-            draft: 2.8,
-            defaultRoute: "Wilayah Kerja Pomako ➔ Pelabuhan Poumako",
-          },
-        ];
+  const fleetOptions = useMemo(() => {
+    return vessels.map((v) => ({
+      id: String(v.id),
+      numericId: v.id,
+      name: v.name,
+      callSign: v.registrationNumber,
+      gt: Number(v.grossTonnage) || 500,
+      loa: v.lengthMeters || 65.0,
+      draft: v.draftMeters || 3.5,
+      defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
+    }));
+  }, [vessels]);
 
   // ==========================================
   // WIZARD FORM STATE (5 Langkah PDF Halaman 9)
   // ==========================================
   // Langkah 1: Pilih Layanan & Fasilitas
-  const [selectedVesselId, setSelectedVesselId] = useState<string>("1");
+  const [selectedVesselId, setSelectedVesselId] = useState<string>("");
   const [originPort, setOriginPort] = useState<string>("Pelabuhan Dobo");
   const [destinationPort, setDestinationPort] = useState<string>("Pelabuhan Poumako");
+
+  useEffect(() => {
+    if (fleetOptions.length > 0 && (!selectedVesselId || !fleetOptions.some((f) => f.id === selectedVesselId))) {
+      setSelectedVesselId(fleetOptions[0].id);
+    }
+  }, [fleetOptions, selectedVesselId]);
 
   // Helper: Dapatkan nama singkat pelabuhan
   const getPortShortName = (fullName: string) => {
@@ -256,10 +365,44 @@ export default function KapalPermohonanPage() {
   });
 
   const [localRequests, setLocalRequests] = useState<DockRequest[]>([]);
-  const requests = [...localRequests, ...backendRequests];
 
-  // Active vessel helper
-  const activeVessel = fleetOptions.find((v) => v.id === selectedVesselId) || fleetOptions[0];
+  // Gabungkan localRequests dan backendRequests tanpa ada ID kunjungan yang duplikat
+  const requests = useMemo<DockRequest[]>(() => {
+    const map = new Map<string, DockRequest>();
+    // Prioritaskan detail lokal (yang membawa breakdown biaya kalkulasi frontend lengkap)
+    localRequests.forEach((req) => {
+      if (req.id) map.set(req.id, req);
+    });
+    // Tambahkan dari backend jika belum tercatat di map
+    backendRequests.forEach((req) => {
+      if (req.id && !map.has(req.id)) {
+        map.set(req.id, req);
+      }
+    });
+    return Array.from(map.values());
+  }, [localRequests, backendRequests]);
+
+  // Hitung jumlah dinamis per status permohonan
+  const statusCounts = useMemo(() => {
+    const submitted = requests.filter((r) => r.status === "submitted").length;
+    const verified = requests.filter((r) => r.status === "verified").length;
+    const approved = requests.filter((r) => r.status === "approved").length;
+    return { submitted, verified, approved };
+  }, [requests]);
+
+  // Active vessel helper dengan safe fallback
+  const activeVessel =
+    fleetOptions.find((v) => v.id === selectedVesselId) ||
+    fleetOptions[0] || {
+      id: "",
+      numericId: 0,
+      name: "Belum Ada Kapal",
+      callSign: "-",
+      gt: 0,
+      loa: 0,
+      draft: 0,
+      defaultRoute: "-",
+    };
 
   // Calculation helpers (Tarif PP 35/2023)
   const calculateDetailedCosts = () => {
@@ -315,6 +458,11 @@ export default function KapalPermohonanPage() {
       const etaIso = new Date(`${etaDate}T${etaTime}:00`).toISOString();
       const etdIso = new Date(`${etdDate}T${etdTime}:00`).toISOString();
 
+      const selectedBerthObj = displayBerths.find((b) => b.id === selectedBerthId);
+      const berthNotePrefix = selectedBerthObj
+        ? `[Preferensi Tambat: ${selectedBerthObj.code} - ${selectedBerthObj.name}] `
+        : "";
+
       const newVisit = await createVisitRequest({
         portId: 1, // Pelabuhan Poumako
         vesselId: activeVessel.numericId,
@@ -326,8 +474,9 @@ export default function KapalPermohonanPage() {
         eta: etaIso,
         etd: etdIso,
         notes:
-          additionalNote ||
-          `Permohonan sandar kapal ${activeVessel.name} (${activeVessel.gt} GT) di Pelabuhan Poumako. Kebutuhan: ${activityType}.`,
+          berthNotePrefix +
+          (additionalNote ||
+            `Permohonan sandar kapal ${activeVessel.name} (${activeVessel.gt} GT) di Pelabuhan Poumako. Kebutuhan: ${activityType}.`),
       });
 
       const newReq: DockRequest = {
@@ -339,6 +488,9 @@ export default function KapalPermohonanPage() {
         route: derivedRoute,
         activityType: activityType,
         dockType: dockPreference,
+        allocatedDock: selectedBerthObj
+          ? `${selectedBerthObj.name} (Diajukan)`
+          : "Menunggu penetapan dermaga oleh UPT",
         eta: `${etaDate}, ${etaTime} WIT`,
         etd: `${etdDate}, ${etdTime} WIT`,
         durationHours: serviceDurationHours,
@@ -352,7 +504,6 @@ export default function KapalPermohonanPage() {
         costBreakdown: costs,
         status: "submitted",
         statusLabel: "Diajukan (Menunggu Review UPT)",
-        allocatedDock: "Menunggu penetapan dermaga oleh UPT",
         officerNotes: "Permohonan baru berhasil dikirim ke backend PORTA dan masuk antrean verifikasi.",
         submittedAt: "Hari ini, Baru saja",
       };
@@ -405,20 +556,29 @@ export default function KapalPermohonanPage() {
         </div>
       )}
 
-      {/* Main Mode Switcher Deck (Clean elevated card separated from dark header) */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-3 sm:p-3.5 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
+      {/* Main Mode Switcher Deck */}
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button
             type="button"
             onClick={() => setActiveTab("tracking")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2.5 ${
               activeTab === "tracking"
-                ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                : "text-[#64748B] hover:text-[#0B241E] hover:bg-white/70"
+                ? "bg-[#0B241E] text-white shadow-sm font-extrabold"
+                : "bg-[#F8FAFC] text-[#64748B] hover:text-[#0B241E] hover:bg-[#F1F5F9] border border-[#E2E8F0]"
             }`}
           >
             <Clock className={`w-4 h-4 ${activeTab === "tracking" ? "text-[#D97706]" : "text-[#64748B]"}`} />
-            <span>Status & Pelacakan Permohonan ({requests.length})</span>
+            <span>Pelacakan Permohonan</span>
+            <span
+              className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                activeTab === "tracking"
+                  ? "bg-white/20 text-white font-bold"
+                  : "bg-slate-200/80 text-slate-700 font-bold"
+              }`}
+            >
+              {requests.length}
+            </span>
           </button>
 
           <button
@@ -427,31 +587,21 @@ export default function KapalPermohonanPage() {
               setActiveTab("wizard");
               if (wizardStep === 5) setWizardStep(1);
             }}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2.5 ${
               activeTab === "wizard"
-                ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                : "text-[#64748B] hover:text-[#0B241E] hover:bg-white/70"
+                ? "bg-[#0B241E] text-white shadow-sm font-extrabold"
+                : "bg-[#F8FAFC] text-[#64748B] hover:text-[#0B241E] hover:bg-[#F1F5F9] border border-[#E2E8F0]"
             }`}
           >
-            <Calendar className={`w-4 h-4 ${activeTab === "wizard" ? "text-[#D97706]" : "text-[#64748B]"}`} />
-            <span>+ Ajukan Penggunaan Dermaga (Wizard 5 Langkah)</span>
+            <Calendar className={`w-4 h-4 ${activeTab === "wizard" ? "text-[#D97706]" : "text-[#D97706]"}`} />
+            <span>+ Ajukan Permohonan Sandar</span>
           </button>
         </div>
 
-        {activeTab === "tracking" && (
-          <div className="flex items-center gap-2 text-[11px] font-mono px-2">
-            <span className="text-[#64748B] hidden sm:inline">Status:</span>
-            <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-bold">
-              1 Diajukan
-            </span>
-            <span className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-md font-bold">
-              1 Diverifikasi
-            </span>
-            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-bold">
-              2 Disetujui
-            </span>
-          </div>
-        )}
+        <div className="hidden md:flex items-center gap-2 text-xs text-[#64748B] font-medium pr-2">
+          <Anchor className="w-4 h-4 text-[#85A69B]" />
+          <span>Fasilitas Sandar Pelabuhan Poumako</span>
+        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -525,27 +675,46 @@ export default function KapalPermohonanPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   {/* Armada Kapal */}
-                  <div>
-                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5">
-                      Pilih Armada Kapal Pemohon <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedVesselId}
-                      onChange={(e) => {
-                        setSelectedVesselId(e.target.value);
-                      }}
-                      className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-                    >
-                      {fleetOptions.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} ({v.gt.toLocaleString()} GT • Call Sign: {v.callSign})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-[#64748B] mt-1">
-                      Dimensi: LOA {activeVessel.loa} m • Sarat Draft {activeVessel.draft} m
-                    </p>
-                  </div>
+                  {fleetOptions.length === 0 ? (
+                    <div className="col-span-full p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-xs text-amber-950">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Belum Ada Armada Kapal Terdaftar</span>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        Anda belum memiliki armada kapal yang terdaftar di akun ini. Silakan daftarkan master kapal Anda di menu <strong>Profil &amp; Master Kapal</strong> terlebih dahulu agar izin sandar dan estimasi tarif PP No. 35/2023 dapat diproses dengan benar.
+                      </p>
+                      <Link
+                        href="/kapal/profil"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B241E] text-white rounded-lg font-bold text-xs hover:bg-[#143E33] transition-colors"
+                      >
+                        <span>Daftarkan Armada Kapal Sekarang</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-[#0B241E] mb-1.5">
+                        Pilih Armada Kapal Pemohon <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedVesselId}
+                        onChange={(e) => {
+                          setSelectedVesselId(e.target.value);
+                        }}
+                        className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
+                      >
+                        {fleetOptions.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} ({v.gt.toLocaleString()} GT • Call Sign: {v.callSign})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-[#64748B] mt-1">
+                        Dimensi: LOA {activeVessel.loa} m • Sarat Draft {activeVessel.draft} m
+                      </p>
+                    </div>
+                  )}
 
                   {/* Jenis Kegiatan */}
                   <div>
@@ -653,10 +822,123 @@ export default function KapalPermohonanPage() {
                   </div>
                 </div>
 
-                {/* Pilihan Kelas Dermaga */}
-                <div className="space-y-2 pt-2">
+                {/* PILIHAN FASILITAS DERMAGA SANDAR (BERTH ALLOCATION) */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <label className="text-xs font-bold text-[#0B241E] flex items-center gap-1.5">
+                      <Anchor className="w-4 h-4 text-[#D97706]" />
+                      <span>Pilih Fasilitas Dermaga Sandar yang Dituju <span className="text-red-500">*</span></span>
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      Pelabuhan Poumako ({displayBerths.length} Dermaga)
+                    </span>
+                  </div>
+
+                  {/* Grid Pilihan Dermaga */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {displayBerths.map((b) => {
+                      const isSelected = selectedBerthId === b.id;
+                      const maxLen = Number(b.maxLengthMeters) || 100;
+                      const vesselLoa = Number(activeVessel.loa) || 0;
+                      const isLoaFit = vesselLoa <= maxLen;
+
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => setSelectedBerthId(b.id)}
+                          className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2 relative ${
+                            isSelected
+                              ? "border-[#0B241E] bg-[#F4F9F6] shadow-xs ring-1 ring-[#0B241E]/30"
+                              : "border-[#E2E8F0] bg-white hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#0B241E]/10 text-[#0B241E]">
+                                {b.code}
+                              </span>
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  b.authorityType === "PEMDA_DISHUB"
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : b.authorityType === "UPP_KEMENHUB"
+                                    ? "bg-blue-100 text-blue-800 border border-blue-200"
+                                    : "bg-purple-100 text-purple-800 border border-purple-200"
+                                }`}
+                              >
+                                {b.authorityType === "PEMDA_DISHUB"
+                                  ? "Retribusi Pemda"
+                                  : b.authorityType === "UPP_KEMENHUB"
+                                  ? "UPP Kemenhub"
+                                  : "TUKS Mitra"}
+                              </span>
+                            </div>
+
+                            <h4 className="font-extrabold text-xs text-[#0B241E] mt-2 leading-snug line-clamp-2">
+                              {b.name}
+                            </h4>
+
+                            <div className="flex items-center gap-2 mt-2 text-[10px] text-[#64748B]">
+                              <span>Kapasitas: <strong className="text-[#0B241E] font-mono">{maxLen}m</strong></span>
+                              <span>•</span>
+                              <span
+                                className={`font-semibold ${
+                                  isLoaFit ? "text-emerald-700" : "text-amber-700"
+                                }`}
+                              >
+                                {isLoaFit ? "✓ Muat Kapal" : "⚠️ Melebihi LoA"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-[10px]">
+                            <span className="text-[#64748B] truncate max-w-[140px]">
+                              {b.berthType?.replace(/_/g, " ") || "Dermaga"}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {isSelected && (
+                                <span className="text-[9px] font-mono font-bold text-emerald-700">Terpilih</span>
+                              )}
+                              <input
+                                type="radio"
+                                name="berthSelect"
+                                checked={isSelected}
+                                onChange={() => setSelectedBerthId(b.id)}
+                                className="w-3.5 h-3.5 text-[#0B241E] focus:ring-0 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Ringkasan Konfirmasi Dermaga Terpilih */}
+                  {activeBerth && (
+                    <div className="p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs">
+                      <div className="flex items-start sm:items-center gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
+                        <div>
+                          <span className="text-[10px] text-[#64748B] block font-medium">Dermaga Pilihan yang Diajukan:</span>
+                          <strong className="text-[#0B241E] text-xs">
+                            {activeBerth.name} ({activeBerth.code})
+                          </strong>
+                          <span className="text-[11px] text-[#64748B] ml-1.5">
+                            • Kapasitas Garis Tambat {activeBerth.maxLengthMeters} Meter ({activeBerth.authorityType === "PEMDA_DISHUB" ? "Objek Retribusi Daerah PP 35/2023" : "Kemenhub"})
+                          </span>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center self-start sm:self-auto gap-1 text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                        <span>Status: SIAP LAYANAN</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pilihan Kelas Tarif Dermaga */}
+                <div className="space-y-2 pt-1">
                   <label className="block text-xs font-bold text-[#0B241E]">
-                    Pilihan Fasilitas Dermaga (Tarif PP No. 35/2023)
+                    Pilihan Fasilitas &amp; Kelas Layanan Tambat (Tarif PP No. 35/2023)
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div
@@ -681,7 +963,7 @@ export default function KapalPermohonanPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-[#64748B] mt-1">
-                          Cocok untuk kapal ferry standar dengan movable bridge konvensional. Waktu alokasi standar 1 - 2 jam.
+                          Cocok untuk kapal kargo, LCT, dan kapal motor umum dengan fasilitas tambat standar.
                         </p>
                       </div>
                     </div>
@@ -702,13 +984,13 @@ export default function KapalPermohonanPage() {
                       />
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-sm text-[#0B241E]">Dermaga Eksekutif</span>
+                          <span className="font-extrabold text-sm text-[#0B241E]">Dermaga Eksekutif / MB Ferry</span>
                           <span className="bg-[#D97706]/15 text-[#92400E] text-[10px] font-mono px-2 py-0.5 rounded font-bold">
                             Rp 180 / GT / Jam
                           </span>
                         </div>
                         <p className="text-[11px] text-[#64748B] mt-1">
-                          Dilengkapi garbarata penumpang dan hydraulic ramp door berkecepatan tinggi.
+                          Dilengkapi movable bridge hidrolik, dolphin bressing pelindung lambung kapal, dan jalur prioritas.
                         </p>
                       </div>
                     </div>
@@ -838,14 +1120,24 @@ export default function KapalPermohonanPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="pt-4 flex items-center justify-end border-t border-[#F1F5F9]">
+                <div className="pt-4 flex items-center justify-between border-t border-[#F1F5F9]">
+                  {fleetOptions.length === 0 ? (
+                    <span className="text-[11px] text-amber-700 font-semibold">
+                      ⚠️ Wajib mendaftarkan minimal 1 armada kapal untuk melanjutkan.
+                    </span>
+                  ) : <span />}
                   <button
                     type="button"
+                    disabled={fleetOptions.length === 0}
                     onClick={() => setWizardStep(2)}
-                    className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                    className={`px-6 py-2.5 text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 ${
+                      fleetOptions.length === 0
+                        ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                        : "bg-[#0B241E] hover:bg-[#143E33] cursor-pointer"
+                    }`}
                   >
                     <span>Lanjut ke Langkah 2: Tentukan Waktu</span>
-                    <ChevronRight className="w-4 h-4 text-[#D97706]" />
+                    <ChevronRight className={`w-4 h-4 ${fleetOptions.length === 0 ? "text-slate-400" : "text-[#D97706]"}`} />
                   </button>
                 </div>
               </div>
@@ -1176,8 +1468,12 @@ export default function KapalPermohonanPage() {
                   </div>
                   <div>
                     <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Dermaga & Trayek</span>
-                    <p className="font-bold text-[#0B241E] mt-0.5">Dermaga {dockPreference}</p>
-                    <p className="text-[11px] text-[#64748B]">{derivedRoute}</p>
+                    <p className="font-bold text-[#0B241E] mt-0.5">
+                      {activeBerth?.name || `Dermaga ${dockPreference}`}
+                    </p>
+                    <p className="text-[11px] text-[#64748B]">
+                      {derivedRoute} • {activeBerth?.code || dockPreference} ({dockPreference})
+                    </p>
                   </div>
                 </div>
 
@@ -1389,22 +1685,25 @@ export default function KapalPermohonanPage() {
                     <span className="font-mono text-sm font-black text-[#0B241E]">{createdTicketId}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                     <div>
-                      <span className="text-[10px] text-[#64748B]">Kapal:</span>
+                      <span className="text-[10px] text-[#64748B] block">Kapal Pemohon:</span>
                       <p className="font-bold text-[#0B241E]">{activeVessel.name}</p>
+                      <span className="text-[10px] font-mono text-[#64748B]">{activeVessel.gt} GT</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[#64748B]">Pelabuhan Tujuan:</span>
-                      <p className="font-bold text-[#0B241E]">{destinationPort}</p>
+                      <span className="text-[10px] text-[#64748B] block">Dermaga Sandar Diajukan:</span>
+                      <p className="font-bold text-[#0B241E]">{activeBerth?.name || "Dermaga Reguler"}</p>
+                      <span className="text-[10px] font-mono text-emerald-700 font-bold">{activeBerth?.code}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[#64748B]">Rencana ETA:</span>
-                      <p className="font-bold text-[#0B241E]">{etaDate}, {etaTime} WIB</p>
+                      <span className="text-[10px] text-[#64748B] block">Rencana Waktu Sandar:</span>
+                      <p className="font-bold text-[#0B241E]">{etaDate}, {etaTime} WIT</p>
+                      <span className="text-[10px] text-[#64748B]">Durasi: {serviceDurationHours} Jam</span>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-[#64748B]">Estimasi Retribusi:</span>
-                      <p className="font-bold text-emerald-800 font-mono">{formatRupiah(costs.total)}</p>
+                    <div className="sm:col-span-3 pt-1 border-t border-[#E2E8F0] flex items-center justify-between">
+                      <span className="text-[11px] text-[#64748B] font-semibold">Total Estimasi Retribusi (PP 35/2023):</span>
+                      <p className="font-black text-emerald-800 font-mono text-sm">{formatRupiah(costs.total)}</p>
                     </div>
                   </div>
                 </div>
@@ -1476,7 +1775,7 @@ export default function KapalPermohonanPage() {
                     : "bg-amber-50 text-amber-800 hover:bg-amber-100"
                 }`}
               >
-                Diajukan (1)
+                Diajukan ({statusCounts.submitted})
               </button>
               <button
                 onClick={() => setStatusFilter("verified")}
@@ -1486,7 +1785,7 @@ export default function KapalPermohonanPage() {
                     : "bg-blue-50 text-blue-800 hover:bg-blue-100"
                 }`}
               >
-                Diverifikasi (1)
+                Diverifikasi ({statusCounts.verified})
               </button>
               <button
                 onClick={() => setStatusFilter("approved")}
@@ -1496,16 +1795,16 @@ export default function KapalPermohonanPage() {
                     : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
                 }`}
               >
-                Disetujui UPT (2)
+                Disetujui UPT ({statusCounts.approved})
               </button>
             </div>
           </div>
 
           {/* Cards List */}
           <div className="space-y-4">
-            {filteredRequests.map((req) => (
+            {filteredRequests.map((req, idx) => (
               <div
-                key={req.id}
+                key={req.id ? `${req.id}-${idx}` : `req-${idx}`}
                 className="bg-white border border-[#CBD5E1] rounded-2xl p-6 shadow-xs hover:shadow-md transition-all space-y-4"
               >
                 {/* Header Card */}

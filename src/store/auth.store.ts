@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { AuthUser, LoginCredentials, LoginResponse } from "@/types/auth.types";
+import {
+  AuthUser,
+  LoginCredentials,
+  LoginResponse,
+  RegisterOperatorDto,
+  RegisterOperatorResponse,
+} from "@/types/auth.types";
 import { AuthService } from "@/services/auth.service";
 import { ApiException } from "@/lib/api-client";
 
@@ -12,6 +18,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginCredentials) => Promise<LoginResponse>;
+  register: (dto: RegisterOperatorDto) => Promise<RegisterOperatorResponse>;
   logout: () => void;
   setUser: (user: AuthUser | null) => void;
   setError: (error: string | null) => void;
@@ -45,6 +52,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           : err instanceof Error
           ? err.message
           : "Gagal melakukan proses login.";
+
+      set({
+        error: errorMessage,
+        isLoading: false,
+      });
+      throw err;
+    }
+  },
+
+  register: async (
+    dto: RegisterOperatorDto
+  ): Promise<RegisterOperatorResponse> => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await AuthService.register(dto);
+      set({
+        isLoading: false,
+        error: null,
+      });
+      return response;
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal memproses pendaftaran operator.";
 
       set({
         error: errorMessage,

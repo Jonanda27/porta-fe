@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
-  Download,
   Receipt,
   FileCheck2,
   ShieldCheck,
@@ -10,394 +10,463 @@ import {
   TrendingUp,
   AlertTriangle,
   Scale,
+  Printer,
+  Search,
+  Filter,
+  Download,
+  Building2,
+  Ship,
+  Anchor,
+  Users,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
 } from "lucide-react";
+import { useBillingStore } from "@/store/billing.store";
 
-export default function DinasMonitoringPage() {
+function DinasMonitoringContent() {
+  const searchParams = useSearchParams();
+  const portIdParam = searchParams.get("portId");
+  const selectedPortFilter = portIdParam && portIdParam !== "all" ? Number(portIdParam) : undefined;
+
+  const {
+    revenueSummary,
+    invoices,
+    warnings,
+    fetchRevenueSummary,
+    fetchInvoices,
+    fetchWarnings,
+  } = useBillingStore();
+
+  const [activeTab, setActiveTab] = useState<"RETRIBUSI" | "PIUTANG">("RETRIBUSI");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  useEffect(() => {
+    fetchRevenueSummary(selectedPortFilter);
+    fetchInvoices();
+    fetchWarnings();
+  }, [fetchRevenueSummary, fetchInvoices, fetchWarnings, selectedPortFilter]);
+
+  // Target APBD Kabupaten Mimika Tahun Anggaran 2026
+  const targetApbd2026 = 2500000000; // Rp 2,5 Miliar
+  const totalVerifiedRevenue = revenueSummary?.totalVerifiedRevenueIdr || 184500000;
+  const totalOutstandingReceivables = revenueSummary?.outstandingReceivablesIdr || 14320000;
+  const achievementRate = ((totalVerifiedRevenue / targetApbd2026) * 100).toFixed(1);
+
+  // Filter Piutang (Invoice status ISSUED & due)
+  const overdueInvoices = invoices.filter(
+    (inv) => inv.status === "ISSUED" || inv.status === "PARTIAL"
+  );
+
+  const filteredOverdue = overdueInvoices.filter((inv) => {
+    const vesselName = inv.visit?.vessel?.name || "";
+    const invNumber = inv.invoiceNumber || "";
+    return (
+      vesselName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      invNumber.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
   return (
     <div className="space-y-6">
-      {/* 1. OVERLAPPING MONITORING KPI CARDS (Spesifik: Realisasi & Piutang) */}
+      {/* ========================================================= */}
+      {/* 1. EXECUTIVE KPI SUMMARY CARDS (PAD & RECEIVABLES)        */}
+      {/* ========================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Target APBD */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
               <DollarSign className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-full">
-              Perda No. 1/2026
+            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+              Perda No. 4/2023
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
             Target APBD 2026
           </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            Rp 2,45 Miliar
+          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">
+            Rp {targetApbd2026.toLocaleString("id-ID")}
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            Alokasi 4 UPTD Pelabuhan Daerah
+            Sektor Retribusi Jasa Pelabuhan & Terminal
           </p>
         </div>
 
-        {/* Card 2: Realisasi PAD YTD */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 2: Realisasi Terverifikasi */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <TrendingUp className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
-              75.1% Tercapai
+            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+              {achievementRate}% Tercapai
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Realisasi Kumulatif
+            Realisasi PAD Masuk Kasda
           </p>
-          <p className="text-xl font-extrabold text-emerald-700 font-mono mt-1">
-            Rp 1,84 Miliar
+          <p className="text-2xl font-extrabold text-emerald-700 font-mono mt-1">
+            Rp {totalVerifiedRevenue.toLocaleString("id-ID")}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5">
-            Tersinkronisasi Host-to-Host Kasda
+          <p className="text-[11px] text-emerald-600 mt-1.5 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Host-to-Host RKUD Bank Papua
           </p>
         </div>
 
-        {/* Card 3: Piutang Tertunggak */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 3: Total Piutang Menunggak */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-              <Receipt className="w-5 h-5 stroke-[2.5]" />
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-              <AlertTriangle className="w-3 h-3" />
-              3 SKRD
+            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+              {overdueInvoices.length} Berkas
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Piutang Tertunggak
+            Piutang e-SKRD Menunggak
           </p>
-          <p className="text-xl font-extrabold text-amber-700 font-mono mt-1">
-            Rp 14,32 Jt
+          <p className="text-2xl font-extrabold text-amber-600 font-mono mt-1">
+            Rp {totalOutstandingReceivables.toLocaleString("id-ID")}
           </p>
-          <p className="text-[11px] text-amber-700 font-semibold mt-1.5">
-            Denda berjalan 2% / bln (PP 35)
+          <p className="text-[11px] text-amber-700 mt-1.5">
+            Denda bunga 1-2%/bulan sesuai UU HKPD
           </p>
         </div>
 
-        {/* Card 4: Kepatuhan Segregasi PP 35/2023 */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 4: Kepatuhan STPD */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <Scale className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100/60 px-2 py-0.5 rounded-full">
-              PP 35/2023
+            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+              Perbup 25/2024
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Segregasi 3-Pihak
+            Surat Teguran Resmi (STPD)
           </p>
-          <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            100% Sesuai
+          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">
+            {warnings.length}{" "}
+            <span className="text-xs font-normal text-gray-500">Surat</span>
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            Hak Pemda, Operator & Mitra klir
+            Teguran I, II & III ke Agen Pelayaran
           </p>
         </div>
       </div>
 
-      {/* 2. Header Box */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-extrabold text-[#0B241E]">
-            Rekapitulasi Sumber Pendapatan Asli Daerah (PAD)
-          </h2>
-          <p className="text-xs text-[#64748B] mt-1">
-            Pengawasan rincian objek retribusi sesuai regulasi PP No. 35/2023 dan pemisahan hak bagi hasil pelabuhan.
-          </p>
-        </div>
-
+      {/* ========================================================= */}
+      {/* 2. TAB CONTROLS & PRINT ACTION                            */}
+      {/* ========================================================= */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
         <div className="flex items-center gap-2">
           <button
-            type="button"
-            onClick={() => alert("Mengekspor Berita Acara Rekonsiliasi Piutang Retribusi...")}
-            className="px-3.5 py-2 bg-[#0B241E] hover:bg-[#164336] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+            onClick={() => setActiveTab("RETRIBUSI")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === "RETRIBUSI"
+                ? "bg-[#0B241E] text-white shadow-sm"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Unduh Rekapitulasi (Excel)</span>
+            <Receipt className="w-3.5 h-3.5 text-[#D97706]" />
+            Objek Retribusi Perda 4/2023
+          </button>
+          <button
+            onClick={() => setActiveTab("PIUTANG")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === "PIUTANG"
+                ? "bg-[#0B241E] text-white shadow-sm"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            Pengawasan Piutang ({overdueInvoices.length})
           </button>
         </div>
+
+        <button
+          onClick={() => {
+            window.print();
+          }}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#0B241E] font-bold rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer"
+        >
+          <Printer className="w-4 h-4 text-[#D97706]" />
+          <span>Cetak Laporan Rekapitulasi Eksekutif</span>
+        </button>
       </div>
 
-      {/* Data Table: Rincian Objek Retribusi */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-[#0B241E]">
-            Matriks Objek Retribusi Pelabuhan (PP No. 35/2023)
-          </h3>
-          <span className="text-xs font-mono text-[#64748B]">Tahun Anggaran 2026</span>
+      {/* ========================================================= */}
+      {/* 3. TAB CONTENT 1: OBJEK RETRIBUSI PERDA 4/2023            */}
+      {/* ========================================================= */}
+      {activeTab === "RETRIBUSI" && (
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-bold text-[#0B241E] text-base">
+              Rincian Realisasi per Pos Rekening Retribusi Daerah
+            </h3>
+            <p className="text-xs text-gray-500">
+              Klasifikasi jenis penerimaan jasa pelabuhan berdasarkan Perda Kabupaten Mimika No. 4 Tahun 2023
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-4">Kode & Objek Retribusi</th>
+                  <th className="py-3 px-4">Kewenangan / Pengelola</th>
+                  <th className="py-3 px-4">Dasar Hukum & Tarif</th>
+                  <th className="py-3 px-4">Realisasi Kasda (YTD)</th>
+                  <th className="py-3 px-4">Kontribusi (%)</th>
+                  <th className="py-3 px-4 text-center">Status Integrasi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {/* 1. Jasa Tambat Kapal */}
+                <tr className="hover:bg-gray-50/80 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[#0B241E] flex items-center gap-2">
+                      <Ship className="w-4 h-4 text-blue-600" />
+                      Retribusi Jasa Tambat Kapal
+                    </div>
+                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                      Rek. 4.1.02.02.01.0001
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 font-medium text-gray-800">
+                    Dermaga Pemda Poumako (Dermaga Beton, Kayu, Dolphin MB)
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    Rp 38,- / GT / Etmal (DN) | USD 0.08 (LN)
+                  </td>
+                  <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                    Rp {Number((revenueSummary?.vesselRevenueIdr || 112500000) * 0.72).toLocaleString("id-ID")}
+                  </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-blue-700">
+                    {(((revenueSummary?.vesselRevenueIdr || 112500000) * 0.72 / totalVerifiedRevenue) * 100).toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <CheckCircle2 className="w-3 h-3" />
+                      e-SKRD Online
+                    </span>
+                  </td>
+                </tr>
+
+                {/* 2. Jasa Labuh Kapal */}
+                <tr className="hover:bg-gray-50/80 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[#0B241E] flex items-center gap-2">
+                      <Anchor className="w-4 h-4 text-teal-600" />
+                      Retribusi Jasa Labuh Kapal
+                    </div>
+                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                      Rek. 4.1.02.02.01.0002
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 font-medium text-gray-800">
+                    Kolam Alur Pelabuhan Muara Poumako
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    Rp 50,- / GT / Kunjungan (15 Hari)
+                  </td>
+                  <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                    Rp {Number((revenueSummary?.vesselRevenueIdr || 112500000) * 0.28).toLocaleString("id-ID")}
+                  </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-teal-700">
+                    {(((revenueSummary?.vesselRevenueIdr || 112500000) * 0.28 / totalVerifiedRevenue) * 100).toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <CheckCircle2 className="w-3 h-3" />
+                      e-SKRD Online
+                    </span>
+                  </td>
+                </tr>
+
+                {/* 3. Pas Masuk Gerbang & Terminal */}
+                <tr className="hover:bg-gray-50/80 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[#0B241E] flex items-center gap-2">
+                      <Users className="w-4 h-4 text-emerald-600" />
+                      Pas Pelabuhan & Terminal Penumpang
+                    </div>
+                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                      Rek. 4.1.02.02.01.0003
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 font-medium text-gray-800">
+                    Gerbang Utama & Terminal Penumpang Poumako
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    Orang: Rp 5.000 | R2: Rp 5.000 | R4: Rp 10.000 | Truk: Rp 25.000
+                  </td>
+                  <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                    Rp {(revenueSummary?.gateTicketingRevenueIdr || 42800000).toLocaleString("id-ID")}
+                  </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-emerald-700">
+                    {(((revenueSummary?.gateTicketingRevenueIdr || 42800000) / totalVerifiedRevenue) * 100).toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Loket Gerbang
+                    </span>
+                  </td>
+                </tr>
+
+                {/* 4. Sewa Aset Lahan & Kios */}
+                <tr className="hover:bg-gray-50/80 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[#0B241E] flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-purple-600" />
+                      Sewa Aset Kios, Gudang & Tanah
+                    </div>
+                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                      Rek. 4.1.02.02.01.0004
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 font-medium text-gray-800">
+                    Kawasan Terbuka & Tertutup Pelabuhan Poumako
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    Rp 180.000 s.d. Rp 600.000 / m² / Tahun
+                  </td>
+                  <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                    Rp {(revenueSummary?.assetLeaseRevenueIdr || 21500000).toLocaleString("id-ID")}
+                  </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-purple-700">
+                    {(((revenueSummary?.assetLeaseRevenueIdr || 21500000) / totalVerifiedRevenue) * 100).toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <CheckCircle2 className="w-3 h-3" />
+                      PKS Kasda
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#F8FAFC] text-[#475569] font-bold border-b border-[#E2E8F0]">
-              <tr>
-                <th className="py-3 px-4">Objek Retribusi</th>
-                <th className="py-3 px-4">Dasar Regulasi</th>
-                <th className="py-3 px-4 text-right">Target APBD (Thn)</th>
-                <th className="py-3 px-4 text-right">Realisasi (YTD)</th>
-                <th className="py-3 px-4 text-center">Capaian</th>
-                <th className="py-3 px-4 text-right">Piutang Berjalan</th>
-                <th className="py-3 px-4 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0] text-[#1E2922]">
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Jasa Tambat Kapal (Dermaga Pelabuhan)
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 88 (a)</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 650.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 582.400.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">89.6%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-amber-700">Rp 5.450.000</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    Sangat Baik
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Jasa Labuh & Pemanduan Perairan
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 88 (b)</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 220.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 195.800.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">89.0%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-[#64748B]">Rp 0</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    Lunas
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Pas Masuk Pelabuhan (Penumpang Orang)
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 91</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 480.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 421.300.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">87.7%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-[#64748B]">Rp 0 (Cashless)</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    Otomatis QR
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Pas Masuk Kendaraan (Gol IV - VIII)
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 92</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 340.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 298.600.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">87.8%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-amber-700">Rp 2.100.000</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                    1 Truk Tertunda
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Pemanfaatan Kios Kuliner & Retail
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 95 (Aset)</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 120.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-[#0B241E]">Rp 96.500.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-amber-700">80.4%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-rose-700">Rp 6.770.000</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                    Butuh Teguran
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Utilitas Pelabuhan (Air Bersih & Listrik Sandar)
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 98 (Utilitas)</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 180.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 152.400.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">84.7%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-[#64748B]">Rp 0</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    e-Meter Valid
-                  </span>
-                </td>
-              </tr>
-
-              <tr className="hover:bg-[#F8FAFC]">
-                <td className="py-3.5 px-4 font-bold text-[#0B241E]">
-                  Kerja Sama Pemanfaatan Usaha (KSP / Reklame)
-                </td>
-                <td className="py-3.5 px-4 font-mono text-[11px] text-[#64748B]">PP 35/2023 Ps. 102 (KSP)</td>
-                <td className="py-3.5 px-4 text-right font-mono">Rp 90.000.000</td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">Rp 76.500.000</td>
-                <td className="py-3.5 px-4 text-center font-bold text-emerald-700">85.0%</td>
-                <td className="py-3.5 px-4 text-right font-mono text-[#64748B]">Rp 0</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    Kontrak Aktif
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Peringatan Dini Pendapatan (Fitur Nilai Tambah: Deteksi Anomali Otomatis) */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-[#D97706]" />
+      {/* ========================================================= */}
+      {/* 4. TAB CONTENT 2: PENGAWASAN PIUTANG OPERATOR             */}
+      {/* ========================================================= */}
+      {activeTab === "PIUTANG" && (
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="text-sm font-extrabold text-[#0B241E]">
-                Peringatan Dini Pendapatan (Deteksi Anomali Otomatis)
+              <h3 className="font-bold text-[#0B241E] text-base">
+                Daftar Tagihan e-SKRD Menunggak (Piutang Daerah)
               </h3>
-              <p className="text-xs text-[#64748B] mt-0.5">
-                Sistem PORTA secara proaktif mendeteksi potensi kebocoran penerimaan sebelum terjadi kerugian PAD.
+              <p className="text-xs text-gray-500">
+                Pengawasan tagihan yang telah melewati batas tanggal jatuh tempo pembayaran
               </p>
             </div>
-          </div>
-          <span className="text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-md font-bold">
-            3 Anomali Terdeteksi
-          </span>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          {/* Anomali 1 */}
-          <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-amber-800 font-mono text-[10px] bg-amber-100 px-2 py-0.5 rounded">
-                OPERASIONAL KAPAL
-              </span>
-              <span className="text-[10px] text-amber-700 font-semibold">Tersisa 30 Mnt</span>
-            </div>
-            <p className="font-bold text-[#0B241E] text-xs">Kunjungan Kapal Tanpa Tagihan</p>
-            <p className="text-[#64748B] text-[11px] leading-relaxed">
-              KMP Dharma Rucitra di UPTD Merak (Dermaga 2) telah sandar 180 menit tanpa invoice jasa tambat terbit di e-SKRD.
-            </p>
-            <div className="pt-2 border-t border-amber-200/60 flex justify-end">
-              <button
-                type="button"
-                onClick={() => alert("Mengirimkan notifikasi tagihan paksa ke Syahbandar UPTD Merak.")}
-                className="text-[11px] font-bold text-amber-800 hover:underline cursor-pointer"
-              >
-                Terbitkan Tagihan →
-              </button>
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari kapal atau invoice..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#0B241E]"
+              />
             </div>
           </div>
 
-          {/* Anomali 2 */}
-          <div className="p-4 bg-purple-50/50 border border-purple-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-purple-800 font-mono text-[10px] bg-purple-100 px-2 py-0.5 rounded">
-                ASET & KIOS
-              </span>
-              <span className="text-[10px] text-purple-700 font-semibold">H-14 Jatuh Tempo</span>
-            </div>
-            <p className="font-bold text-[#0B241E] text-xs">Kontrak Aktif Tanpa Penagihan</p>
-            <p className="text-[#64748B] text-[11px] leading-relaxed">
-              Kios Kuliner B-04 (Pujasera Bakauheni) berakhir masa sewanya dalam 14 hari. Sistem belum menerima bukti perpanjangan sewa.
-            </p>
-            <div className="pt-2 border-t border-purple-200/60 flex justify-end">
-              <button
-                type="button"
-                onClick={() => alert("Menerbitkan Surat Pemberitahuan (SP-1) ke Penyewa Kios B-04.")}
-                className="text-[11px] font-bold text-purple-800 hover:underline cursor-pointer"
-              >
-                Kirim SP-1 →
-              </button>
-            </div>
-          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-4">No. Invoice & Kapal</th>
+                  <th className="py-3 px-4">Operator / Agen</th>
+                  <th className="py-3 px-4">Tgl Terbit & Jatuh Tempo</th>
+                  <th className="py-3 px-4">Pokok Tagihan</th>
+                  <th className="py-3 px-4">Status & Denda Bunga</th>
+                  <th className="py-3 px-4 text-center">Status STPD</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {filteredOverdue.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-400">
+                      Tidak ada piutang retribusi daerah yang menunggak saat ini.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOverdue.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-amber-50/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-[#0B241E] font-mono">
+                          {inv.invoiceNumber}
+                        </div>
+                        <div className="font-semibold text-gray-800 mt-0.5">
+                          {inv.visit?.vessel?.name || "Kapal Niaga"}
+                        </div>
+                      </td>
 
-          {/* Anomali 3 */}
-          <div className="p-4 bg-rose-50/50 border border-rose-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-rose-800 font-mono text-[10px] bg-rose-100 px-2 py-0.5 rounded">
-                UTILITAS DERMAGA
-              </span>
-              <span className="text-[10px] text-rose-700 font-semibold">Belum Terbayar</span>
-            </div>
-            <p className="font-bold text-[#0B241E] text-xs">Penggunaan Utilitas Tanpa Bayar</p>
-            <p className="text-[#64748B] text-[11px] leading-relaxed">
-              Bunkering air tawar Dermaga 3 Ketapang mencatat pemakaian 12 Ton air oleh kapal swasta belum diverifikasi status e-SKRD-nya.
-            </p>
-            <div className="pt-2 border-t border-rose-200/60 flex justify-end">
-              <button
-                type="button"
-                onClick={() => alert("Memblokir pengisian utilitas otomatis dan menerbitkan invoice pembayaran.")}
-                className="text-[11px] font-bold text-rose-800 hover:underline cursor-pointer"
-              >
-                Klarifikasi UPTD →
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+                      <td className="py-3 px-4 text-gray-800">
+                        Agen Pelayaran Terdaftar
+                      </td>
 
-      {/* Pemantauan Hak Penerimaan (PP 35/2023 Segregation) */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
-          <div>
-            <h3 className="text-sm font-extrabold text-[#0B241E]">
-              Transparansi Pemisahan Hak Penerimaan (PP 35/2023)
-            </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Pemisahan otomatis antara penerimaan kas daerah (Pemda), hak operator kapal, dan mitra perbankan.
-            </p>
-          </div>
-          <span className="text-xs font-mono bg-emerald-50 text-emerald-800 px-3 py-1 rounded-md font-bold">
-            Audit Clean (Zero Leakage)
-          </span>
-        </div>
+                      <td className="py-3 px-4">
+                        <div>Terbit: {inv.issuedAt.split("T")[0]}</div>
+                        <div className="text-rose-600 font-bold mt-0.5">
+                          Jatuh Tempo: {inv.dueDate.split("T")[0]}
+                        </div>
+                      </td>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
-            <p className="text-xs font-bold text-[#0B241E]">1. Hak Kas Daerah (Pemda Banten)</p>
-            <p className="text-xl font-extrabold font-mono text-emerald-700 mt-2">100% Retribusi</p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Pas masuk orang, pas kendaraan, dan jasa labuh/tambat langsung masuk ke RKUD.
-            </p>
-          </div>
+                      <td className="py-3 px-4 font-mono font-bold text-gray-900">
+                        Rp {Number(inv.totalAmountIdr).toLocaleString("id-ID")}
+                      </td>
 
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
-            <p className="text-xs font-bold text-[#0B241E]">2. Hak Operator Kapal (ASDP/Swasta)</p>
-            <p className="text-xl font-extrabold font-mono text-[#0B241E] mt-2">Tarif Angkutan</p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Komponen tiket penyeberangan murni displit langsung ke escrow account perusahaan kapal.
-            </p>
-          </div>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                          <Clock className="w-3 h-3" />
+                          Menunggak
+                        </span>
+                        <div className="text-[10px] text-gray-500 mt-0.5">
+                          Bunga: 2% / bulan
+                        </div>
+                      </td>
 
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg">
-            <p className="text-xs font-bold text-[#0B241E]">3. Iuran Wajib Asuransi (Jasa Raharja)</p>
-            <p className="text-xl font-extrabold font-mono text-[#0B241E] mt-2">Premi Terlindungi</p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Asuransi jiwa penumpang resmi disalurkan otomatis per manifes clearance.
-            </p>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-bold bg-purple-100 text-purple-800">
+                          Teguran I Terkirim
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
     </div>
+  );
+}
+
+export default function DinasMonitoringPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-xs font-mono text-gray-400">
+          Memuat Monitoring Realisasi PAD...
+        </div>
+      }
+    >
+      <DinasMonitoringContent />
+    </Suspense>
   );
 }

@@ -33,7 +33,7 @@ interface KapalState {
     file: File | Blob
   ) => Promise<OperatorDocument>;
   uploadOperatorDocument: (
-    operatorId: number,
+    operatorId: number | string,
     payload: UploadDocumentPayload,
     file: File | Blob
   ) => Promise<OperatorDocument>;
@@ -180,7 +180,7 @@ export const useKapalStore = create<KapalState>((set, get) => ({
   },
 
   uploadOperatorDocument: async (
-    operatorId: number,
+    operatorId: number | string,
     payload: UploadDocumentPayload,
     file: File | Blob
   ): Promise<OperatorDocument> => {

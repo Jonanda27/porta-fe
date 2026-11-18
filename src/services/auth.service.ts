@@ -4,6 +4,8 @@ import {
   AuthUser,
   LoginCredentials,
   LoginResponse,
+  RegisterOperatorDto,
+  RegisterOperatorResponse,
   UserRole,
 } from "@/types/auth.types";
 
@@ -15,6 +17,19 @@ const STORAGE_KEYS = {
 } as const;
 
 export class AuthService {
+  /**
+   * Mendaftarkan operator kapal baru ke backend NestJS (POST /auth/register)
+   */
+  public static async register(
+    dto: RegisterOperatorDto
+  ): Promise<RegisterOperatorResponse> {
+    const response = await apiClient.post<RegisterOperatorResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.REGISTER,
+      dto
+    );
+    return response;
+  }
+
   /**
    * Melakukan autentikasi login ke backend NestJS
    */
@@ -93,9 +108,11 @@ export class AuthService {
       case "OPERATOR_KAPAL":
         return "/kapal/dashboard";
 
+      case "BENDAHARA":
+        return "/bendahara/dashboard";
+
       case "ADMIN_PELABUHAN":
       case "SUPERADMIN":
-      case "BENDAHARA":
         return "/upt/dashboard";
 
       case "PETUGAS_DERMAGA":

@@ -1,466 +1,426 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Sliders,
   Award,
   Anchor,
   TrendingUp,
   Building2,
+  Calculator,
+  RefreshCw,
+  Ship,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Layers,
+  MapPin,
 } from "lucide-react";
+import { DinasService } from "@/services/dinas.service";
+import { SimulateRevenueResult, GisOpportunitiesResult } from "@/types/dinas.types";
 
 export default function DinasEvaluasiPage() {
-  // Simulation Calculator State
-  const [simVolumeGrowth, setSimVolumeGrowth] = useState<number>(10); // +10%
-  const [simTarifIncrease, setSimTarifIncrease] = useState<number>(2000); // +Rp 2.000 pas masuk
-  const [simKiosOccupancy, setSimKiosOccupancy] = useState<number>(85); // 85%
+  // Simulation Inputs (Struktur Perda No. 4/2023)
+  const [estimatedVisits, setEstimatedVisits] = useState<number>(35); // 35 call kapal/bulan
+  const [avgGt, setAvgGt] = useState<number>(1200); // 1.200 GT rata-rata
+  const [avgEtmal, setAvgEtmal] = useState<number>(2.5); // 2.5 Etmal
+  const [tariffTambat, setTariffTambat] = useState<number>(38); // Rp 38 / GT / Etmal
+  const [tariffLabuh, setTariffLabuh] = useState<number>(50); // Rp 50 / GT / 15 hari
+  const [adjustmentPercent, setAdjustmentPercent] = useState<number>(15); // +15% penyesuaian tarif
 
-  const baseMonthlyRevenue = 148850000;
-  const simulatedVolumeGain = baseMonthlyRevenue * 0.42 * (simVolumeGrowth / 100);
-  const simulatedTarifGain = 12000 * simTarifIncrease; // 12,000 monthly passengers * increase
-  const simulatedKiosGain = (simKiosOccupancy - 70) * 450000; // incremental kiosk revenue
-  const totalSimulatedRevenue =
-    baseMonthlyRevenue + simulatedVolumeGain + simulatedTarifGain + Math.max(0, simulatedKiosGain);
-  const revenueDelta = totalSimulatedRevenue - baseMonthlyRevenue;
+  const [simResult, setSimResult] = useState<SimulateRevenueResult | null>(null);
+  const [gisData, setGisData] = useState<GisOpportunitiesResult | null>(null);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+
+  // Jalankan simulasi awal saat mount
+  useEffect(() => {
+    handleRunSimulation();
+    fetchGis();
+  }, []);
+
+  const handleRunSimulation = async () => {
+    setIsSimulating(true);
+    try {
+      const res = await DinasService.simulateRevenue({
+        estimatedMonthlyVisits: Number(estimatedVisits),
+        averageGt: Number(avgGt),
+        averageEtmal: Number(avgEtmal),
+        tariffPerGtEtmalIdr: Number(tariffTambat),
+        labuhTariffPerGtIdr: Number(tariffLabuh),
+        tariffAdjustmentPercent: Number(adjustmentPercent),
+      });
+      setSimResult(res);
+    } catch (err: unknown) {
+      console.error("Gagal menjalankan simulasi PAD:", err);
+      // Fallback kalkulasi manual jika backend offline
+      const multiplier = 1 + adjustmentPercent / 100;
+      const mLabuh = Math.round(estimatedVisits * avgGt * tariffLabuh * multiplier);
+      const mTambat = Math.round(estimatedVisits * avgGt * avgEtmal * tariffTambat * multiplier);
+      const annualVessel = (mLabuh + mTambat) * 12;
+      const annualAsset = 215000000 * multiplier;
+      setSimResult({
+        portId: "ALL",
+        tariffAdjustmentPercent: adjustmentPercent,
+        monthlyLabuhIdr: mLabuh,
+        monthlyTambatIdr: mTambat,
+        projectedAnnualVesselRevenueIdr: annualVessel,
+        potentialAnnualAssetLeaseIdr: annualAsset,
+        projectedTotalAnnualPadIdr: annualVessel + annualAsset,
+      });
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const fetchGis = async () => {
+    try {
+      const res = await DinasService.getGisOpportunities();
+      setGisData(res);
+    } catch (err) {
+      console.error("Gagal memuat peluang GIS:", err);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* 1. OVERLAPPING EVALUASI & SIMULASI KPI CARDS (Spesifik: Komparasi & Simulasi) */}
+      {/* ========================================================= */}
+      {/* 1. KPI CARDS: HASIL EVALUASI & SIMULASI                   */}
+      {/* ========================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Top UPTD */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 1: Dermaga Terbaik */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <Award className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
-              Grade A (96.2)
+            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+              Grade A (96.4)
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            UPTD Kinerja Tertinggi
+            Dermaga Utilisasi Tertinggi
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            UPTD Merak
+            Dermaga Beton Pemda
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            PAD Rp 78,4 Jt/bln (Utilisasi 92%)
+            Pelabuhan Poumako (Kapasitas 92%)
           </p>
         </div>
 
-        {/* Card 2: Rata-rata Utilisasi */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 2: Utilisasi Rata-rata Pelabuhan */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
               <Anchor className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-full">
-              +6.2% vs Sem I
+            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+              +8.4% YoY
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Rata-rata Utilisasi
+            Tingkat Keterisian Tambatan
           </p>
           <p className="text-xl font-extrabold text-blue-700 font-mono mt-1">
-            84.5% Kapasitas
+            86.5% Rata-rata
           </p>
           <p className="text-[11px] text-[#64748B] mt-1.5">
-            Waktu sandar efisien (42 menit)
+            Waktu sandar efektif: 36 Jam / Call
           </p>
         </div>
 
-        {/* Card 3: Hasil Simulasi PAD */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 3: Proyeksi PAD Tahunan (Hasil Simulasi) */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
               <TrendingUp className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded-full">
-              Skenario Interaktif
+            <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+              Proyeksi Skenario
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Potensi Kenaikan PAD
+            Proyeksi Total PAD / Tahun
           </p>
           <p className="text-xl font-extrabold text-amber-700 font-mono mt-1">
-            +{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(revenueDelta)}
+            Rp {Number(simResult?.projectedTotalAnnualPadIdr || 2650000000).toLocaleString("id-ID")}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5">
-            Dari tarif pas & okupansi sewa aset
+          <p className="text-[11px] text-[#64748B] mt-1.5 font-semibold text-emerald-700">
+            Penyesuaian tarif: +{adjustmentPercent}%
           </p>
         </div>
 
-        {/* Card 4: Aset Peluang Usaha */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+        {/* Card 4: Peluang Kerjasama Aset GIS */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <Building2 className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100/60 px-2 py-0.5 rounded-full">
-              GIS Pelabuhan
+            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+              Peluang Investasi
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Peluang Investasi Aset
+            Aset Lahan Tersedia
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            28 Unit Aset
+            {gisData?.availableAssetsCount || 4}{" "}
+            <span className="text-xs font-normal text-gray-500">Kavling</span>
           </p>
           <p className="text-[11px] text-purple-700 font-semibold mt-1.5">
-            4 lahan & 2 gudang siap dikerjasamakan
+            Lahan depo kontainer & kios siap sewa
           </p>
         </div>
       </div>
 
-      {/* 2. Evaluasi Komparasi Antar-UPTD */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#F1F5F9]">
+      {/* ========================================================= */}
+      {/* 2. KALKULATOR SIMULASI KEBIJAKAN FISKAL PAD               */}
+      {/* ========================================================= */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-extrabold text-[#0B241E]">
-              Perbandingan Kinerja Antar-Pelabuhan (Benchmarking UPTD)
+            <h2 className="text-base font-bold text-[#0B241E] flex items-center gap-2">
+              <Calculator className="w-4 h-4 text-[#D97706]" />
+              Kalkulator Simulasi Kebijakan Tarif & Proyeksi PAD (Kabupaten Mimika)
             </h2>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Evaluasi efisiensi pendapatan, utilisasi dermaga, dan indeks kepuasan publik lintas 4 UPTD.
+            <p className="text-xs text-gray-500">
+              Analisis elastisitas penyesuaian tarif Perda No. 4/2023 terhadap potensi penerimaan kas daerah pelabuhan
             </p>
           </div>
-          <span className="text-xs font-mono bg-blue-50 text-blue-800 font-bold px-3 py-1 rounded-md">
-            Evaluasi Semester II
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
-          {/* UPTD 1: Merak */}
-          <div className="p-4 bg-[#F8FAFC] border border-emerald-200 rounded-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl">
-              Kinerja Tertinggi
-            </div>
-            <p className="text-sm font-extrabold text-[#0B241E]">UPTD Merak</p>
-            <p className="text-xs text-[#64748B]">Dermaga 1 s/d 4</p>
-            <div className="mt-3 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Penerimaan:</span>
-                <strong className="font-mono text-[#0B241E]">Rp 78,4 Jt/bln</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Utilisasi:</span>
-                <strong className="text-emerald-700">92% (Tinggi)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Mutu Layanan:</span>
-                <strong className="text-[#0B241E]">Grade A (96.2)</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* UPTD 2: Bakauheni */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <p className="text-sm font-extrabold text-[#0B241E]">UPTD Bakauheni</p>
-            <p className="text-xs text-[#64748B]">Dermaga Reguler & Eks.</p>
-            <div className="mt-3 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Penerimaan:</span>
-                <strong className="font-mono text-[#0B241E]">Rp 51,2 Jt/bln</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Utilisasi:</span>
-                <strong className="text-emerald-700">84% (Stabil)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Mutu Layanan:</span>
-                <strong className="text-[#0B241E]">Grade A- (91.8)</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* UPTD 3: Ketapang */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <p className="text-sm font-extrabold text-[#0B241E]">UPTD Ketapang</p>
-            <p className="text-xs text-[#64748B]">Dermaga LCM & Ponton</p>
-            <div className="mt-3 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Penerimaan:</span>
-                <strong className="font-mono text-[#0B241E]">Rp 34,6 Jt/bln</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Utilisasi:</span>
-                <strong className="text-amber-700">78% (Menengah)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Mutu Layanan:</span>
-                <strong className="text-[#0B241E]">Grade B+ (88.4)</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* UPTD 4: Gilimanuk */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
-            <p className="text-sm font-extrabold text-[#0B241E]">UPTD Gilimanuk</p>
-            <p className="text-xs text-[#64748B]">Dermaga Penyeberangan</p>
-            <div className="mt-3 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Penerimaan:</span>
-                <strong className="font-mono text-[#0B241E]">Rp 28,1 Jt/bln</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Utilisasi:</span>
-                <strong className="text-amber-700">72% (Waspada)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#64748B]">Mutu Layanan:</span>
-                <strong className="text-[#0B241E]">Grade B (84.1)</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Interactive Calculator: Simulasi Proyeksi Potensi Pendapatan */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F1F5F9]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#D97706]/10 text-[#D97706] flex items-center justify-center">
-              <Sliders className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h2 className="text-base font-extrabold text-[#0B241E]">
-                Kalkulator Simulasi Kebijakan & Proyeksi Skenario PAD
-              </h2>
-              <p className="text-xs text-[#64748B]">
-                Uji coba dampak penyesuaian tarif, pertumbuhan arus mudik/libur, dan optimalisasi sewa kios pelabuhan.
-              </p>
-            </div>
-          </div>
           <button
-            type="button"
-            onClick={() => {
-              setSimVolumeGrowth(10);
-              setSimTarifIncrease(2000);
-              setSimKiosOccupancy(85);
-            }}
-            className="text-xs text-[#D97706] hover:underline cursor-pointer font-bold"
+            onClick={handleRunSimulation}
+            disabled={isSimulating}
+            className="px-4 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
           >
-            Reset Parameter
+            <RefreshCw className={`w-3.5 h-3.5 text-[#D97706] ${isSimulating ? "animate-spin" : ""}`} />
+            <span>{isSimulating ? "Menghitung..." : "Hitung Ulang Proyeksi"}</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Slider Controls (7 cols) */}
-          <div className="lg:col-span-7 space-y-5">
-            {/* Control 1: Volume Growth */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <label className="font-bold text-[#0B241E]">
-                  1. Proyeksi Pertumbuhan Arus Penyeberangan (Nataru / Libur)
-                </label>
-                <span className="font-mono font-bold text-[#D97706]">+{simVolumeGrowth}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="40"
-                step="5"
-                value={simVolumeGrowth}
-                onChange={(e) => setSimVolumeGrowth(Number(e.target.value))}
-                className="w-full accent-[#0B241E] cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-[#94A3B8] font-mono">
-                <span>Normal (0%)</span>
-                <span>+20% (Sedang)</span>
-                <span>+40% (Peak Season)</span>
-              </div>
-            </div>
-
-            {/* Control 2: Penyesuaian Tarif Pas Masuk */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <label className="font-bold text-[#0B241E]">
-                  2. Rencana Penyesuaian Tarif Pas Masuk Daerah (Perda)
-                </label>
-                <span className="font-mono font-bold text-[#D97706]">
-                  +Rp {simTarifIncrease.toLocaleString("id-ID")} / Orang
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Kolom Slider & Input Parameter */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Input 1: Estimasi Kunjungan Kapal / Bulan */}
+            <div>
+              <div className="flex justify-between items-center text-xs font-bold text-gray-700 mb-1.5">
+                <span>Frekuensi Kunjungan Kapal per Bulan</span>
+                <span className="font-mono text-[#0B241E] bg-gray-100 px-2 py-0.5 rounded">
+                  {estimatedVisits} Call / Bulan
                 </span>
               </div>
               <input
                 type="range"
-                min="0"
-                max="5000"
-                step="500"
-                value={simTarifIncrease}
-                onChange={(e) => setSimTarifIncrease(Number(e.target.value))}
-                className="w-full accent-[#0B241E] cursor-pointer"
+                min={10}
+                max={100}
+                value={estimatedVisits}
+                onChange={(e) => setEstimatedVisits(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0B241E]"
               />
-              <div className="flex justify-between text-[10px] text-[#94A3B8] font-mono">
-                <span>Rp 0 (Tetap)</span>
-                <span>+Rp 2.500</span>
-                <span>+Rp 5.000 (Maksimal)</span>
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <span>10 call (Minimal)</span>
+                <span>50 call (Normal)</span>
+                <span>100 call (Puncak)</span>
               </div>
             </div>
 
-            {/* Control 3: Okupansi Kios & Aset */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <label className="font-bold text-[#0B241E]">
-                  3. Target Okupansi Kios Pujasera & Gudang Logistik
-                </label>
-                <span className="font-mono font-bold text-[#D97706]">{simKiosOccupancy}%</span>
+            {/* Input 2: Rata-rata Gross Tonnage (GT) */}
+            <div>
+              <div className="flex justify-between items-center text-xs font-bold text-gray-700 mb-1.5">
+                <span>Rata-rata Bobot Kapal (Gross Tonnage)</span>
+                <span className="font-mono text-[#0B241E] bg-gray-100 px-2 py-0.5 rounded">
+                  {avgGt.toLocaleString("id-ID")} GT
+                </span>
               </div>
               <input
                 type="range"
-                min="50"
-                max="100"
-                step="5"
-                value={simKiosOccupancy}
-                onChange={(e) => setSimKiosOccupancy(Number(e.target.value))}
-                className="w-full accent-[#0B241E] cursor-pointer"
+                min={500}
+                max={5000}
+                step={100}
+                value={avgGt}
+                onChange={(e) => setAvgGt(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0B241E]"
               />
-              <div className="flex justify-between text-[10px] text-[#94A3B8] font-mono">
-                <span>50% (Rendah)</span>
-                <span>75% (Eksisting)</span>
-                <span>100% (Penuh)</span>
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <span>500 GT (LCT / Tongkang)</span>
+                <span>2.500 GT (Kargo Kontainer)</span>
+                <span>5.000 GT (Kapal Penumpang Pelni)</span>
+              </div>
+            </div>
+
+            {/* Input 3: Penyesuaian Tarif Retribusi (%) */}
+            <div>
+              <div className="flex justify-between items-center text-xs font-bold text-gray-700 mb-1.5">
+                <span>Rencana Penyesuaian Tarif Retribusi (Perda Revisi)</span>
+                <span className={`font-mono px-2 py-0.5 rounded font-bold ${
+                  adjustmentPercent > 0 ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-800"
+                }`}>
+                  {adjustmentPercent > 0 ? `+${adjustmentPercent}%` : `${adjustmentPercent}%`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={-20}
+                max={100}
+                step={5}
+                value={adjustmentPercent}
+                onChange={(e) => setAdjustmentPercent(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#D97706]"
+              />
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <span>-20% (Diskon Keringanan)</span>
+                <span>0% (Tarif Saat Ini)</span>
+                <span>+100% (Kenaikan Maksimal)</span>
               </div>
             </div>
           </div>
 
-          {/* Real-time Calculation Result Box (5 cols) */}
-          <div className="lg:col-span-5 bg-[#0B241E] text-white rounded-xl p-5 flex flex-col justify-between">
+          {/* Kolom Hasil Ringkasan Simulasi */}
+          <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl flex flex-col justify-between space-y-4">
             <div>
-              <div className="flex items-center justify-between text-xs pb-3 border-b border-[#184438]">
-                <span className="text-[#85A69B]">Hasil Proyeksi Skenario</span>
-                <span className="font-mono text-[#D97706] font-bold">PP 35/2023 Sim</span>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <div>
-                  <span className="text-[11px] text-[#BED2CA]">Estimasi Penerimaan Bulanan Baru</span>
-                  <p className="text-2xl font-extrabold font-mono text-emerald-400 mt-0.5">
-                    Rp {(totalSimulatedRevenue / 1000000).toFixed(2)} Juta
-                  </p>
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block mb-2">
+                Output Proyeksi Kasda
+              </span>
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between pb-2 border-b border-gray-200">
+                  <span className="text-gray-600">Retribusi Labuh / Bulan:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    Rp {Number(simResult?.monthlyLabuhIdr || 0).toLocaleString("id-ID")}
+                  </span>
                 </div>
-
-                <div className="p-3 bg-[#12362C] border border-[#1C4D3F] rounded-lg space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#85A69B]">Kenaikan Pendapatan:</span>
-                    <span className="font-mono font-bold text-emerald-400">
-                      +Rp {(revenueDelta / 1000000).toFixed(2)} Jt / bln
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#85A69B]">Persentase Lonjakan:</span>
-                    <span className="font-mono font-bold text-[#D97706]">
-                      +{((revenueDelta / baseMonthlyRevenue) * 100).toFixed(1)}%
-                    </span>
-                  </div>
+                <div className="flex justify-between pb-2 border-b border-gray-200">
+                  <span className="text-gray-600">Retribusi Tambat / Bulan:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    Rp {Number(simResult?.monthlyTambatIdr || 0).toLocaleString("id-ID")}
+                  </span>
                 </div>
-
-                <p className="text-[10px] text-[#85A69B] leading-relaxed pt-1">
-                  *Proyeksi tahunan berpotensi menyentuh <strong>Rp {((totalSimulatedRevenue * 12) / 1000000000).toFixed(2)} Miliar</strong>, memperkuat ruang fiskal APBD untuk revitalisasi fasilitas sandar.
-                </p>
+                <div className="flex justify-between pb-2 border-b border-gray-200">
+                  <span className="text-gray-600">Jasa Kapal per Tahun:</span>
+                  <span className="font-mono font-bold text-blue-700">
+                    Rp {Number(simResult?.projectedAnnualVesselRevenueIdr || 0).toLocaleString("id-ID")}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1">
+                  <span className="text-gray-800 font-bold">Total Estimasi PAD / Thn:</span>
+                  <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                    Rp {Number(simResult?.projectedTotalAnnualPadIdr || 0).toLocaleString("id-ID")}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => alert("Menyimpan simulasi skenario ke Dokumen Rencana Kerja Anggaran (RKA) Dinas.")}
-              className="w-full mt-4 py-2 px-3 bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold text-xs rounded-lg transition-colors cursor-pointer"
-            >
-              Simpan Rekomendasi Kebijakan
-            </button>
+            <div className="text-[11px] text-gray-500 bg-white p-2.5 rounded-lg border border-gray-200">
+              💡 <strong>Rekomendasi Kebijakan:</strong> Penyesuaian tarif sebesar +{adjustmentPercent}% berpotensi menambah kas daerah sebesar{" "}
+              <strong>
+                Rp{" "}
+                {Number(
+                  (simResult?.projectedTotalAnnualPadIdr || 0) * (adjustmentPercent / 100)
+                ).toLocaleString("id-ID")}
+              </strong>{" "}
+              per tahun untuk mendanai pemeliharaan alur pelayaran.
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 3. Peta Peluang Usaha Pelabuhan (GIS Asset Explorer) */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+      {/* ========================================================= */}
+      {/* 3. BENCHMARKING KINERJA ANTAR-DERMAGA KAB. MIMIKA         */}
+      {/* ========================================================= */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="text-sm font-extrabold text-[#0B241E]">
-              Peta Spasial Peluang Usaha & Investasi Aset Pelabuhan (GIS)
+            <h3 className="font-bold text-[#0B241E] text-base">
+              Evaluasi Kinerja Komparasi Antar-Fasilitas Dermaga (Kabupaten Mimika)
             </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Visualisasi lahan kosong, ruang komersial, dan fasilitas dermaga yang siap ditawarkan kepada investor/mitra.
+            <p className="text-xs text-gray-500">
+              Benchmarking efisiensi operasional, penerimaan retribusi, dan kelaikan fasilitas di wilayah kerja Poumako & sekitarnya
             </p>
           </div>
-          <span className="text-xs font-mono text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md font-bold">
-            3 Lahan Siap Tender
+          <span className="text-xs font-mono bg-emerald-50 text-emerald-800 font-bold px-3 py-1 rounded-md">
+            Semester II Berjalan
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          {/* Asset 1 */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl hover:border-[#0B241E] transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                SIAP SEWA
-              </span>
-              <span className="text-[11px] text-[#64748B] font-mono">Zona Komersial A</span>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Fasilitas 1: Dermaga Beton Pemda */}
+          <div className="p-4 bg-gray-50 border border-emerald-300 rounded-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl">
+              Kinerja Tertinggi
             </div>
-            <p className="font-extrabold text-[#0B241E] text-sm mt-2">
-              Gudang Logistik & Cold Storage
-            </p>
-            <p className="text-[#64748B] text-[11px] mt-1">
-              Luas: <strong>450 m²</strong> • Depan Dermaga 1 Merak. Cocok untuk rantai pasok ikan & sembako antar pulau.
-            </p>
-            <div className="mt-3 pt-2 border-t border-[#E2E8F0] flex justify-between items-center">
-              <span className="font-mono font-bold text-[#0B241E]">Rp 45 Jt / Thn</span>
-              <button
-                type="button"
-                onClick={() => alert("Membuka Dokumen Kerangka Investasi Gudang Logistik.")}
-                className="text-[11px] text-[#D97706] font-bold hover:underline cursor-pointer"
-              >
-                Detail Aset →
-              </button>
+            <p className="text-sm font-bold text-[#0B241E]">Dermaga Beton Pemda</p>
+            <p className="text-xs text-gray-500">Pelabuhan Poumako (150m)</p>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Penerimaan:</span>
+                <strong className="font-mono text-[#0B241E]">Rp 98,5 Jt/bln</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Utilisasi:</span>
+                <strong className="text-emerald-700">92% (Optimal)</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kelaikan:</span>
+                <strong className="text-emerald-700">Laik Sandar</strong>
+              </div>
             </div>
           </div>
 
-          {/* Asset 2 */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl hover:border-[#0B241E] transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                SIAP SEWA
-              </span>
-              <span className="text-[11px] text-[#64748B] font-mono">Ruang Tunggu Eksekutif</span>
-            </div>
-            <p className="font-extrabold text-[#0B241E] text-sm mt-2">
-              Kios F&B / Franchise Tenant
-            </p>
-            <p className="text-[#64748B] text-[11px] mt-1">
-              Luas: <strong>60 m²</strong> (2 Unit) • Foot-traffic 4.500 penumpang/hari. Listrik 3-fasa siap pakai.
-            </p>
-            <div className="mt-3 pt-2 border-t border-[#E2E8F0] flex justify-between items-center">
-              <span className="font-mono font-bold text-[#0B241E]">Rp 24 Jt / Thn</span>
-              <button
-                type="button"
-                onClick={() => alert("Membuka Dokumen Kerangka Investasi Kios F&B.")}
-                className="text-[11px] text-[#D97706] font-bold hover:underline cursor-pointer"
-              >
-                Detail Aset →
-              </button>
+          {/* Fasilitas 2: Dolphin MB Ferry */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+            <p className="text-sm font-bold text-[#0B241E]">Dolphin MB Ferry</p>
+            <p className="text-xs text-gray-500">Penyeberangan ASDP (80m)</p>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Penerimaan:</span>
+                <strong className="font-mono text-[#0B241E]">Rp 42,8 Jt/bln</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Utilisasi:</span>
+                <strong className="text-blue-700">84% (Stabil)</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kelaikan:</span>
+                <strong className="text-blue-700">Perbaikan Trafo</strong>
+              </div>
             </div>
           </div>
 
-          {/* Asset 3 */}
-          <div className="p-4 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl hover:border-[#0B241E] transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
-                PROSES TENDER
-              </span>
-              <span className="text-[11px] text-[#64748B] font-mono">Bunkering Dermaga 3</span>
+          {/* Fasilitas 3: Dermaga Rakyat PPI */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+            <p className="text-sm font-bold text-[#0B241E]">Dermaga Rakyat (PPI)</p>
+            <p className="text-xs text-gray-500">Pendaratan Ikan Poumako</p>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Penerimaan:</span>
+                <strong className="font-mono text-[#0B241E]">Rp 28,4 Jt/bln</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Utilisasi:</span>
+                <strong className="text-amber-700">76% (Menengah)</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kelaikan:</span>
+                <strong className="text-emerald-700">Laik Operasi</strong>
+              </div>
             </div>
-            <p className="font-extrabold text-[#0B241E] text-sm mt-2">
-              Instalasi Pengisian Air Tawar Kapal
-            </p>
-            <p className="text-[#64748B] text-[11px] mt-1">
-              Kapasitas: <strong>50 Ton/Hari</strong> • Sistem perpipaan terotomatisasi e-Meter host-to-host PORTA.
-            </p>
-            <div className="mt-3 pt-2 border-t border-[#E2E8F0] flex justify-between items-center">
-              <span className="font-mono font-bold text-[#0B241E]">Kerja Sama KSP</span>
-              <button
-                type="button"
-                onClick={() => alert("Membuka Dokumen Kerangka Kerjasama Bunkering.")}
-                className="text-[11px] text-[#D97706] font-bold hover:underline cursor-pointer"
-              >
-                Detail Aset →
-              </button>
+          </div>
+
+          {/* Fasilitas 4: Dermaga Kokonao */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+            <p className="text-sm font-bold text-[#0B241E]">Dermaga Kokonao</p>
+            <p className="text-xs text-gray-500">Distrik Mimika Barat</p>
+            <div className="mt-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Penerimaan:</span>
+                <strong className="font-mono text-[#0B241E]">Rp 14,8 Jt/bln</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Utilisasi:</span>
+                <strong className="text-gray-700">62% (Rendah)</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Kelaikan:</span>
+                <strong className="text-amber-700">Perlu Peremajaan</strong>
+              </div>
             </div>
           </div>
         </div>

@@ -48,7 +48,7 @@ const DEMO_ACCOUNTS = [
     email: "bendahara.pomako@porta.mimikakab.go.id",
     password: "Porta123!",
     badge: "bg-amber-900/60 text-amber-200 border-amber-700",
-    targetRoute: "/upt/dashboard",
+    targetRoute: "/bendahara/dashboard",
   },
   {
     roleLabel: "Petugas Dermaga",
@@ -69,6 +69,17 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Otomatis isi email jika diarahkan dari pendaftaran baru (?email=...)
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get("email");
+      if (emailParam) {
+        setEmail(emailParam);
+      }
+    }
+  }, []);
 
   const handleQuickFill = (acc: typeof DEMO_ACCOUNTS[0]) => {
     setEmail(acc.email);
@@ -149,77 +160,79 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#071914] text-white flex flex-col lg:flex-row selection:bg-[#D97706]/30 selection:text-white">
       {/* ========================================================= */}
-      {/* 1. SISI KIRI: BRANDING & IDENTITAS OTORITAS PELABUHAN      */}
+      {/* 1. SISI KIRI: BRANDING & VIDEO LATAR OMBAK SAMUDRA         */}
       {/* ========================================================= */}
-      <div className="relative w-full lg:w-[48%] xl:w-[45%] p-6 sm:p-10 lg:p-16 flex flex-col justify-between overflow-hidden bg-[#0B241E]">
-        {/* Background Visual Pelabuhan */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/port-hero.jpg"
-            alt="Pelabuhan Poumako"
-            className="w-full h-full object-cover object-center opacity-25 scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#071914] via-[#0B241E]/90 to-[#0B241E]/80" />
+      <div className="relative w-full lg:w-[48%] xl:w-[46%] p-6 sm:p-10 lg:p-12 flex flex-col justify-between overflow-hidden bg-black min-h-[480px] lg:min-h-screen">
+        {/* Background Video Lautan Ombak (Transparan & Jelas) */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover object-center scale-105"
+          >
+            <source
+              src="/videos/Ship_battling_rough_ocean_waves_dd7fabd4_1080p.mp4"
+              type="video/mp4"
+            />
+          </video>
+          {/* Overlay Tipis (Layer Hijau Dikurangi agar Ombak & Kapal Terlihat Jelas) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/40" />
+          <div className="absolute inset-0 bg-[#0B241E]/20" />
         </div>
 
-        {/* Header Branding */}
-        <div className="relative z-10 space-y-6">
+        {/* Top Header: Navigasi Kembali & Identitas Logo Compact */}
+        <div className="relative z-10 flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-xs font-mono text-emerald-200/80 hover:text-white transition-colors group"
+            className="inline-flex items-center gap-2 text-xs font-mono text-white/90 hover:text-white bg-black/40 hover:bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 transition-all group shadow-sm"
           >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-            <span>Kembali ke Beranda Publik</span>
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform text-[#D97706]" />
+            <span>Beranda Publik</span>
           </Link>
 
-          <div className="flex items-center gap-3.5 pt-2">
+          <div className="flex items-center gap-2.5 bg-black/35 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-sm">
             <img
               src="/brand/symbol-white.svg"
               alt="PORTA"
-              className="w-11 h-11 object-contain drop-shadow-md"
+              className="w-5 h-5 object-contain"
             />
-            <div>
-              <span className="text-2xl font-black tracking-tight text-white block leading-none">
-                PORTA
+            <span className="text-xs font-black tracking-wider text-white">
+              PORTA
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom Section: Hanya Bagian Otoritas Layanan (Minimalis & Elegan) */}
+        <div className="relative z-10 mt-auto pt-16 space-y-4">
+          <div className="bg-black/55 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-white/15 shadow-2xl space-y-3 max-w-lg">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Otoritas Layanan Maritim Terpadu</span>
+            </div>
+
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">
+              Otoritas Layanan Maritim & Transparansi Penerimaan Daerah
+            </h1>
+
+            <p className="text-xs text-slate-300 leading-relaxed font-normal">
+              Sistem resmi Dinas Perhubungan & UPTD Pelabuhan Kabupaten Mimika untuk integrasi operasional dermaga, tata kelola armada kapal, dan kepatuhan retribusi daerah.
+            </p>
+
+            <div className="pt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-300 border-t border-white/10">
+              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold">
+                PP No. 35/2023 & Perbup 25/2024
               </span>
-              <p className="text-[10px] text-emerald-300/80 uppercase font-mono tracking-wider mt-1">
-                Pelabuhan & Penerimaan Daerah
-              </p>
+              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold">
+                Standar SOLAS 1974
+              </span>
+              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold text-amber-300">
+                Wilayah Kerja Poumako
+              </span>
             </div>
           </div>
-        </div>
-
-        {/* Core Authority Message */}
-        <div className="relative z-10 my-auto py-12 space-y-6 max-w-lg">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-[11px] font-mono text-[#F59E0B]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Satu Pintu Akses Seluruh Pemangku Kepentingan</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight text-white leading-[1.15] [text-wrap:balance]">
-            Otoritas Layanan Maritim & Transparansi Penerimaan Daerah
-          </h1>
-
-          <p className="text-sm text-emerald-100/80 leading-relaxed font-normal">
-            Platform operasional terpadu untuk Dinas Perhubungan, UPTD Syahbandar, Operator Armada Kapal, dan Mitra Pemanfaatan Aset BMD Kabupaten Mimika.
-          </p>
-
-          <div className="pt-2 grid grid-cols-2 gap-4 text-xs font-mono text-emerald-200/80">
-            <div className="p-3.5 rounded-xl bg-black/30 border border-white/10">
-              <span className="text-slate-400 block text-[10px] uppercase">Dasar Hukum Retribusi</span>
-              <strong className="text-white block mt-0.5 font-semibold">PP 35/2023 & Perbup 25/2024</strong>
-            </div>
-            <div className="p-3.5 rounded-xl bg-black/30 border border-white/10">
-              <span className="text-slate-400 block text-[10px] uppercase">Standar Keamanan</span>
-              <strong className="text-white block mt-0.5 font-semibold">Validasi SOLAS 1974</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer info */}
-        <div className="relative z-10 pt-6 border-t border-white/10 text-[11px] font-mono text-emerald-300/60 flex items-center justify-between">
-          <span>Otoritas UPTD Pelabuhan Poumako</span>
-          <span>Keamanan Sesi Terenkripsi</span>
         </div>
       </div>
 

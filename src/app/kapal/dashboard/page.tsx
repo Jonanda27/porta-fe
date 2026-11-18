@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Ship,
@@ -15,20 +15,26 @@ import {
   ShieldCheck,
   Loader2,
   ExternalLink,
+  ArrowRight,
+  Receipt,
+  Scale,
 } from "lucide-react";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
+import { useBillingStore } from "@/store/billing.store";
 
 export default function KapalDashboardPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
   const { user, initialize: initAuth } = useAuthStore();
   const { operator, vessels, visits, isLoading, fetchDashboardData } = useKapalStore();
+  const { invoices, fetchInvoices } = useBillingStore();
 
   useEffect(() => {
     initAuth();
     fetchDashboardData();
-  }, [initAuth, fetchDashboardData]);
+    fetchInvoices();
+  }, [initAuth, fetchDashboardData, fetchInvoices]);
 
   // Nama operator dan dokumen legalitas
   const operatorName =
@@ -38,7 +44,60 @@ export default function KapalDashboardPage() {
       : "PT Pelayaran Mimika Sejahtera");
 
   const siupalDoc = operator?.documents?.find((d) => d.category === "SIUPAL_NIB");
-  const siupalNumber = siupalDoc?.documentNumber || "SIUPAL Aktif";
+  const isPendingVerif =
+    operator?.verificationStatus === "PENDING" ||
+    user?.operatorVerificationStatus === "PENDING";
+  const siupalNumber =
+    siupalDoc?.documentNumber ||
+    (isPendingVerif ? "PENDING Verifikasi" : "Belum Ada SIUPAL");
+
+  // Perhitungan Data Real Kunjungan & Armada
+  const activeVisits = useMemo(() => {
+    return visits.filter((v) => v.status === "BERTHED" || v.status === "ARRIVED");
+  }, [visits]);
+
+  const scheduledVisits = useMemo(() => {
+    return visits.filter((v) => v.status === "SCHEDULED" || v.status === "APPROVED");
+  }, [visits]);
+
+  const completedVisits = useMemo(() => {
+    return visits.filter((v) => v.status === "DEPARTED");
+  }, [visits]);
+
+  const pendingVisits = useMemo(() => {
+    return visits.filter((v) => v.status === "REQUESTED");
+  }, [visits]);
+
+  // Perhitungan Data Real Tagihan e-SKRD dari useBillingStore
+  const unpaidInvoices = useMemo(() => {
+    return invoices.filter(
+      (inv) =>
+        inv.status === "ISSUED" ||
+        inv.status === "PARTIAL" ||
+        inv.status === "DRAFT"
+    );
+  }, [invoices]);
+
+  const paidInvoices = useMemo(() => {
+    return invoices.filter((inv) => inv.status === "PAID");
+  }, [invoices]);
+
+  const totalUnpaidIdr = useMemo(() => {
+    return unpaidInvoices.reduce(
+      (acc, inv) => acc + Number(inv.totalAmountIdr || 0),
+      0
+    );
+  }, [unpaidInvoices]);
+
+  // Perhitungan Kepatuhan Manifes SOLAS
+  const visitsNeedingManifest = useMemo(() => {
+    return visits.filter(
+      (v) =>
+        v.status === "SCHEDULED" ||
+        v.status === "APPROVED" ||
+        v.status === "BERTHED"
+    );
+  }, [visits]);
 
   // Data kunjungan yang ditampilkan (jika backend telah memiliki visit)
   const displayVisits = visits.length > 0 ? visits : [];
@@ -47,21 +106,31 @@ export default function KapalDashboardPage() {
   const filteredVisits = displayVisits.filter((v) => {
     if (selectedStatus === "all") return true;
     if (selectedStatus === "active") return v.status === "BERTHED" || v.status === "ARRIVED";
-    if (selectedStatus === "scheduled") return v.status === "SCHEDULED";
+    if (selectedStatus === "scheduled") return v.status === "SCHEDULED" || v.status === "APPROVED" || v.status === "REQUESTED";
     if (selectedStatus === "completed") return v.status === "DEPARTED";
     return true;
   });
+
+  const formatRupiah = (val: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
 
   const formatDateTime = (dateStr?: string | null) => {
     if (!dateStr) return "-";
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      }) + " WIT";
+      return (
+        d.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }) + " WIT"
+      );
     } catch {
       return dateStr;
     }
@@ -69,6 +138,34 @@ export default function KapalDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Banner Status Verifikasi Kemitraan Operator (Bila Masih PENDING) */}
+      {(operator?.verificationStatus === "PENDING" || user?.operatorVerificationStatus === "PENDING") && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-start gap-3 min-w-0">
+            <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-xs text-amber-950">Status Kemitraan: PENDING Verifikasi UPT Pelabuhan</span>
+                <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                  Estimasi SLA &lt; 24 Jam Kerja
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Pendaftaran badan usaha Anda telah tersimpan di server. Petugas UPT sedang meneliti kelengkapan berkas Anda.
+                Setelah disahkan, fitur permohonan tambat dermaga online akan aktif secara otomatis.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/kapal/profil"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shrink-0 shadow-xs"
+          >
+            <span>Cek Profil &amp; Berkas</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
+
       {/* 1. OVERLAPPING OPERATIONAL KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Armada Terdaftar */}
@@ -126,18 +223,38 @@ export default function KapalDashboardPage() {
             <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
               <FileCheck2 className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
-              SOLAS Compliance
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                visitsNeedingManifest.length > 0
+                  ? "bg-amber-100 text-amber-800"
+                  : completedVisits.length > 0
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {visitsNeedingManifest.length > 0
+                ? `${visitsNeedingManifest.length} Perlu Lapor`
+                : completedVisits.length > 0
+                ? "SOLAS Clear"
+                : "Siap Lapor"}
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
             Pelaporan Manifes Kapal
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            Sesuai Standar
+            {visitsNeedingManifest.length > 0
+              ? `${visitsNeedingManifest.length} Pelayaran`
+              : completedVisits.length > 0
+              ? "100% Terlapor"
+              : "0 Kunjungan"}
           </p>
-          <p className="text-[11px] text-emerald-800 font-semibold mt-1.5">
-            Dokumen Keselamatan Muatan Valid
+          <p className="text-[11px] text-[#64748B] mt-1.5 truncate">
+            {visitsNeedingManifest.length > 0
+              ? "Menunggu pelaporan manifes muatan"
+              : completedVisits.length > 0
+              ? `${completedVisits.length} kunjungan selesai clearance SPB`
+              : "Belum ada antrean jadwal sandar"}
           </p>
         </div>
 
@@ -147,18 +264,36 @@ export default function KapalDashboardPage() {
             <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
               <CreditCard className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100/60 px-2 py-0.5 rounded-full">
-              PP 35/2023
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                unpaidInvoices.length > 0
+                  ? "bg-amber-100 text-amber-900 border border-amber-200"
+                  : paidInvoices.length > 0
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {unpaidInvoices.length > 0
+                ? `${unpaidInvoices.length} Belum Bayar`
+                : paidInvoices.length > 0
+                ? "Tertib Bayar"
+                : "Nihil Tagihan"}
             </span>
           </div>
           <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mt-3">
-            Status Retribusi Jasa Labuh & Tambat
+            Tagihan Retribusi e-SKRD
           </p>
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
-            Tertib Bayar
+            {unpaidInvoices.length > 0
+              ? formatRupiah(totalUnpaidIdr)
+              : "Rp 0 (Lunas)"}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5">
-            Tersinkronisasi Host-to-Host Kas Daerah
+          <p className="text-[11px] text-[#64748B] mt-1.5 truncate">
+            {unpaidInvoices.length > 0
+              ? `${unpaidInvoices.length} invoice aktif • ${paidInvoices.length} lunas`
+              : paidInvoices.length > 0
+              ? `Seluruh ${paidInvoices.length} e-SKRD telah lunas ke Kasda`
+              : "Belum ada tagihan retribusi terbit"}
           </p>
         </div>
       </div>
@@ -246,7 +381,14 @@ export default function KapalDashboardPage() {
                   const vesselName = v.vessel?.name || "Kapal Terdaftar";
                   const gt = v.vessel?.grossTonnage ? `${v.vessel.grossTonnage} GT` : "-";
                   const regNo = v.vessel?.registrationNumber || "-";
-                  const berthName = v.berthingRecords?.[0]?.berth?.name || "Dermaga Umum Poumako";
+                  const allocatedBerth = v.berthingRecords?.[0]?.berth?.name;
+                  const berthName = allocatedBerth
+                    ? allocatedBerth
+                    : v.status === "REQUESTED"
+                    ? "Menunggu Alokasi UPT"
+                    : v.status === "APPROVED" || v.status === "SCHEDULED"
+                    ? "Dermaga Umum Poumako"
+                    : v.port?.name || "Pelabuhan Poumako";
 
                   return (
                     <tr key={v.id} className="hover:bg-[#F8FAFC]/80 transition-colors">
@@ -380,12 +522,33 @@ export default function KapalDashboardPage() {
       {/* 3. ALERTS & REGULATORY SUMMARY */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs space-y-3">
-          <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#D97706]" />
-            <span>Alur Pelayanan Dermaga Terjadwal</span>
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#D97706]" />
+              <span>Status Alokasi & Permohonan Sandar (PPK)</span>
+            </h4>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                pendingVisits.length > 0
+                  ? "bg-amber-100 text-amber-900 border border-amber-200"
+                  : scheduledVisits.length > 0
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {pendingVisits.length > 0
+                ? `${pendingVisits.length} Verifikasi UPT`
+                : scheduledVisits.length > 0
+                ? `${scheduledVisits.length} Siap Tambat`
+                : "Operasional Normal"}
+            </span>
+          </div>
           <p className="text-xs text-[#64748B] leading-relaxed">
-            Permohonan sandar/tambat dermaga wajib diajukan minimal 4 jam sebelum estimasi kedatangan (ETA) untuk diverifikasi oleh petugas UPT Pelabuhan Poumako dan disahkan oleh Syahbandar.
+            {pendingVisits.length > 0
+              ? `Terdapat ${pendingVisits.length} permohonan sandar baru sedang menunggu peninjauan dan penetapan dermaga oleh petugas UPTD Pelabuhan Poumako.`
+              : scheduledVisits.length > 0
+              ? `Terdapat ${scheduledVisits.length} jadwal sandar kapal telah terverifikasi/disetujui oleh UPT dan siap memasuki tambatan dermaga.`
+              : "Seluruh permohonan sandar kapal telah terproses. Permohonan baru wajib diajukan minimal 4 jam sebelum estimasi kedatangan (ETA)."}
           </p>
           <div className="pt-2">
             <Link
@@ -399,12 +562,27 @@ export default function KapalDashboardPage() {
         </div>
 
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs space-y-3">
-          <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Kewajiban Retribusi Jasa Kapal (PP 35/2023)</span>
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Kewajiban Retribusi Daerah (PP 35/2023)</span>
+            </h4>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                unpaidInvoices.length > 0
+                  ? "bg-red-100 text-red-900 border border-red-200"
+                  : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {unpaidInvoices.length > 0
+                ? "Menunggu Setoran"
+                : "Kepatuhan Penuh"}
+            </span>
+          </div>
           <p className="text-xs text-[#64748B] leading-relaxed">
-            Perhitungan retribusi sandar dihitung berdasarkan waktu aktual pelayanan (ATA/ATB/ATD). Tagihan e-SKRD otomatis tersinkronisasi ke rekening kas daerah (RKUD) Kabupaten Mimika setelah proses sandar selesai.
+            {unpaidInvoices.length > 0
+              ? `Terdapat ${unpaidInvoices.length} tagihan e-SKRD aktif senilai ${formatRupiah(totalUnpaidIdr)} yang menunggu pelunasan ke Kas Daerah (RKUD) Kab. Mimika via Virtual Account / QRIS.`
+              : `Seluruh ${paidInvoices.length} tagihan retribusi e-SKRD telah lunas terbayar dan tersinkronisasi ke Kas Daerah (RKUD) Kabupaten Mimika.`}
           </p>
           <div className="pt-2">
             <Link
