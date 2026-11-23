@@ -2,11 +2,14 @@ import { create } from "zustand";
 import {
   BillingAdjustment,
   BillingInvoice,
+  CheckoutPaymentDto,
+  CheckoutPaymentResponse,
   CreateBillingAdjustmentDto,
   CreateWarningDto,
   DecideBillingAdjustmentDto,
   GenerateBillingDto,
   InvoicePrintPayload,
+  PaymentConfig,
   RecordPaymentDto,
   RevenueSummary,
   SubmitPaymentProofDto,
@@ -15,10 +18,20 @@ import {
 } from "@/types/billing.types";
 import {
   AssetLease,
+  LeasePaymentReceiptPayload,
   PortAsset,
   RecordLeasePaymentDto,
 } from "@/types/asset.types";
+import {
+  CloseGateHandoverPayload,
+  CreateGateTicketBookPayload,
+  FerryRouteItem,
+  GateHandoverItem,
+  GateTicketBookItem,
+} from "@/types/field-ops.types";
+import { VesselManifestItem } from "@/types/manifest.types";
 import { BillingService } from "@/services/billing.service";
+import { FieldOpsService } from "@/services/field-ops.service";
 import { ApiException } from "@/lib/api-client";
 
 interface BillingState {
@@ -27,18 +40,37 @@ interface BillingState {
   warnings: WarningRecord[];
   leases: AssetLease[];
   assets: PortAsset[];
+  ticketBooks: GateTicketBookItem[];
+  ferryRoutes: FerryRouteItem[];
+  handovers: GateHandoverItem[];
+  manifests: VesselManifestItem[];
   revenueSummary: RevenueSummary | null;
   unbilledVisits: UnbilledVisit[];
   activePrintPayload: InvoicePrintPayload | null;
+  activeLeaseReceipt: LeasePaymentReceiptPayload | null;
+  paymentConfig: PaymentConfig | null;
+  activeCheckoutSession: CheckoutPaymentResponse | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   fetchInvoices: () => Promise<void>;
+  fetchPaymentConfig: () => Promise<PaymentConfig | null>;
+  checkoutPayment: (dto: CheckoutPaymentDto) => Promise<CheckoutPaymentResponse>;
+  clearCheckoutSession: () => void;
   fetchAdjustments: () => Promise<void>;
   fetchWarnings: () => Promise<void>;
   fetchLeases: () => Promise<void>;
   fetchAssets: () => Promise<void>;
+  fetchTicketBooks: () => Promise<void>;
+  createTicketBook: (payload: CreateGateTicketBookPayload) => Promise<GateTicketBookItem>;
+  fetchFerryRoutes: (portId?: number) => Promise<void>;
+  fetchHandovers: () => Promise<void>;
+  fetchManifests: () => Promise<void>;
+  closeHandover: (
+    handoverId: number,
+    dto: CloseGateHandoverPayload
+  ) => Promise<GateHandoverItem>;
   fetchRevenueSummary: (portId?: number) => Promise<void>;
   fetchUnbilledVisits: (portId?: number) => Promise<void>;
   fetchPrintPayload: (invoiceId: number) => Promise<InvoicePrintPayload>;
@@ -58,6 +90,16 @@ interface BillingState {
   verifyPayment: (paymentId: number) => Promise<void>;
   recordCashPayment: (invoiceId: number, dto: RecordPaymentDto) => Promise<void>;
   recordLeasePayment: (leaseId: number, dto: RecordLeasePaymentDto) => Promise<void>;
+  fetchLeasePaymentReceipt: (paymentId: number) => Promise<LeasePaymentReceiptPayload>;
+  clearActiveLeaseReceipt: () => void;
+  generateVisitEstimate: (
+    visitId: number,
+    dto?: GenerateBillingDto
+  ) => Promise<BillingInvoice>;
+  generateAdvanceSkrd: (
+    visitId: number,
+    dto?: GenerateBillingDto
+  ) => Promise<BillingInvoice>;
   generateFinalSkrd: (
     visitId: number,
     dto?: GenerateBillingDto
@@ -73,11 +115,51 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   warnings: [],
   leases: [],
   assets: [],
+  ticketBooks: [],
+  ferryRoutes: [],
+  handovers: [],
+  manifests: [],
   revenueSummary: null,
   unbilledVisits: [],
   activePrintPayload: null,
+  activeLeaseReceipt: null,
+  paymentConfig: null,
+  activeCheckoutSession: null,
   isLoading: false,
   error: null,
+
+  fetchPaymentConfig: async () => {
+    try {
+      const config = await BillingService.getPaymentConfig();
+      set({ paymentConfig: config });
+      return config;
+    } catch (err: unknown) {
+      console.warn("Gagal memuat konfigurasi payment gateway:", err);
+      return null;
+    }
+  },
+
+  checkoutPayment: async (dto: CheckoutPaymentDto) => {
+    set({ isLoading: true, error: null });
+    try {
+      const session = await BillingService.checkoutPayment(dto);
+      set({ activeCheckoutSession: session, isLoading: false });
+      return session;
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal memproses sesi pembayaran online.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  clearCheckoutSession: () => {
+    set({ activeCheckoutSession: null });
+  },
 
   fetchInvoices: async () => {
     set({ isLoading: true, error: null });
@@ -136,6 +218,25 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal mencatat pembayaran loket.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  generateAdvanceSkrd: async (visitId: number, dto: GenerateBillingDto = {}) => {
+    set({ isLoading: true, error: null });
+    try {
+      const invoice = await BillingService.generateAdvanceSkrd(visitId, dto);
+      await Promise.all([
+        get().fetchInvoices(),
+        get().fetchUnbilledVisits(),
+        get().fetchRevenueSummary(),
+      ]);
+      set({ isLoading: false });
+      return invoice;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal menerbitkan e-SKRD Uang Muka.";
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -311,6 +412,46 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     }
   },
 
+  fetchLeasePaymentReceipt: async (paymentId: number): Promise<LeasePaymentReceiptPayload> => {
+    set({ isLoading: true, error: null });
+    try {
+      const receipt = await BillingService.getLeasePaymentReceipt(paymentId);
+      set({ activeLeaseReceipt: receipt, isLoading: false });
+      return receipt;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat kuitansi e-SSRD sewa aset.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  clearActiveLeaseReceipt: () => {
+    set({ activeLeaseReceipt: null });
+  },
+
+  generateVisitEstimate: async (
+    visitId: number,
+    dto: GenerateBillingDto = {}
+  ): Promise<BillingInvoice> => {
+    set({ isLoading: true, error: null });
+    try {
+      const estimate = await BillingService.generateVisitEstimate(visitId, dto);
+      await get().fetchInvoices();
+      set({ isLoading: false });
+      return estimate;
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal menghitung estimasi tagihan resmi dari server.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
   issueWarning: async (dto: CreateWarningDto) => {
     set({ isLoading: true, error: null });
     try {
@@ -321,6 +462,84 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal menerbitkan surat teguran.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  fetchTicketBooks: async () => {
+    try {
+      const ticketBooks = await BillingService.getTicketBooks();
+      set({ ticketBooks });
+    } catch (err: unknown) {
+      console.error("Gagal memuat inventaris buku karcis/tiket:", err);
+    }
+  },
+
+  createTicketBook: async (payload: CreateGateTicketBookPayload) => {
+    set({ isLoading: true, error: null });
+    try {
+      const created = await FieldOpsService.createTicketBook(payload);
+      await get().fetchTicketBooks();
+      set({ isLoading: false });
+      return created;
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal menerbitkan buku karcis baru.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  fetchFerryRoutes: async (portId?: number) => {
+    try {
+      const ferryRoutes = await FieldOpsService.getFerryRoutes(portId);
+      set({ ferryRoutes });
+    } catch (err: unknown) {
+      console.error("Gagal memuat daftar rute penyeberangan:", err);
+    }
+  },
+
+  fetchHandovers: async () => {
+    try {
+      const handovers = await BillingService.getHandovers();
+      set({ handovers });
+    } catch (err: unknown) {
+      console.error("Gagal memuat daftar sesi serah terima gerbang:", err);
+    }
+  },
+
+  fetchManifests: async () => {
+    try {
+      const manifests = await BillingService.getManifests();
+      set({ manifests });
+    } catch (err: unknown) {
+      console.error("Gagal memuat daftar manifes kapal penyeberangan:", err);
+    }
+  },
+
+  closeHandover: async (handoverId: number, dto: CloseGateHandoverPayload) => {
+    set({ isLoading: true, error: null });
+    try {
+      const settled = await BillingService.closeHandover(handoverId, dto);
+      await Promise.all([
+        get().fetchHandovers(),
+        get().fetchTicketBooks(),
+        get().fetchRevenueSummary(),
+      ]);
+      set({ isLoading: false });
+      return settled;
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal menutup sesi serah terima tiket gerbang.";
       set({ isLoading: false, error: message });
       throw err;
     }

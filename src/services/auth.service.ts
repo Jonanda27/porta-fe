@@ -58,7 +58,7 @@ export class AuthService {
    */
   public static async updateMyProfile(payload: UpdateMyProfilePayload): Promise<AuthUser> {
     const updated = await apiClient.patch<AuthUser>(
-      `${API_CONFIG.ENDPOINTS.AUTH.ME}/profile`,
+      API_CONFIG.ENDPOINTS.AUTH.ME_PROFILE,
       payload
     );
     if (typeof window !== "undefined") {
@@ -74,7 +74,7 @@ export class AuthService {
     payload: ChangeMyPasswordPayload
   ): Promise<ChangeMyPasswordResponse> {
     const res = await apiClient.patch<ChangeMyPasswordResponse>(
-      `${API_CONFIG.ENDPOINTS.AUTH.ME}/password`,
+      API_CONFIG.ENDPOINTS.AUTH.ME_PASSWORD,
       payload
     );
     if (typeof window !== "undefined") {
@@ -161,7 +161,16 @@ export class AuthService {
         return "/upt/dashboard";
 
       case "PETUGAS_DERMAGA":
+      case "PETUGAS_DERMAGA_BARANG":
+      case "PETUGAS_DERMAGA_PENUMPANG":
         return "/upt/kapal";
+
+      case "PETUGAS_REGISTRASI_KONTRAK":
+        return "/upt/dashboard";
+
+      case "PETUGAS_RUANGAN":
+      case "KEPALA_PELABUHAN":
+        return "/upt/verifikasi";
 
       default:
         return "/upt/dashboard";

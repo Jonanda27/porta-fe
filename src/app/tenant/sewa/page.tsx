@@ -9,37 +9,29 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Wrench,
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useTenantStore } from "@/store/tenant.store";
 import { formatLabel } from "@/lib/format-labels";
 import { PortAssetCatalogItem } from "@/types/tenant.types";
+import { ReportFacilityIssueModal } from "@/components/tenant/ReportFacilityIssueModal";
 
 export default function TenantSewaPage() {
   const {
     profile,
     assets,
     isLoading,
-    isSubmitting,
     error,
     fetchTenantData,
-    requestLease,
-    clearError,
+    openApplyModal,
   } = useTenantStore();
 
-  const [selectedAsset, setSelectedAsset] =
-    useState<PortAssetCatalogItem | null>(null);
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [endDate, setEndDate] = useState(
-    new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10)
-  );
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     fetchTenantData();
@@ -61,22 +53,6 @@ export default function TenantSewaPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  const handleRequestLease = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAsset) return;
-    setFeedback(null);
-    clearError();
-    await requestLease({
-      assetId: selectedAsset.id,
-      startDate,
-      endDate,
-    });
-    setFeedback(
-      `Permohonan sewa untuk ${selectedAsset.name} berhasil dikirim (menunggu persetujuan Admin Pelabuhan).`
-    );
-    setSelectedAsset(null);
-  };
 
   return (
     <div className="space-y-6">
@@ -106,6 +82,15 @@ export default function TenantSewaPage() {
 
           <button
             type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-xs font-bold text-amber-900 border border-amber-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <Wrench className="w-3.5 h-3.5 text-[#D97706]" />
+            <span>Lapor Kerusakan Kios</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => fetchTenantData()}
             disabled={isLoading}
             className="px-3 py-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-xs font-semibold text-[#475569] flex items-center gap-1.5 cursor-pointer"
@@ -119,13 +104,6 @@ export default function TenantSewaPage() {
       {!isVerified && profile && (
         <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
           Status akun usaha Anda saat ini <strong>{profile.verificationStatus}</strong>. Pengajuan sewa baru dapat dikirim setelah akun diverifikasi oleh Admin Pelabuhan.
-        </div>
-      )}
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
         </div>
       )}
 
@@ -200,10 +178,7 @@ export default function TenantSewaPage() {
                     <button
                       type="button"
                       disabled={!canApply}
-                      onClick={() => {
-                        clearError();
-                        setSelectedAsset(asset);
-                      }}
+                      onClick={() => openApplyModal(asset)}
                       className={`w-full py-2 rounded-xl text-xs font-bold transition-colors ${
                         canApply
                           ? "bg-[#0B241E] hover:bg-[#143E33] text-white cursor-pointer"
@@ -236,61 +211,12 @@ export default function TenantSewaPage() {
         </>
       )}
 
-      {selectedAsset && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleRequestLease}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
-          >
-            <h3 className="text-base font-extrabold text-[#0B241E]">
-              Ajukan Sewa: {selectedAsset.name}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1">
-                  Tanggal Mulai
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1">
-                  Tanggal Berakhir
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedAsset(null)}
-                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Kirim Permohonan
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* Modal Lapor Kendala Fisik Kios */}
+      <ReportFacilityIssueModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        defaultCategory="FISIK_BANGUNAN"
+      />
     </div>
   );
 }

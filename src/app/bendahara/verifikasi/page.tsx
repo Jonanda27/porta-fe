@@ -3,20 +3,17 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   CheckCircle2,
-  Receipt,
   Search,
   RefreshCw,
   CreditCard,
-  Building2,
   Clock,
   Printer,
-  FileCheck2,
-  AlertCircle,
   X,
   ExternalLink,
   ShieldCheck,
   Eye,
-  Filter,
+  QrCode,
+  Copy,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
 import { BillingInvoice, PaymentMethod } from "@/types/billing.types";
@@ -24,8 +21,13 @@ import { BillingInvoice, PaymentMethod } from "@/types/billing.types";
 export default function BendaharaVerifikasiPage() {
   const {
     invoices,
+    paymentConfig,
+    activeCheckoutSession,
     isLoading,
     fetchInvoices,
+    fetchPaymentConfig,
+    checkoutPayment,
+    clearCheckoutSession,
     verifyPayment,
     recordCashPayment,
     fetchPrintPayload,
@@ -35,6 +37,7 @@ export default function BendaharaVerifikasiPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedInvoice, setSelectedInvoice] = useState<BillingInvoice | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [isGeneratingGateway, setIsGeneratingGateway] = useState<boolean>(false);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
   // Form Pembayaran Kasir Loket Tunai/EDC
@@ -45,7 +48,19 @@ export default function BendaharaVerifikasiPage() {
 
   useEffect(() => {
     fetchInvoices();
-  }, [fetchInvoices]);
+    fetchPaymentConfig();
+  }, [fetchInvoices, fetchPaymentConfig]);
+
+  const handleCreateCheckoutLink = async (invoiceId: number) => {
+    setIsGeneratingGateway(true);
+    try {
+      await checkoutPayment({ targetType: "INVOICE", targetId: invoiceId });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Gagal membuat sesi pembayaran digital.");
+    } finally {
+      setIsGeneratingGateway(false);
+    }
+  };
 
   const formatRupiah = (val: number | string) => {
     const num = Number(val) || 0;
@@ -316,18 +331,30 @@ export default function BendaharaVerifikasiPage() {
                         <span>Verifikasi Sah & Terbitkan SSRD</span>
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCashInvoiceId(item.invoice.id);
-                          setCashAmount(Number(item.invoice.totalAmountIdr));
-                          setActiveTab("cash");
-                        }}
-                        className="px-4 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <CreditCard className="w-4 h-4 text-[#D97706]" />
-                        <span>Bayar di Loket Kasir</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isGeneratingGateway}
+                          onClick={() => handleCreateCheckoutLink(item.invoice.id)}
+                          className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          title={`Buat Link / QRIS Pembayaran (${paymentConfig?.provider || "MIDTRANS"})`}
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>{isGeneratingGateway ? "Membuat..." : "QRIS / Link"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCashInvoiceId(item.invoice.id);
+                            setCashAmount(Number(item.invoice.totalAmountIdr));
+                            setActiveTab("cash");
+                          }}
+                          className="px-3.5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <CreditCard className="w-4 h-4 text-[#D97706]" />
+                          <span>Loket Kasir</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -574,6 +601,86 @@ export default function BendaharaVerifikasiPage() {
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
                 className="px-4 py-2 bg-[#0B241E] text-white rounded-xl text-xs font-bold"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Link / QRIS Pembayaran Digital (POST /payments/checkout) */}
+      {activeCheckoutSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-[#0D9488]" />
+                <h3 className="text-sm font-black text-[#0B241E]">
+                  Sesi Pembayaran Digital ({activeCheckoutSession.provider})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => clearCheckoutSession()}
+                className="p-1 text-[#64748B] hover:text-[#0B241E] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4">
+              <div className="flex justify-between">
+                <span className="text-[#64748B]">Order ID:</span>
+                <span className="font-mono font-bold text-[#0B241E]">
+                  {activeCheckoutSession.orderId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#64748B]">Nominal Tagihan:</span>
+                <span className="font-mono font-extrabold text-emerald-700">
+                  {formatRupiah(activeCheckoutSession.amountIdr)}
+                </span>
+              </div>
+              {activeCheckoutSession.snapToken && (
+                <div className="flex justify-between">
+                  <span className="text-[#64748B]">Snap Token:</span>
+                  <span className="font-mono text-[11px] text-[#334155]">
+                    {activeCheckoutSession.snapToken}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+              {activeCheckoutSession.redirectUrl && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(activeCheckoutSession.redirectUrl || "");
+                      setFeedbackToast("Link pembayaran digital berhasil disalin!");
+                    }}
+                    className="px-3.5 py-2 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#0B241E] inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Salin Link</span>
+                  </button>
+                  <a
+                    href={activeCheckoutSession.redirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold inline-flex items-center gap-1.5"
+                  >
+                    <span>Buka Halaman Bayar</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#D97706]" />
+                  </a>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => clearCheckoutSession()}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-[#334155] cursor-pointer"
               >
                 Tutup
               </button>

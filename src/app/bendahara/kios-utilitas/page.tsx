@@ -6,13 +6,11 @@ import {
   Store,
   Warehouse,
   Coins,
-  Calendar,
-  CheckCircle2,
   Clock,
+  CheckCircle2,
   AlertTriangle,
   Search,
   Filter,
-  PlusCircle,
   FileText,
   Printer,
   X,
@@ -21,29 +19,74 @@ import {
   ShieldCheck,
   ArrowRight,
   TrendingUp,
+  Droplets,
+  Zap,
+  Boxes,
+  Truck,
+  Wrench,
+  Download,
+  Receipt,
+  ExternalLink,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
-import { AssetLease, PortAsset, RecordLeasePaymentDto } from "@/types/asset.types";
+import { useCargoUtilityStore } from "@/store/cargo-utility.store";
+import {
+  AssetLease,
+  LeasePaymentReceiptPayload,
+  PortAsset,
+  RecordLeasePaymentDto,
+} from "@/types/asset.types";
+import {
+  CargoHandlingRecord,
+  EquipmentRentalRecord,
+  UtilityMeterReading,
+  UtilityReceiptPayload,
+} from "@/types/cargo-utility.types";
 
 export default function KiosDanUtilitasPage() {
+  // Billing Store for Leases & Assets
   const {
     leases,
     assets,
     revenueSummary,
-    isLoading,
-    error,
+    activeLeaseReceipt,
     fetchLeases,
     fetchAssets,
     fetchRevenueSummary,
     recordLeasePayment,
+    fetchLeasePaymentReceipt,
+    clearActiveLeaseReceipt,
   } = useBillingStore();
 
-  const [activeTab, setActiveTab] = useState<"LEASES" | "ASSETS">("LEASES");
+  // Cargo & Utility Store
+  const {
+    utilities,
+    cargoRecords,
+    equipmentRentals,
+    activeReceipt,
+    isLoading: isCargoLoading,
+    error: cargoError,
+    fetchUtilities,
+    fetchCargoRecords,
+    fetchEquipmentRentals,
+    payUtility,
+    payCargo,
+    payEquipment,
+    fetchUtilityReceipt,
+    clearActiveReceipt,
+  } = useCargoUtilityStore();
+
+  const [activeTab, setActiveTab] = useState<
+    "LEASES" | "ASSETS" | "UTILITIES" | "CARGO" | "EQUIPMENT"
+  >("LEASES");
+
+  // Filter States
   const [leaseFilter, setLeaseFilter] = useState<"ALL" | "ACTIVE" | "EXPIRING" | "CRITICAL">("ALL");
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("ALL");
+  const [operationalFilter, setOperationalFilter] = useState<"ALL" | "UNPAID" | "PAID">("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Modal State for Payment Recording
+  // Modal State for Lease Payment Recording
   const [selectedLeaseForPayment, setSelectedLeaseForPayment] = useState<AssetLease | null>(null);
   const [paymentForm, setPaymentForm] = useState<{
     periodYear: number;
@@ -56,18 +99,45 @@ export default function KiosDanUtilitasPage() {
     paidAt: new Date().toISOString().split("T")[0],
     referenceNo: "",
   });
+
+  // Modal State for Paying Utility / Cargo / Equipment
+  const [payOperationalModal, setPayOperationalModal] = useState<{
+    isOpen: boolean;
+    type: "UTILITY" | "CARGO" | "EQUIPMENT";
+    id: number;
+    title: string;
+    identifierNumber: string;
+    amountIdr: number;
+    payerLabel: string;
+  } | null>(null);
+
   const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
 
-  // Modal State for Asset Detail
-  const [selectedAssetDetail, setSelectedAssetDetail] = useState<PortAsset | null>(null);
+  // Modal State for Receipt Viewer
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+  const [receiptLoading, setReceiptLoading] = useState<boolean>(false);
+
+  // Modal State for Lease SSRD Receipt Viewer
+  const [showLeaseReceiptModal, setShowLeaseReceiptModal] = useState<boolean>(false);
+  const [leaseReceiptLoading, setLeaseReceiptLoading] = useState<boolean>(false);
 
   useEffect(() => {
     fetchLeases();
     fetchAssets();
     fetchRevenueSummary();
-  }, [fetchLeases, fetchAssets, fetchRevenueSummary]);
+    fetchUtilities();
+    fetchCargoRecords();
+    fetchEquipmentRentals();
+  }, [
+    fetchLeases,
+    fetchAssets,
+    fetchRevenueSummary,
+    fetchUtilities,
+    fetchCargoRecords,
+    fetchEquipmentRentals,
+  ]);
 
   // Helper sisa hari sewa
   const getDaysRemaining = (endDateStr: string): number => {
@@ -76,7 +146,7 @@ export default function KiosDanUtilitasPage() {
     return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
   };
 
-  // Helper total bayar vs total tagihan
+  // Helper total bayar vs total tagihan sewa
   const getPaymentSummary = (lease: AssetLease) => {
     const totalDue = Number(lease.totalAnnualAmountIdr || 0);
     const totalPaid = (lease.payments || []).reduce(
@@ -88,7 +158,7 @@ export default function KiosDanUtilitasPage() {
     return { totalDue, totalPaid, remaining, isPaidOff };
   };
 
-  // Filter leases (100% Data Riil dari API Backend)
+  // Filter leases
   const filteredLeases = leases.filter((lease) => {
     const matchesSearch =
       lease.contractNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -106,7 +176,7 @@ export default function KiosDanUtilitasPage() {
     return true;
   });
 
-  // Filter assets (100% Data Riil dari API Backend)
+  // Filter assets
   const filteredAssets = assets.filter((asset) => {
     const matchesSearch =
       asset.assetCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -116,7 +186,49 @@ export default function KiosDanUtilitasPage() {
     return true;
   });
 
-  // Metrik statistik dari data API riil
+  // Filter utilities
+  const filteredUtilities = utilities.filter((u) => {
+    const matchesSearch =
+      u.readingNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.utilityType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.asset?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.visit?.vessel?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (operationalFilter === "UNPAID") return u.paymentStatus === "UNPAID";
+    if (operationalFilter === "PAID") return u.paymentStatus === "PAID";
+    return true;
+  });
+
+  // Filter cargo records
+  const filteredCargo = cargoRecords.filter((c) => {
+    const matchesSearch =
+      c.recordNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.cargoCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.visit?.vessel?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (operationalFilter === "UNPAID") return c.paymentStatus === "UNPAID";
+    if (operationalFilter === "PAID") return c.paymentStatus === "PAID";
+    return true;
+  });
+
+  // Filter equipment rentals
+  const filteredEquipment = equipmentRentals.filter((e) => {
+    const matchesSearch =
+      e.rentalNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.equipmentType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.capacityLabel.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.visit?.vessel?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (operationalFilter === "UNPAID") return e.paymentStatus === "UNPAID";
+    if (operationalFilter === "PAID") return e.paymentStatus === "PAID";
+    return true;
+  });
+
+  // Metrik Statistik Gabungan
   const totalLeaseRevenueIdr = leases.reduce((acc, l) => {
     const paid = (l.payments || []).reduce((pAcc, p) => pAcc + Number(p.amountIdr || 0), 0);
     return acc + paid;
@@ -127,10 +239,38 @@ export default function KiosDanUtilitasPage() {
     return acc + remaining;
   }, 0);
 
-  const activeLeaseCount = leases.filter((l) => l.status === "ACTIVE").length;
-  const availableAssetCount = assets.filter((a) => a.status === "AVAILABLE").length;
+  // Realisasi Kasda Utilitas & Kargo (Sudah Bayar)
+  const paidUtilitiesIdr = utilities
+    .filter((u) => u.paymentStatus === "PAID")
+    .reduce((acc, u) => acc + Number(u.totalAmountIdr || 0), 0);
 
-  // Handler Buka Modal Bayar
+  const paidCargoIdr = cargoRecords
+    .filter((c) => c.paymentStatus === "PAID")
+    .reduce((acc, c) => acc + Number(c.totalAmountIdr || 0), 0);
+
+  const paidEquipmentIdr = equipmentRentals
+    .filter((e) => e.paymentStatus === "PAID")
+    .reduce((acc, e) => acc + Number(e.totalAmountIdr || 0), 0);
+
+  const totalOperationalRevenueIdr = paidUtilitiesIdr + paidCargoIdr + paidEquipmentIdr;
+
+  // Piutang Utilitas, Kargo & Alat (Belum Bayar)
+  const unpaidUtilitiesIdr = utilities
+    .filter((u) => u.paymentStatus === "UNPAID")
+    .reduce((acc, u) => acc + Number(u.totalAmountIdr || 0), 0);
+
+  const unpaidCargoIdr = cargoRecords
+    .filter((c) => c.paymentStatus === "UNPAID")
+    .reduce((acc, c) => acc + Number(c.totalAmountIdr || 0), 0);
+
+  const unpaidEquipmentIdr = equipmentRentals
+    .filter((e) => e.paymentStatus === "UNPAID")
+    .reduce((acc, e) => acc + Number(e.totalAmountIdr || 0), 0);
+
+  const totalOutstandingOperationalIdr =
+    unpaidUtilitiesIdr + unpaidCargoIdr + unpaidEquipmentIdr;
+
+  // Handler Buka Modal Bayar Sewa Lahan/Kios
   const handleOpenPaymentModal = (lease: AssetLease) => {
     const { remaining } = getPaymentSummary(lease);
     setSelectedLeaseForPayment(lease);
@@ -145,7 +285,7 @@ export default function KiosDanUtilitasPage() {
   };
 
   // Handler Submit Pembayaran Sewa
-  const handleSavePayment = async () => {
+  const handleSaveLeasePayment = async () => {
     if (!selectedLeaseForPayment) return;
     if (paymentForm.amountIdr <= 0) {
       setActionErrorMsg("Nominal pembayaran harus lebih besar dari Rp 0.");
@@ -179,10 +319,70 @@ export default function KiosDanUtilitasPage() {
     }
   };
 
+  // Handler Konfirmasi Bayar Operasional (Utilitas / Kargo / Alat)
+  const handleConfirmOperationalPayment = async () => {
+    if (!payOperationalModal) return;
+
+    setIsSubmittingPayment(true);
+    setActionErrorMsg(null);
+    try {
+      const idempotencyKey = `KASDA-${payOperationalModal.type}-${payOperationalModal.id}-${Date.now()}`;
+      if (payOperationalModal.type === "UTILITY") {
+        await payUtility(payOperationalModal.id, idempotencyKey);
+      } else if (payOperationalModal.type === "CARGO") {
+        await payCargo(payOperationalModal.id, idempotencyKey);
+      } else if (payOperationalModal.type === "EQUIPMENT") {
+        await payEquipment(payOperationalModal.id, idempotencyKey);
+      }
+
+      setActionSuccessMsg(
+        `Penerimaan kasda atas ${payOperationalModal.title} (${payOperationalModal.identifierNumber}) sebesar Rp ${payOperationalModal.amountIdr.toLocaleString(
+          "id-ID"
+        )} berhasil disetor dan disahkan!`
+      );
+
+      setTimeout(() => {
+        setPayOperationalModal(null);
+        setActionSuccessMsg(null);
+      }, 1500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memproses pembayaran kasda.";
+      setActionErrorMsg(msg);
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  // Handler Lihat Kuitansi SSRD Utilitas
+  const handleViewUtilityReceipt = async (id: number) => {
+    setReceiptLoading(true);
+    setShowReceiptModal(true);
+    try {
+      await fetchUtilityReceipt(id);
+    } catch (err: unknown) {
+      console.error("Gagal memuat kuitansi:", err);
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  // Handler Lihat Kuitansi e-SSRD Sewa Aset/Kios (Perda Mimika No. 4/2023)
+  const handleViewLeaseReceipt = async (paymentId: number) => {
+    setLeaseReceiptLoading(true);
+    setShowLeaseReceiptModal(true);
+    try {
+      await fetchLeasePaymentReceipt(paymentId);
+    } catch (err: unknown) {
+      console.error("Gagal memuat kuitansi e-SSRD sewa aset:", err);
+    } finally {
+      setLeaseReceiptLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ========================================================= */}
-      {/* 1. HEADER SECTION & LEGAL CONTEXT                         */}
+      {/* 1. HEADER SECTION & TAB NAVIGASI UTAMA                    */}
       {/* ========================================================= */}
       <div className="bg-white rounded-2xl p-6 shadow-xs border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -192,40 +392,89 @@ export default function KiosDanUtilitasPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-[#0B241E]">
-                Penerimaan Sewa Tenant Kios & Utilitas Pelabuhan
+                Penerimaan Sewa Tenant, Kargo & Utilitas Pelabuhan
               </h1>
               <p className="text-sm text-gray-500">
-                Pemanfaatan kekayaan daerah kawasan Pelabuhan Poumako sesuai{" "}
+                Penerimaan retribusi jasa usaha kekayaan daerah kawasan Pelabuhan Poumako sesuai{" "}
                 <span className="font-semibold text-[#0B241E]">
-                  Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI
+                  Perda Mimika No. 4/2023 & Perbup No. 25/2024
                 </span>
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
           <button
-            onClick={() => setActiveTab("LEASES")}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+            onClick={() => {
+              setActiveTab("LEASES");
+              setSearchQuery("");
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === "LEASES"
-                ? "bg-[#0B241E] text-white shadow-sm"
+                ? "bg-[#0B241E] text-white shadow-xs"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            <Store className="w-4 h-4 text-[#D97706]" />
-            Kontrak Sewa Tenant ({leases.length})
+            <Store className="w-3.5 h-3.5 text-[#D97706]" />
+            Sewa Kios ({leases.length})
           </button>
           <button
-            onClick={() => setActiveTab("ASSETS")}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === "ASSETS"
-                ? "bg-[#0B241E] text-white shadow-sm"
+            onClick={() => {
+              setActiveTab("UTILITIES");
+              setSearchQuery("");
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "UTILITIES"
+                ? "bg-[#0B241E] text-white shadow-xs"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            <Warehouse className="w-4 h-4 text-[#D97706]" />
-            Master Aset Pelabuhan ({assets.length})
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            Utilitas Dermaga ({utilities.length})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("CARGO");
+              setSearchQuery("");
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "CARGO"
+                ? "bg-[#0B241E] text-white shadow-xs"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Boxes className="w-3.5 h-3.5 text-emerald-500" />
+            Kargo ({cargoRecords.length})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("EQUIPMENT");
+              setSearchQuery("");
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "EQUIPMENT"
+                ? "bg-[#0B241E] text-white shadow-xs"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5 text-blue-500" />
+            Alat Pelabuhan ({equipmentRentals.length})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("ASSETS");
+              setSearchQuery("");
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "ASSETS"
+                ? "bg-[#0B241E] text-white shadow-xs"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+            Master Aset ({assets.length})
           </button>
         </div>
       </div>
@@ -234,11 +483,11 @@ export default function KiosDanUtilitasPage() {
       {/* 2. STATISTIC METRIC CARDS                                 */}
       {/* ========================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Realisasi Kasda Sewa */}
+        {/* Card 1: Realisasi Kasda Sewa Kios */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Realisasi Sewa Kasda
+              Realisasi Sewa Kios BMD
             </span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <Coins className="w-4 h-4" />
@@ -250,16 +499,36 @@ export default function KiosDanUtilitasPage() {
             </div>
             <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600 inline" />
-              Penerimaan resmi kas daerah Poumako
+              Sewa lahan, kios & gedung pelabuhan
             </p>
           </div>
         </div>
 
-        {/* Card 2: Piutang / Belum Lunas */}
+        {/* Card 2: Realisasi Kasda Utilitas & Operasional */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Piutang Sewa Berjalan
+              Realisasi Utilitas & Operasional
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Zap className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-blue-700">
+              Rp {totalOperationalRevenueIdr.toLocaleString("id-ID")}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Air bersih, listrik, kargo & alat
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Piutang Operasional (Belum Disetor) */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Piutang Operasional Berjalan
             </span>
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <Clock className="w-4 h-4" />
@@ -267,52 +536,30 @@ export default function KiosDanUtilitasPage() {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-amber-600">
+              Rp {totalOutstandingOperationalIdr.toLocaleString("id-ID")}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Menunggu pembayaran kasir/loket
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Piutang Sewa Tenant */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Piutang Sewa Tenant
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-rose-600">
               Rp {totalOutstandingLeaseIdr.toLocaleString("id-ID")}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Tagihan sewa tenant belum diselesaikan
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Kontrak Aktif */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Kontrak Tenant Aktif
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Store className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-[#0B241E]">
-              {activeLeaseCount}{" "}
-              <span className="text-sm font-normal text-gray-500">PKS</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Kios, gudang semen & kantor agen
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Kapasitas Lahan / Aset Kosong */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Aset Tersedia (Siap Sewa)
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Warehouse className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-[#0B241E]">
-              {availableAssetCount}{" "}
-              <span className="text-sm font-normal text-gray-500">Unit</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Lahan & lapak belum terikat perjanjian
+              Kontrak sewa belum diselesaikan
             </p>
           </div>
         </div>
@@ -323,7 +570,6 @@ export default function KiosDanUtilitasPage() {
       {/* ========================================================= */}
       {activeTab === "LEASES" && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-          {/* Controls Bar */}
           <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -381,7 +627,6 @@ export default function KiosDanUtilitasPage() {
             </div>
           </div>
 
-          {/* Table Leases */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
@@ -490,7 +735,7 @@ export default function KiosDanUtilitasPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
                             <button
                               onClick={() => handleOpenPaymentModal(lease)}
                               className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
@@ -499,17 +744,20 @@ export default function KiosDanUtilitasPage() {
                               <Coins className="w-3.5 h-3.5 text-[#D97706]" />
                               Bayar
                             </button>
-                            <button
-                              onClick={() => {
-                                alert(
-                                  `Cetak salinan Kuitansi e-SSRD Resmi PKS: ${lease.contractNumber}\nTenant: ${lease.tenantName}\nTotal Terbayar: Rp ${totalPaid.toLocaleString("id-ID")}`
-                                );
-                              }}
-                              className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                              title="Cetak Kuitansi e-SSRD"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+                            {lease.payments && lease.payments.length > 0 && (
+                              <button
+                                onClick={() =>
+                                  handleViewLeaseReceipt(
+                                    lease.payments![lease.payments!.length - 1].id
+                                  )
+                                }
+                                className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                                title={`Cetak Kuitansi e-SSRD Kasda (${lease.payments.length} transaksi)`}
+                              >
+                                <Printer className="w-3.5 h-3.5 text-gray-600" />
+                                e-SSRD
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -523,11 +771,520 @@ export default function KiosDanUtilitasPage() {
       )}
 
       {/* ========================================================= */}
-      {/* 4. TAB 2: MASTER ASET PELABUHAN (ASSETS)                  */}
+      {/* 4. TAB 2: UTILITAS DERMAGA (AIR BERSIH & LISTRIK)          */}
+      {/* ========================================================= */}
+      {activeTab === "UTILITIES" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nomor meteran, fasilitas, atau kapal..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0B241E] focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+              <span className="text-xs text-gray-400 font-medium">Status Setoran:</span>
+              <button
+                onClick={() => setOperationalFilter("ALL")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "ALL"
+                    ? "bg-[#0B241E] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Semua ({utilities.length})
+              </button>
+              <button
+                onClick={() => setOperationalFilter("UNPAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "UNPAID"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                Menunggu Pembayaran
+              </button>
+              <button
+                onClick={() => setOperationalFilter("PAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "PAID"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
+              >
+                Lunas Kasda
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-4">No. Bukti & Jenis</th>
+                  <th className="py-3 px-4">Fasilitas / Kapal Objek</th>
+                  <th className="py-3 px-4">Pencatatan Meteran</th>
+                  <th className="py-3 px-4">Volume Terpakai</th>
+                  <th className="py-3 px-4">Tarif Satuan</th>
+                  <th className="py-3 px-4">Total Tagihan</th>
+                  <th className="py-3 px-4">Status Kasda</th>
+                  <th className="py-3 px-4 text-center">Aksi Bendahara</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {filteredUtilities.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-gray-400">
+                      Tidak ada pencatatan utilitas yang cocok dengan kriteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUtilities.map((u) => {
+                    const isPaid = u.paymentStatus === "PAID";
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[#0B241E] flex items-center gap-1.5 font-mono">
+                            {u.utilityType === "AIR_BERSIH" ? (
+                              <Droplets className="w-3.5 h-3.5 text-blue-500" />
+                            ) : (
+                              <Zap className="w-3.5 h-3.5 text-amber-500" />
+                            )}
+                            {u.readingNumber}
+                          </div>
+                          <div className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                            {u.utilityType === "AIR_BERSIH" ? "Air Bersih Kapal/Tenant" : "Energi Listrik Dermaga"}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-gray-900">
+                            {u.asset?.name || u.visit?.vessel?.name || "Fasilitas Pelabuhan Poumako"}
+                          </div>
+                          <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                            {u.asset?.assetCode || u.visit?.visitNumber || "Umum"}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-gray-700">
+                          <div>Awal: {Number(u.meterStart).toLocaleString("id-ID")}</div>
+                          <div>Akhir: {Number(u.meterEnd).toLocaleString("id-ID")}</div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-bold text-gray-900">
+                          {Number(u.volumeConsumed).toLocaleString("id-ID")} {u.unitLabel}
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-gray-700">
+                          Rp {Number(u.ratePerUnitIdr).toLocaleString("id-ID")} / {u.unitLabel}
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-black text-[#0B241E]">
+                          Rp {Number(u.totalAmountIdr).toLocaleString("id-ID")}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Lunas Kasda
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3" />
+                              Belum Bayar
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {!isPaid ? (
+                              <button
+                                onClick={() =>
+                                  setPayOperationalModal({
+                                    isOpen: true,
+                                    type: "UTILITY",
+                                    id: u.id,
+                                    title: "Retribusi Utilitas Dermaga",
+                                    identifierNumber: u.readingNumber,
+                                    amountIdr: Number(u.totalAmountIdr),
+                                    payerLabel: u.asset?.name || u.visit?.vessel?.name || "Pemakai Jasa Dermaga",
+                                  })
+                                }
+                                className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                              >
+                                <Coins className="w-3.5 h-3.5 text-[#D97706]" />
+                                Setor Kasda
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleViewUtilityReceipt(u.id)}
+                                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Lihat Kuitansi e-SSRD"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-gray-600" />
+                                Cetak e-SSRD
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5. TAB 3: PELAYANAN KARGO / BONGKAR MUAT                   */}
+      {/* ========================================================= */}
+      {activeTab === "CARGO" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nomor registrasi, kargo, atau kapal..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0B241E] focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+              <span className="text-xs text-gray-400 font-medium">Status Kasda:</span>
+              <button
+                onClick={() => setOperationalFilter("ALL")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "ALL"
+                    ? "bg-[#0B241E] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Semua ({cargoRecords.length})
+              </button>
+              <button
+                onClick={() => setOperationalFilter("UNPAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "UNPAID"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                Menunggu Pembayaran
+              </button>
+              <button
+                onClick={() => setOperationalFilter("PAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "PAID"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
+              >
+                Lunas Kasda
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-4">No. Registrasi Kargo</th>
+                  <th className="py-3 px-4">Kategori & Uraian Barang</th>
+                  <th className="py-3 px-4">Kapal Pengangkut</th>
+                  <th className="py-3 px-4">Kuantitas</th>
+                  <th className="py-3 px-4">Durasi Penumpukan</th>
+                  <th className="py-3 px-4">Total Retribusi</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Aksi Bendahara</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {filteredCargo.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-gray-400">
+                      Tidak ada pencatatan kargo yang cocok dengan kriteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCargo.map((c) => {
+                    const isPaid = c.paymentStatus === "PAID";
+                    return (
+                      <tr key={c.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                          <div className="flex items-center gap-1.5">
+                            <Boxes className="w-3.5 h-3.5 text-emerald-600" />
+                            {c.recordNumber}
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-sans mt-0.5">
+                            {c.storageLocation ? c.storageLocation.replace("_", " ") : "Dermaga"}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-gray-900 block">
+                            {c.cargoCategory.replace("_", " ")}
+                          </span>
+                          <span className="text-gray-500 text-[11px] block mt-0.5">
+                            {c.description}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-gray-800">
+                            {c.visit?.vessel?.name || "Kapal Non-Reguler"}
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-mono">
+                            {c.visit?.visitNumber || "-"}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-bold text-gray-900">
+                          {Number(c.quantity).toLocaleString("id-ID")} {c.unitLabel}
+                        </td>
+
+                        <td className="py-3 px-4 text-gray-700 font-medium">
+                          {c.durationDays} Hari
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-black text-[#0B241E]">
+                          Rp {Number(c.totalAmountIdr).toLocaleString("id-ID")}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Lunas Kasda
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3" />
+                              Belum Bayar
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          {!isPaid ? (
+                            <button
+                              onClick={() =>
+                                setPayOperationalModal({
+                                  isOpen: true,
+                                  type: "CARGO",
+                                  id: c.id,
+                                  title: "Retribusi Pelayanan Kargo",
+                                  identifierNumber: c.recordNumber,
+                                  amountIdr: Number(c.totalAmountIdr),
+                                  payerLabel: c.visit?.vessel?.name || c.description,
+                                })
+                              }
+                              className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer mx-auto"
+                            >
+                              <Coins className="w-3.5 h-3.5 text-[#D97706]" />
+                              Setor Kasda
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-gray-400 font-mono">
+                              {c.paidAt ? new Date(c.paidAt).toLocaleDateString("id-ID") : "Terverifikasi"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 6. TAB 4: ALAT PELABUHAN (CRANE & FORKLIFT)               */}
+      {/* ========================================================= */}
+      {activeTab === "EQUIPMENT" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nomor sewa alat, jenis unit, atau kapal..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0B241E] focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+              <span className="text-xs text-gray-400 font-medium">Status Kasda:</span>
+              <button
+                onClick={() => setOperationalFilter("ALL")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "ALL"
+                    ? "bg-[#0B241E] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Semua ({equipmentRentals.length})
+              </button>
+              <button
+                onClick={() => setOperationalFilter("UNPAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "UNPAID"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                Menunggu Pembayaran
+              </button>
+              <button
+                onClick={() => setOperationalFilter("PAID")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  operationalFilter === "PAID"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
+              >
+                Lunas Kasda
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-4">No. Registrasi Sewa</th>
+                  <th className="py-3 px-4">Jenis Unit Alat</th>
+                  <th className="py-3 px-4">Kapal / Pemakai Jasa</th>
+                  <th className="py-3 px-4">Jumlah Unit</th>
+                  <th className="py-3 px-4">Durasi Pemakaian</th>
+                  <th className="py-3 px-4">Tarif per Jam</th>
+                  <th className="py-3 px-4">Total Tagihan</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Aksi Bendahara</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {filteredEquipment.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-gray-400">
+                      Tidak ada sewa alat pelabuhan yang cocok dengan kriteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredEquipment.map((e) => {
+                    const isPaid = e.paymentStatus === "PAID";
+                    return (
+                      <tr key={e.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
+                          <div className="flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-blue-600" />
+                            {e.rentalNumber}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-gray-900 block">
+                            {e.equipmentType.replace("_", " ")}
+                          </span>
+                          <span className="text-gray-500 text-[11px] block mt-0.5">
+                            Kapasitas: {e.capacityLabel}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-gray-800">
+                            {e.visit?.vessel?.name || "Operasional Dermaga"}
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-mono">
+                            {e.visit?.visitNumber || "-"}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-medium text-gray-800">
+                          {e.unitCount} Unit
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-medium text-gray-800">
+                          {Number(e.durationHours)} Jam
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-gray-700">
+                          Rp {Number(e.ratePerHourIdr).toLocaleString("id-ID")}
+                        </td>
+
+                        <td className="py-3 px-4 font-mono font-black text-[#0B241E]">
+                          Rp {Number(e.totalAmountIdr).toLocaleString("id-ID")}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Lunas Kasda
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3" />
+                              Belum Bayar
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          {!isPaid ? (
+                            <button
+                              onClick={() =>
+                                setPayOperationalModal({
+                                  isOpen: true,
+                                  type: "EQUIPMENT",
+                                  id: e.id,
+                                  title: "Retribusi Sewa Alat Pelabuhan",
+                                  identifierNumber: e.rentalNumber,
+                                  amountIdr: Number(e.totalAmountIdr),
+                                  payerLabel: e.visit?.vessel?.name || e.capacityLabel,
+                                })
+                              }
+                              className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer mx-auto"
+                            >
+                              <Coins className="w-3.5 h-3.5 text-[#D97706]" />
+                              Setor Kasda
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-gray-400 font-mono">
+                              {e.paidAt ? new Date(e.paidAt).toLocaleDateString("id-ID") : "Terverifikasi"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 7. TAB 5: MASTER ASET PELABUHAN (ASSETS)                  */}
       {/* ========================================================= */}
       {activeTab === "ASSETS" && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-          {/* Controls Bar */}
           <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -558,7 +1315,6 @@ export default function KiosDanUtilitasPage() {
             </div>
           </div>
 
-          {/* Table Assets */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
@@ -659,7 +1415,7 @@ export default function KiosDanUtilitasPage() {
       )}
 
       {/* ========================================================= */}
-      {/* 5. MODAL: CATAT PEMBAYARAN KASDA SEWA TENANT              */}
+      {/* 8. MODAL: CATAT PEMBAYARAN KASDA SEWA TENANT              */}
       {/* ========================================================= */}
       {selectedLeaseForPayment && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -687,7 +1443,6 @@ export default function KiosDanUtilitasPage() {
             </div>
 
             <div className="py-4 space-y-4 text-xs">
-              {/* Alert Feedback */}
               {actionSuccessMsg && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium">
                   {actionSuccessMsg}
@@ -699,7 +1454,6 @@ export default function KiosDanUtilitasPage() {
                 </div>
               )}
 
-              {/* Data Ringkas Kontrak */}
               <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Nomor PKS:</span>
@@ -731,7 +1485,6 @@ export default function KiosDanUtilitasPage() {
                 </div>
               </div>
 
-              {/* Input Form */}
               <div className="space-y-3">
                 <div>
                   <label className="block text-gray-600 font-semibold mb-1">
@@ -805,12 +1558,477 @@ export default function KiosDanUtilitasPage() {
               </button>
               <button
                 type="button"
-                onClick={handleSavePayment}
+                onClick={handleSaveLeasePayment}
                 disabled={isSubmittingPayment}
                 className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#D97706]" />
                 {isSubmittingPayment ? "Menyimpan..." : "Simpan & Bukukan Kasda"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 9. MODAL: KONFIRMASI BAYAR OPERASIONAL (UTILITAS/CARGO/EQ) */}
+      {/* ========================================================= */}
+      {payOperationalModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-white flex items-center justify-center">
+                  <Coins className="w-4 h-4 text-[#D97706]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#0B241E] text-sm">
+                    Konfirmasi Setoran Kasda
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Pengesahan penerimaan retribusi ke RKUD
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPayOperationalModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              {actionSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium">
+                  {actionSuccessMsg}
+                </div>
+              )}
+              {actionErrorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-medium">
+                  {actionErrorMsg}
+                </div>
+              )}
+
+              <div className="p-3.5 bg-gray-50 rounded-xl space-y-2 border border-gray-100">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Jenis Layanan:</span>
+                  <span className="font-semibold text-gray-800">
+                    {payOperationalModal.title}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Nomor Registrasi:</span>
+                  <span className="font-mono font-bold text-[#0B241E]">
+                    {payOperationalModal.identifierNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Objek / Pemohon:</span>
+                  <span className="font-medium text-gray-700">
+                    {payOperationalModal.payerLabel}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-gray-200">
+                  <span className="text-gray-700 font-bold">Total Retribusi:</span>
+                  <span className="font-mono font-black text-base text-[#0B241E]">
+                    Rp {payOperationalModal.amountIdr.toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+                <ShieldCheck className="w-3.5 h-3.5 inline mr-1 text-amber-700" />
+                Tindakan ini akan mengesahkan pembayaran dan menerbitkan nomor transaksi idempotency resmi ke rekening kas daerah (RKUD).
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPayOperationalModal(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmOperationalPayment}
+                disabled={isSubmittingPayment}
+                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#D97706]" />
+                {isSubmittingPayment ? "Memproses..." : "Sahkan Penerimaan Kasda"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 10. MODAL: DOKUMEN CETAK KUITANSI e-SSRD UTILITAS          */}
+      {/* ========================================================= */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#D97706]" />
+                <h3 className="font-bold text-[#0B241E] text-base">
+                  Surat Setoran Retribusi Daerah (e-SSRD)
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  clearActiveReceipt();
+                }}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {receiptLoading || !activeReceipt ? (
+              <div className="py-12 text-center text-gray-400">
+                Memuat dokumen resmi e-SSRD...
+              </div>
+            ) : (
+              <div className="py-5 space-y-4 text-xs font-sans">
+                {/* Header SSRD */}
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 text-center space-y-1">
+                  <h4 className="font-bold text-sm text-[#0B241E] uppercase">
+                    {activeReceipt.documentTitle}
+                  </h4>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    {activeReceipt.subTitle}
+                  </p>
+                  <div className="font-mono font-bold text-xs text-[#D97706] pt-1">
+                    No. Bukti: {activeReceipt.ssrdNumber}
+                  </div>
+                </div>
+
+                {/* Info Pelabuhan & Tanggal */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-200 rounded-xl">
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">
+                      Pelabuhan & Lokasi
+                    </span>
+                    <span className="font-semibold text-gray-800">
+                      {activeReceipt.portName} ({activeReceipt.portLocation})
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">
+                      Tanggal Pembayaran
+                    </span>
+                    <span className="font-mono font-semibold text-gray-800">
+                      {new Date(activeReceipt.paymentDate).toLocaleDateString("id-ID", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Objek Retribusi & Volume */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-[#FAFBFB] px-4 py-2 font-bold text-gray-700 border-b border-gray-200">
+                    Rincian Objek Retribusi Jasa Usaha
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Jenis Utilitas:</span>
+                      <span className="font-semibold text-gray-900">
+                        {activeReceipt.retributionObject.utilityType.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Fasilitas Pelabuhan:</span>
+                      <span className="font-medium text-gray-800">
+                        {activeReceipt.retributionObject.assetName} (
+                        {activeReceipt.retributionObject.assetCode})
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-gray-500">Angka Meteran:</span>
+                      <span>
+                        Awal: {activeReceipt.retributionObject.meterStart} s.d. Akhir:{" "}
+                        {activeReceipt.retributionObject.meterEnd}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-gray-500">Volume Terpakai:</span>
+                      <span className="font-bold">
+                        {activeReceipt.retributionObject.volumeConsumed}{" "}
+                        {activeReceipt.retributionObject.unitLabel}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-gray-500">Tarif Satuan Perda:</span>
+                      <span>
+                        Rp{" "}
+                        {activeReceipt.retributionObject.ratePerUnitIdr.toLocaleString("id-ID")}{" "}
+                        / {activeReceipt.retributionObject.unitLabel}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-200">
+                      <span className="text-gray-500">Kode Rekening Pendapatan:</span>
+                      <span className="font-mono text-gray-700 text-[11px]">
+                        {activeReceipt.retributionObject.revenueAccountCode}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total & Status */}
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <span className="text-emerald-800 block text-xs font-semibold">
+                      Total Setoran Kas Daerah
+                    </span>
+                    <span className="font-mono font-black text-xl text-emerald-950">
+                      Rp {activeReceipt.paymentDetails.totalAmountIdr.toLocaleString("id-ID")}
+                    </span>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-200 text-emerald-900 font-bold rounded-full text-xs">
+                    LUNAS TERVERIFIKASI
+                  </span>
+                </div>
+
+                {/* QR Code Validation Tag */}
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[10px] text-gray-500 flex items-center justify-between">
+                  <span>Kode Validasi Digital: {activeReceipt.qrValidationCode}</span>
+                  <span className="text-gray-400">Kasir: {activeReceipt.paymentDetails.recordedByName}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  clearActiveReceipt();
+                }}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#D97706]" />
+                Cetak Dokumen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 9. MODAL BUKTI PEMBAYARAN e-SSRD SEWA ASET/KIOS DAERAH     */}
+      {/* ========================================================= */}
+      {showLeaseReceiptModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#D97706]" />
+                <h3 className="font-bold text-sm text-[#0B241E]">
+                  Kuitansi Resmi e-SSRD Sewa Aset Daerah
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaseReceiptModal(false);
+                  clearActiveLeaseReceipt();
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {leaseReceiptLoading && (
+              <div className="py-12 text-center text-xs text-gray-500 space-y-2">
+                <div className="w-6 h-6 border-2 border-[#0B241E] border-t-transparent rounded-full animate-spin mx-auto" />
+                <p>Memuat kuitansi e-SSRD Kas Daerah...</p>
+              </div>
+            )}
+
+            {!leaseReceiptLoading && activeLeaseReceipt && (
+              <div className="space-y-4 text-xs">
+                {/* Header Dokumen Pemkab Mimika */}
+                <div className="text-center border-b border-dashed border-gray-200 pb-3 space-y-1">
+                  <span className="font-mono text-[10px] text-gray-400 tracking-widest uppercase block">
+                    PEMERINTAH KABUPATEN MIMIKA • BADAN PENDAPATAN DAERAH
+                  </span>
+                  <h4 className="font-black text-sm text-[#0B241E] tracking-tight">
+                    {activeLeaseReceipt.documentTitle || "SURAT SETORAN RETRIBUSI DAERAH (e-SSRD)"}
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    {activeLeaseReceipt.subTitle ||
+                      "BUKTI PEMBAYARAN RETRIBUSI KEKAYAAN DAERAH (SEWA TANAH/BANGUNAN) SAH"}
+                  </p>
+                  <p className="text-[10px] text-gray-400">
+                    {activeLeaseReceipt.portName} • {activeLeaseReceipt.portLocation}
+                  </p>
+                </div>
+
+                {/* Nomor Ketetapan SSRD & PKS */}
+                <div className="bg-[#FAFBFB] border border-gray-100 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-gray-400 text-[10px] block font-medium">Nomor e-SSRD</span>
+                    <span className="font-mono font-bold text-[#0B241E]">
+                      {activeLeaseReceipt.ssrdNumber}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-[10px] block font-medium">Nomor Kontrak PKS</span>
+                    <span className="font-mono font-bold text-gray-800">
+                      {activeLeaseReceipt.contractNumber}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-[10px] block font-medium">Tanggal Pembayaran</span>
+                    <span className="font-semibold text-gray-800">
+                      {new Date(activeLeaseReceipt.paymentDate).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-[10px] block font-medium">Tahun Anggaran Retribusi</span>
+                    <span className="font-semibold text-gray-800">
+                      {activeLeaseReceipt.taxPeriod}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Identitas Wajib Retribusi (Penyewa) */}
+                <div className="border border-gray-100 rounded-xl p-3 space-y-2">
+                  <h5 className="font-bold text-[11px] text-gray-600 uppercase tracking-wider">
+                    Wajib Retribusi Daerah (Penyewa/Tenant)
+                  </h5>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-400 text-[10px] block">Nama Penyewa / Pemohon</span>
+                      <span className="font-bold text-gray-900">
+                        {activeLeaseReceipt.taxPayer.tenantName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[10px] block">Nama Usaha / Tenant</span>
+                      <span className="font-medium text-gray-800">
+                        {activeLeaseReceipt.taxPayer.businessName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[10px] block">NPWP / Identitas Pajak</span>
+                      <span className="font-mono text-gray-700">
+                        {activeLeaseReceipt.taxPayer.tenantNpwp || "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[10px] block">Kontak / Telepon</span>
+                      <span className="text-gray-700">
+                        {activeLeaseReceipt.taxPayer.tenantPhone || "-"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rincian Objek Retribusi Aset BMD */}
+                <div className="border border-gray-100 rounded-xl p-3 space-y-2">
+                  <h5 className="font-bold text-[11px] text-gray-600 uppercase tracking-wider">
+                    Objek Retribusi Pemanfaatan Kekayaan Daerah
+                  </h5>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Nama Aset / Lokasi Ruangan:</span>
+                      <span className="font-bold text-gray-900">
+                        {activeLeaseReceipt.retributionObject.assetName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Kode Barang / Tipe:</span>
+                      <span className="font-mono text-gray-800">
+                        {activeLeaseReceipt.retributionObject.assetCode} ({activeLeaseReceipt.retributionObject.assetType})
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Luas Bangunan / Lahan:</span>
+                      <span className="font-semibold text-gray-800">
+                        {Number(activeLeaseReceipt.retributionObject.areaSqm)} m²
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Dasar Hukum Ketetapan Tarif:</span>
+                      <span className="text-gray-700 text-right">
+                        {activeLeaseReceipt.retributionObject.legalBasis}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-100 pt-1">
+                      <span className="text-gray-500">Kode Rekening Penerimaan PAD:</span>
+                      <span className="font-mono text-gray-700 text-[11px]">
+                        {activeLeaseReceipt.retributionObject.revenueAccountCode}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total & Status Setoran Kasda */}
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <span className="text-emerald-800 block text-xs font-semibold">
+                      Total Setoran Kas Daerah
+                    </span>
+                    <span className="font-mono font-black text-xl text-emerald-950">
+                      Rp {Number(activeLeaseReceipt.paymentDetails.amountPaidIdr).toLocaleString("id-ID")}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 block mt-0.5">
+                      Nilai Kontrak Tahunan: Rp {Number(activeLeaseReceipt.paymentDetails.totalAnnualContractIdr).toLocaleString("id-ID")}
+                    </span>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-200 text-emerald-900 font-bold rounded-full text-xs">
+                    LUNAS TERVERIFIKASI
+                  </span>
+                </div>
+
+                {/* Idempotency / Audit Trail */}
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[10px] text-gray-500 flex items-center justify-between">
+                  <span>ID Transaksi Kasda: {activeLeaseReceipt.paymentDetails.idempotencyKey}</span>
+                  <span className="text-gray-400">Status: {activeLeaseReceipt.paymentDetails.paymentStatus}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaseReceiptModal(false);
+                  clearActiveLeaseReceipt();
+                }}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#D97706]" />
+                Cetak Dokumen
               </button>
             </div>
           </div>

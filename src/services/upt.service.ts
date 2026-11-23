@@ -5,19 +5,35 @@ import {
   AssetLeaseItem,
   AuditLogItem,
   BerthingRecordItem,
+  CreateOfficerTaskPayload,
+  DailyObligationRecapResponse,
+  DocumentItem,
   IssueWarningPayload,
+  OfficerTaskItem,
+  PermissionCatalogResponse,
   RejectAssetLeasePayload,
   RevenueSummaryResponse,
   ShipOperatorItem,
   ShipVisitItem,
+  SubmitOfficerTaskPayload,
+  TaskAttachmentItem,
+  TaskTemplateItem,
   TenantItem,
+  UpdateTaskChecklistPayload,
   UptInvoiceItem,
+  UserAssignmentItem,
   VerifyEntityPayload,
   VerifyTenantPayload,
   VesselItem,
   WarningItem,
 } from "@/types/upt.types";
 import { PortAssetCatalogItem } from "@/types/tenant.types";
+import {
+  CreateBerthingContractPayload,
+  OperatorBerthingContract,
+  UploadDocumentPayload,
+  VerifyBerthingContractPayload,
+} from "@/types/kapal.types";
 
 /**
  * Service untuk portal operasional UPT (ADMIN_PELABUHAN & SUPERADMIN)
@@ -229,9 +245,15 @@ export const UptService = {
     );
   },
 
+  verifyRoomLease(leaseId: number): Promise<AssetLeaseItem> {
+    return apiClient.patch<AssetLeaseItem>(
+      API_CONFIG.ENDPOINTS.ASSETS.VERIFY_ROOM(leaseId)
+    );
+  },
+
   approveLease(leaseId: number): Promise<AssetLeaseItem> {
     return apiClient.patch<AssetLeaseItem>(
-      `${API_CONFIG.ENDPOINTS.ASSETS.LEASES}/${leaseId}/approve`
+      API_CONFIG.ENDPOINTS.ASSETS.APPROVE_LEASE(leaseId)
     );
   },
 
@@ -240,7 +262,33 @@ export const UptService = {
     payload: RejectAssetLeasePayload
   ): Promise<AssetLeaseItem> {
     return apiClient.patch<AssetLeaseItem>(
-      `${API_CONFIG.ENDPOINTS.ASSETS.LEASES}/${leaseId}/reject`,
+      API_CONFIG.ENDPOINTS.ASSETS.REJECT_LEASE(leaseId),
+      payload
+    );
+  },
+
+  getPendingBerthingContracts(): Promise<OperatorBerthingContract[]> {
+    return apiClient.get<OperatorBerthingContract[]>(
+      API_CONFIG.ENDPOINTS.OPERATORS.PENDING_CONTRACTS
+    );
+  },
+
+  reviewBerthingContract(
+    contractId: number,
+    payload: { decision: "APPROVE" | "REJECT"; notes?: string }
+  ): Promise<OperatorBerthingContract> {
+    return apiClient.patch<OperatorBerthingContract>(
+      API_CONFIG.ENDPOINTS.OPERATORS.REVIEW_CONTRACT(contractId),
+      payload
+    );
+  },
+
+  verifyBerthingContract(
+    contractId: number,
+    payload: VerifyBerthingContractPayload
+  ): Promise<OperatorBerthingContract> {
+    return apiClient.patch<OperatorBerthingContract>(
+      API_CONFIG.ENDPOINTS.OPERATORS.VERIFY_CONTRACT(contractId),
       payload
     );
   },
@@ -284,6 +332,191 @@ export const UptService = {
   getAuditLogs(): Promise<AuditLogItem[]> {
     return apiClient.get<AuditLogItem[]>(
       API_CONFIG.ENDPOINTS.REPORTS.AUDIT_LOGS
+    );
+  },
+
+  // --- Detail & Dokumen Operator / Kapal / Kontrak PKS ---
+  getOperatorById(operatorId: number | string): Promise<ShipOperatorItem> {
+    return apiClient.get<ShipOperatorItem>(
+      API_CONFIG.ENDPOINTS.OPERATORS.DETAIL(operatorId)
+    );
+  },
+
+  getVesselsByOperator(
+    operatorId: number | string,
+    vesselCategory?: "BARANG" | "PENUMPANG" | "CAMPURAN"
+  ): Promise<VesselItem[]> {
+    return apiClient.get<VesselItem[]>(
+      API_CONFIG.ENDPOINTS.OPERATORS.VESSELS(operatorId),
+      vesselCategory ? { params: { vesselCategory } } : undefined
+    );
+  },
+
+  uploadOperatorDocument(
+    operatorId: number | string,
+    payload: UploadDocumentPayload,
+    file: File
+  ): Promise<DocumentItem> {
+    const formData = new FormData();
+    formData.append("category", payload.category);
+    if (payload.documentNumber) formData.append("documentNumber", payload.documentNumber);
+    if (payload.notes) formData.append("notes", payload.notes);
+    formData.append("file", file);
+    return apiClient.post<DocumentItem>(
+      API_CONFIG.ENDPOINTS.OPERATORS.DOCUMENTS(operatorId),
+      formData
+    );
+  },
+
+  uploadVesselDocument(
+    vesselId: number | string,
+    payload: UploadDocumentPayload,
+    file: File
+  ): Promise<DocumentItem> {
+    const formData = new FormData();
+    formData.append("category", payload.category);
+    if (payload.documentNumber) formData.append("documentNumber", payload.documentNumber);
+    if (payload.notes) formData.append("notes", payload.notes);
+    formData.append("file", file);
+    return apiClient.post<DocumentItem>(
+      `${API_CONFIG.ENDPOINTS.VESSELS.LIST}/${vesselId}/documents`,
+      formData
+    );
+  },
+
+  getOperatorContracts(
+    operatorId: number | string
+  ): Promise<OperatorBerthingContract[]> {
+    return apiClient.get<OperatorBerthingContract[]>(
+      API_CONFIG.ENDPOINTS.OPERATORS.CONTRACTS(operatorId)
+    );
+  },
+
+  createOperatorContract(
+    operatorId: number | string,
+    payload: CreateBerthingContractPayload
+  ): Promise<OperatorBerthingContract> {
+    const formData = new FormData();
+    formData.append("title", payload.title);
+    formData.append("portId", String(payload.portId));
+    formData.append("startDate", payload.startDate);
+    formData.append("endDate", payload.endDate);
+    if (payload.monthlyQuota !== undefined) {
+      formData.append("monthlyQuota", String(payload.monthlyQuota));
+    }
+    if (payload.dockAllocation) {
+      formData.append("dockAllocation", payload.dockAllocation);
+    }
+    if (payload.file) {
+      formData.append("file", payload.file);
+    }
+    return apiClient.post<OperatorBerthingContract>(
+      API_CONFIG.ENDPOINTS.OPERATORS.CONTRACTS(operatorId),
+      formData
+    );
+  },
+
+  createDirectAssetLease(payload: {
+    portId: number;
+    assetId: number;
+    tenantName: string;
+    tenantNpwp?: string;
+    tenantPhone?: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<AssetLeaseItem> {
+    return apiClient.post<AssetLeaseItem>(API_CONFIG.ENDPOINTS.ASSETS.LEASES, payload);
+  },
+
+  // --- Penugasan (Assignments) & Lembar Tugas SOP (Tasks) ---
+  getMyAssignments(): Promise<UserAssignmentItem[]> {
+    return apiClient.get<UserAssignmentItem[]>(API_CONFIG.ENDPOINTS.ASSIGNMENTS.MY);
+  },
+
+  getPermissionsCatalog(): Promise<PermissionCatalogResponse> {
+    return apiClient.get<PermissionCatalogResponse>(
+      API_CONFIG.ENDPOINTS.ASSIGNMENTS.PERMISSIONS
+    );
+  },
+
+  getTaskTemplates(): Promise<TaskTemplateItem[]> {
+    return apiClient.get<TaskTemplateItem[]>(API_CONFIG.ENDPOINTS.TASKS.TEMPLATES);
+  },
+
+  getTasks(params?: {
+    portId?: number;
+    taskType?: string;
+    executionStatus?: string;
+    search?: string;
+  }): Promise<OfficerTaskItem[]> {
+    return apiClient
+      .get<OfficerTaskItem[] | { data: OfficerTaskItem[] }>(
+        API_CONFIG.ENDPOINTS.TASKS.BASE,
+        params ? { params } : undefined
+      )
+      .then((res) => (Array.isArray(res) ? res : res.data || []));
+  },
+
+  getTaskById(taskId: number | string): Promise<OfficerTaskItem> {
+    return apiClient.get<OfficerTaskItem>(
+      API_CONFIG.ENDPOINTS.TASKS.DETAIL(taskId)
+    );
+  },
+
+  createTask(payload: CreateOfficerTaskPayload): Promise<OfficerTaskItem> {
+    return apiClient.post<OfficerTaskItem>(
+      API_CONFIG.ENDPOINTS.TASKS.BASE,
+      payload
+    );
+  },
+
+  startTask(taskId: number | string): Promise<OfficerTaskItem> {
+    return apiClient.patch<OfficerTaskItem>(
+      API_CONFIG.ENDPOINTS.TASKS.START(taskId)
+    );
+  },
+
+  updateTaskChecklist(
+    taskId: number | string,
+    payload: UpdateTaskChecklistPayload
+  ): Promise<OfficerTaskItem> {
+    return apiClient.patch<OfficerTaskItem>(
+      API_CONFIG.ENDPOINTS.TASKS.CHECKLIST(taskId),
+      payload
+    );
+  },
+
+  uploadTaskAttachment(
+    taskId: number | string,
+    file: File,
+    notes?: string
+  ): Promise<TaskAttachmentItem> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (notes) formData.append("notes", notes);
+    return apiClient.post<TaskAttachmentItem>(
+      API_CONFIG.ENDPOINTS.TASKS.ATTACHMENTS(taskId),
+      formData
+    );
+  },
+
+  submitTask(
+    taskId: number | string,
+    payload: SubmitOfficerTaskPayload
+  ): Promise<OfficerTaskItem> {
+    return apiClient.post<OfficerTaskItem>(
+      API_CONFIG.ENDPOINTS.TASKS.SUBMIT(taskId),
+      payload
+    );
+  },
+
+  getDailyObligations(params?: {
+    portId?: number;
+    date?: string;
+  }): Promise<DailyObligationRecapResponse> {
+    return apiClient.get<DailyObligationRecapResponse>(
+      API_CONFIG.ENDPOINTS.DAILY_REPORTS.OBLIGATIONS,
+      params ? { params } : undefined
     );
   },
 };

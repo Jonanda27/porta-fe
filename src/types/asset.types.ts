@@ -15,7 +15,14 @@ export type PortAssetStatus = "AVAILABLE" | "LEASED" | "MAINTENANCE";
 
 export type BillingEligibility = "BILLABLE" | "PENDING_VERIFICATION" | "NON_BILLABLE";
 
-export type LeaseStatus = "ACTIVE" | "EXPIRED" | "TERMINATED";
+export type LeaseStatus =
+  | "REQUESTED"
+  | "PENDING_ROOM_OFFICER"
+  | "PENDING_HEAD_OF_PORT"
+  | "ACTIVE"
+  | "REJECTED"
+  | "EXPIRED"
+  | "TERMINATED";
 
 export interface PortAsset {
   id: number;
@@ -50,6 +57,8 @@ export interface AssetLease {
   contractNumber: string;
   portId: number;
   assetId: number;
+  tenantId?: number | null;
+  operatorId?: number | null;
   tenantName: string;
   tenantNpwp?: string | null;
   tenantPhone?: string | null;
@@ -57,11 +66,37 @@ export interface AssetLease {
   endDate: string;
   totalAnnualAmountIdr: number | string;
   status: LeaseStatus;
+  rejectionReason?: string | null;
+  verifiedByRoomOfficerId?: number | null;
+  verifiedByRoomOfficerAt?: string | null;
+  verifiedByHeadOfPortId?: number | null;
+  verifiedByHeadOfPortAt?: string | null;
   createdById: number;
   createdAt: string;
   updatedAt?: string;
   asset?: PortAsset;
   payments?: AssetLeasePayment[];
+  operator?: {
+    id: number;
+    name: string;
+    npwp?: string | null;
+  };
+  verifiedByRoomOfficer?: {
+    id: number;
+    fullName: string;
+    role: string;
+  };
+  verifiedByHeadOfPort?: {
+    id: number;
+    fullName: string;
+    role: string;
+  };
+}
+
+export interface RequestAssetLeaseDto {
+  assetId: number;
+  startDate: string;
+  endDate: string;
 }
 
 export interface RecordLeasePaymentDto {
@@ -79,3 +114,5 @@ export interface CreateAssetLeaseDto {
   startDate: string;
   endDate: string;
 }
+
+export type { LeasePaymentReceiptPayload } from "@/types/tenant.types";

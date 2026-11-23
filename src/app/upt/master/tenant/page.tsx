@@ -31,7 +31,8 @@ export default function MasterTenantPage() {
 
   const isSuperadmin = user?.role === "SUPERADMIN";
   const isAdmin = user?.role === "ADMIN_PELABUHAN";
-  const canAccess = isSuperadmin || isAdmin;
+  const isRegistrasiKontrak = user?.role === "PETUGAS_REGISTRASI_KONTRAK";
+  const canAccess = isSuperadmin || isAdmin || isRegistrasiKontrak;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");

@@ -10,7 +10,16 @@ export type NotificationType =
   | "VISIT_APPROVED"
   | "INVOICE_ISSUED"
   | "PAYMENT_VERIFIED"
-  | "GENERAL";
+  | "GENERAL"
+  | "LEASE_REQUEST"
+  | "LEASE_VERIFIED"
+  | "LEASE_APPROVED"
+  | "LEASE_REJECTED"
+  | "UTILITY_ALERT"
+  | "PAYMENT_SUCCESS"
+  | "VISIT_REQUEST";
+
+export type NotificationPriority = "INFORMATIONAL" | "WARNING" | "URGENT" | "CRITICAL";
 
 export interface AppNotification {
   id: number;
@@ -18,9 +27,27 @@ export interface AppNotification {
   title: string;
   message: string;
   type: NotificationType;
+  category?: string;
+  priority?: NotificationPriority;
   isRead: boolean;
   linkUrl?: string | null;
   createdAt: string;
+}
+
+export interface NotificationPreference {
+  id?: number;
+  userId: number;
+  category: string;
+  minPriority: NotificationPriority;
+  inAppEnabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateNotificationPreferenceDto {
+  category: string;
+  minPriority?: NotificationPriority;
+  inAppEnabled?: boolean;
 }
 
 export type NotificationFilterCategory =
@@ -28,4 +55,5 @@ export type NotificationFilterCategory =
   | "UNREAD"
   | "VISITS"
   | "BILLING"
-  | "WARNINGS";
+  | "WARNINGS"
+  | "LEASES";

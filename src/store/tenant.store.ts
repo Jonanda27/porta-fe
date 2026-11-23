@@ -17,8 +17,12 @@ interface TenantState {
   isLoading: boolean;
   isSubmitting: boolean;
   error: string | null;
+  isApplyModalOpen: boolean;
+  selectedAssetForApply: PortAssetCatalogItem | null;
 
   fetchTenantData: () => Promise<void>;
+  openApplyModal: (asset?: PortAssetCatalogItem) => void;
+  closeApplyModal: () => void;
   uploadDocument: (
     category: TenantDocumentCategory,
     file: File,
@@ -37,6 +41,21 @@ export const useTenantStore = create<TenantState>((set, get) => ({
   isLoading: false,
   isSubmitting: false,
   error: null,
+  isApplyModalOpen: false,
+  selectedAssetForApply: null,
+
+  openApplyModal: (asset) =>
+    set({
+      isApplyModalOpen: true,
+      selectedAssetForApply: asset || null,
+      error: null,
+    }),
+
+  closeApplyModal: () =>
+    set({
+      isApplyModalOpen: false,
+      selectedAssetForApply: null,
+    }),
 
   fetchTenantData: async () => {
     set({ isLoading: true, error: null });

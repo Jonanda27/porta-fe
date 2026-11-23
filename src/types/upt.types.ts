@@ -7,6 +7,8 @@ export type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED";
 
 export interface DocumentItem {
   id: number;
+  operatorId?: number | null;
+  vesselId?: number | null;
   category: string;
   documentNumber?: string | null;
   filePath: string;
@@ -142,6 +144,8 @@ export interface ApproveBerthingOverridePayload {
 
 export type LeaseStatus =
   | "REQUESTED"
+  | "PENDING_ROOM_OFFICER"
+  | "PENDING_HEAD_OF_PORT"
   | "DRAFT"
   | "ACTIVE"
   | "REJECTED"
@@ -154,6 +158,7 @@ export interface AssetLeaseItem {
   portId: number;
   assetId: number;
   tenantId?: number | null;
+  operatorId?: number | null;
   tenantName: string;
   tenantNpwp?: string | null;
   tenantPhone?: string | null;
@@ -162,6 +167,10 @@ export interface AssetLeaseItem {
   totalAnnualAmountIdr: number | string;
   status: LeaseStatus;
   rejectionReason?: string | null;
+  verifiedByRoomOfficer?: { id: number; fullName: string; role: string };
+  verifiedByHeadOfPort?: { id: number; fullName: string; role: string };
+  verifiedByRoomOfficerAt?: string | null;
+  verifiedByHeadOfPortAt?: string | null;
   asset?: {
     id: number;
     assetCode: string;
@@ -170,6 +179,7 @@ export interface AssetLeaseItem {
     areaSqm: number | string;
   };
   tenant?: TenantItem | null;
+  operator?: { id: number; name: string; npwp?: string | null };
   createdAt: string;
 }
 
@@ -232,4 +242,162 @@ export interface AuditLogItem {
     fullName: string;
     role: string;
   } | null;
+}
+
+export interface UserAssignmentItem {
+  id: number;
+  assignmentCode: string;
+  userId: number;
+  role: string;
+  portId: number;
+  terminalId?: number | null;
+  berthId?: number | null;
+  zoneId?: number | null;
+  taskTypes: string[];
+  permissionCodes: string[];
+  startDate: string;
+  endDate?: string | null;
+  status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  notes?: string | null;
+  port?: { id: number; code: string; name: string };
+  terminal?: { id: number; code: string; name: string; terminalType?: string };
+  berth?: { id: number; code: string; name: string; berthServiceCategory?: string };
+  zone?: { id: number; code: string; name: string; zoneType?: string };
+}
+
+export interface PermissionCatalogResponse {
+  permissions: { id?: number; code: string; name: string; module: string }[];
+  taskTypes: string[];
+}
+
+export interface TaskChecklistItem {
+  id: number;
+  taskId: number;
+  itemOrder: number;
+  code: string;
+  label: string;
+  isRequired: boolean;
+  isApplicable: boolean;
+  requiresAttachment: boolean;
+  checkedByOfficer: boolean;
+  officerNotes?: string | null;
+  attachmentPath?: string | null;
+  checkedByAdmin?: boolean | null;
+  adminNotes?: string | null;
+}
+
+export interface TaskAttachmentItem {
+  id: number;
+  taskId: number;
+  fileName: string;
+  filePath: string;
+  mimeType: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface TaskTemplateItem {
+  id: number;
+  code: string;
+  taskType: string;
+  titleTemplate: string;
+  description: string;
+  defaultPriority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  slaMinutes: number;
+  sopReference?: string | null;
+  checklistItems?: {
+    id: number;
+    itemOrder: number;
+    code: string;
+    label: string;
+    isRequired: boolean;
+    requiresAttachment: boolean;
+  }[];
+}
+
+export interface OfficerTaskItem {
+  id: number;
+  taskNumber: string;
+  taskType: string;
+  title: string;
+  description: string;
+  sourceType: string;
+  sourceId?: string | null;
+  portId: number;
+  terminalId?: number | null;
+  berthId?: number | null;
+  zoneId?: number | null;
+  visitId?: number | null;
+  assigneeId?: number | null;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  executionStatus:
+    | "NOT_STARTED"
+    | "IN_PROGRESS"
+    | "SUBMITTED"
+    | "RETURNED"
+    | "COMPLETED"
+    | "OVERDUE"
+    | "CANCELLED";
+  reviewStatus:
+    | "PENDING_SUBMISSION"
+    | "PENDING_ADMIN_CHECK"
+    | "RETURNED_BY_ADMIN"
+    | "PENDING_HEAD_VERIFY"
+    | "RETURNED_BY_HEAD"
+    | "VERIFIED_COMPLETED"
+    | "REJECTED";
+  dueDate: string;
+  obligationDate?: string | null;
+  isOverdue: boolean;
+  hasIssue?: boolean;
+  issueNotes?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  port?: { id: number; code: string; name: string };
+  terminal?: { id: number; code: string; name: string };
+  berth?: { id: number; code: string; name: string };
+  assignee?: { id: number; fullName: string; email: string; role: string };
+  checklistItems?: TaskChecklistItem[];
+  attachments?: TaskAttachmentItem[];
+}
+
+export interface CreateOfficerTaskPayload {
+  taskType: string;
+  title: string;
+  description: string;
+  portId: number;
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  dueDate: string;
+}
+
+export interface UpdateTaskChecklistPayload {
+  items: {
+    code: string;
+    checkedByOfficer: boolean;
+    officerNotes?: string;
+    attachmentPath?: string;
+  }[];
+  hasIssue?: boolean;
+  issueNotes?: string;
+  notes?: string;
+}
+
+export interface SubmitOfficerTaskPayload {
+  taskId?: number;
+  notes?: string;
+  checklistItems?: {
+    code: string;
+    checkedByOfficer: boolean;
+    officerNotes?: string;
+    attachmentPath?: string;
+  }[];
+}
+
+export interface DailyObligationRecapResponse {
+  date?: string;
+  totalTasks?: number;
+  completedTasks?: number;
+  pendingTasks?: number;
+  overdueTasks?: number;
+  [key: string]: unknown;
 }

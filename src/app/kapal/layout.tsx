@@ -10,21 +10,25 @@ import {
   Calendar,
   CreditCard,
   Building2,
-  ChevronLeft,
+  Store,
   ChevronRight,
   ArrowLeft,
   Search,
   Bell,
   CheckCircle2,
-  Radio,
+  LayoutDashboard,
   FileCheck2,
+  FileSignature,
   Clock,
   Layers,
   HelpCircle,
   Scale,
   LogOut,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
+import { AppSidebar, SidebarNavGroup } from "@/components/layout/AppSidebar";
 import { useAuthStore } from "@/store/auth.store";
 import { useKapalStore } from "@/store/kapal.store";
 import { usePortStore } from "@/store/port.store";
@@ -40,7 +44,7 @@ export default function KapalLayout({
   const router = useRouter();
 
   const { user, initialize: initAuth } = useAuthStore();
-  const { operator, vessels, visits, fetchDashboardData } = useKapalStore();
+  const { operator, vessels, visits, contracts, assetLeases, fetchDashboardData } = useKapalStore();
   const { berths, fetchBerths } = usePortStore();
   const {
     notifications,
@@ -92,23 +96,37 @@ export default function KapalLayout({
 
   // Status SIUPAL / Legalitas Operator Real
   const siupalDoc = operator?.documents?.find((d) => d.category === "SIUPAL_NIB");
-  const isVerified = operator?.verificationStatus === "VERIFIED";
-  const isPending =
-    operator?.verificationStatus === "PENDING" ||
-    user?.operatorVerificationStatus === "PENDING";
+  const effectiveVerificationStatus =
+    operator?.verificationStatus || user?.operatorVerificationStatus || "VERIFIED";
+  const isVerified = effectiveVerificationStatus === "VERIFIED";
+  const isPending = effectiveVerificationStatus === "PENDING";
+  const isRejected = effectiveVerificationStatus === "REJECTED";
+  const isUnverified = !isVerified;
 
-  const siupalDisplayText = siupalDoc?.documentNumber
+  // Ketika masih menunggu verifikasi petugas (PETUGAS_REGISTRASI_KONTRAK), hanya Dashboard & Profil yang boleh diakses
+  const isAllowedRouteWhenUnverified =
+    pathname === "/kapal/dashboard" || pathname.startsWith("/kapal/profil");
+
+  useEffect(() => {
+    if (isUnverified && !isAllowedRouteWhenUnverified) {
+      router.replace("/kapal/dashboard");
+    }
+  }, [isUnverified, isAllowedRouteWhenUnverified, router]);
+
+  const siupalDisplayText = isPending
+    ? "Menunggu Verifikasi Petugas"
+    : isRejected
+    ? "Verifikasi Ditolak Petugas"
+    : siupalDoc?.documentNumber
     ? `SIUPAL: ${siupalDoc.documentNumber}`
     : isVerified
     ? "SIUPAL Terverifikasi"
-    : isPending
-    ? "Status: Verifikasi UPT"
     : operator?.npwp
     ? `NPWP: ${operator.npwp}`
     : "SIUPAL Belum Diunggah";
 
   // Statistik Real untuk Badge Menu Sidebar
-  const vesselsCount = vessels.length;
+  const vesselsCount = operator?.fleetSummary?.totalVessels ?? vessels.length;
   const berthsCount = berths.length > 0 ? berths.length : 6;
   const pendingVisitsCount = visits.filter((v) => v.status === "REQUESTED").length;
   const completedVisitsCount = visits.filter((v) => v.status === "DEPARTED").length;
@@ -118,8 +136,22 @@ export default function KapalLayout({
       v.status === "APPROVED" ||
       v.status === "BERTHED"
   ).length;
+  const pendingLeasesCount = assetLeases.filter(
+    (l) =>
+      l.status === "REQUESTED" ||
+      l.status === "PENDING_ROOM_OFFICER" ||
+      l.status === "PENDING_HEAD_OF_PORT"
+  ).length;
+  const activeLeasesCount = assetLeases.filter((l) => l.status === "ACTIVE").length;
+  const pendingPksCount = contracts.filter(
+    (c) => c.status === "PENDING_VERIFICATION"
+  ).length;
+  const activePksCount = contracts.filter((c) => c.status === "ACTIVE").length;
 
   const getPageTitle = () => {
+    if (pathname.includes("/kapal/pks-sandar")) return "Kontrak PKS Sandar & Kuota Dermaga";
+    if (pathname.includes("/kapal/sewa-ruangan")) return "Katalog Ruangan, Kantor, Gudang & Aset Pelabuhan";
+    if (pathname.includes("/kapal/kontrak-sewa")) return "Pengajuan & Kontrak Sewa Ruangan (PKS)";
     if (pathname.includes("/kapal/dermaga")) return "Fasilitas & Kesiapan Dermaga Fisik Pelabuhan Poumako";
     if (pathname.includes("/kapal/notifikasi")) return "Pusat Notifikasi Real-Time & Peringatan Sistem";
     if (pathname.includes("/kapal/keberatan")) return "Keberatan, Keringanan e-SKRD & Surat Teguran";
@@ -127,11 +159,14 @@ export default function KapalLayout({
     if (pathname.includes("/kapal/profil")) return "Profil Perusahaan & Master Data Armada";
     if (pathname.includes("/kapal/permohonan")) return "Siklus Permohonan Jadwal & Alokasi Dermaga";
     if (pathname.includes("/kapal/manifes")) return "Pelaporan Manifes (Daftar Penumpang & Muatan)";
-    if (pathname.includes("/kapal/penagihan")) return "Penagihan Retribusi (e-SKRD) & Riwayat Transaksi";
-    return "Pusat Kendali Operasional Perusahaan Kapal";
+    if (pathname.includes("/kapal/penagihan")) return "Penagihan Retribusi (e-SKRD) Dermaga & Sewa Ruangan";
+    return "Dashboard Operator Kapal";
   };
 
   const getBreadcrumbLabel = () => {
+    if (pathname.includes("/kapal/pks-sandar")) return "Kontrak PKS Sandar";
+    if (pathname.includes("/kapal/sewa-ruangan")) return "Katalog Ruangan & Aset";
+    if (pathname.includes("/kapal/kontrak-sewa")) return "Kontrak Sewa (PKS)";
     if (pathname.includes("/kapal/dermaga")) return "Fasilitas & Dermaga";
     if (pathname.includes("/kapal/notifikasi")) return "Pusat Notifikasi";
     if (pathname.includes("/kapal/keberatan")) return "Keberatan & Surat Teguran";
@@ -140,14 +175,20 @@ export default function KapalLayout({
     if (pathname.includes("/kapal/permohonan")) return "Pengajuan Jadwal & Dermaga";
     if (pathname.includes("/kapal/manifes")) return "Pelaporan Manifes SOLAS";
     if (pathname.includes("/kapal/penagihan")) return "Tagihan e-SKRD & Pembayaran";
-    return "Dashboard Armada";
+    return "Dashboard Operator";
   };
 
   const getPageDescription = () => {
+    if (pathname.includes("/kapal/pks-sandar"))
+      return "Pengelolaan Perjanjian Kerja Sama (PKS) Sandar, alokasi kuota slot dermaga bulanan, dan status pengesahan Kepala Pelabuhan sebagai prasyarat pengajuan warta sandar.";
+    if (pathname.includes("/kapal/sewa-ruangan"))
+      return "Pilih dan ajukan sewa ruangan kantor, loket, gudang, kios, atau aset pelabuhan lainnya yang berstatus tersedia sesuai Perda Kab. Mimika No. 4/2023.";
+    if (pathname.includes("/kapal/kontrak-sewa"))
+      return "Pantau progres persetujuan 2-tahap (Petugas Ruangan → Kepala Pelabuhan), masa berlaku PKS sewa ruangan, serta pengajuan perpanjangan kontrak.";
     if (pathname.includes("/kapal/dermaga"))
       return "Direktori fisik fasilitas dermaga Pelabuhan Poumako: kapasitas panjang garis tambat, status operasional, tipe konstruksi, dan klasifikasi objek retribusi daerah sesuai Perda No. 4/2023.";
     if (pathname.includes("/kapal/notifikasi"))
-      return "Pemberitahuan resmi mengenai persetujuan izin sandar armada, penerbitan tagihan e-SKRD, rekonsiliasi setoran e-SSRD, serta pemantauan surat teguran kepelabuhanan.";
+      return "Pemberitahuan resmi mengenai persetujuan izin sandar armada, pengesahan sewa ruangan, penerbitan tagihan e-SKRD, rekonsiliasi e-SSRD, serta surat teguran.";
     if (pathname.includes("/kapal/keberatan"))
       return "Permohonan keringanan, angsuran, atau penundaan waktu bayar e-SKRD sesuai Perbup Mimika No. 25/2024 serta pemantauan Surat Teguran piutang retribusi daerah.";
     if (pathname.includes("/kapal/riwayat"))
@@ -159,489 +200,149 @@ export default function KapalLayout({
     if (pathname.includes("/kapal/manifes"))
       return "Pelaporan daftar muatan dan penumpang sebelum keberangkatan, rekonsiliasi kuota tiket pelabuhan, dan pemenuhan standar keselamatan SOLAS.";
     if (pathname.includes("/kapal/penagihan"))
-      return "Daftar invoice e-SKRD retribusi jasa dermaga berdasarkan waktu aktual (ATA/ATB/ATD) dan pembayaran langsung ke Kas Daerah via VA/QRIS.";
-    return "Pusat komando operasional armada kapal penyeberangan: monitoring pergerakan kapal, status izin clearance, dan notifikasi persetujuan.";
+      return "Tagihan terpadu e-SKRD untuk Pengajuan Dermaga (jasa labuh/tambat kapal) dan Pengajuan Ruangan (sewa aset/PKS) beserta pembayaran & cetak kuitansi e-SSRD.";
+    return "Ringkasan operasional perusahaan pelayaran: pergerakan armada kapal, izin sandar, kontrak sewa ruangan, dan tagihan retribusi e-SKRD.";
   };
+
+  const lockedTooltip =
+    "Terkunci — Menunggu Verifikasi Petugas (Petugas Registrasi & Kontrak)";
+
+  const navGroups: SidebarNavGroup[] = [
+    {
+      title: "Operasional Armada",
+      items: [
+        {
+          label: "Dashboard Operator",
+          href: "/kapal/dashboard",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          label: "Profil & Master Kapal",
+          href: "/kapal/profil",
+          icon: Building2,
+          badge: `${vesselsCount} Kapal`,
+        },
+        {
+          label: "Fasilitas & Dermaga",
+          href: "/kapal/dermaga",
+          icon: Anchor,
+          badge: `${berthsCount} Dermaga`,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Kontrak PKS Sandar",
+          href: "/kapal/pks-sandar",
+          icon: FileSignature,
+          badge:
+            pendingPksCount > 0
+              ? `${pendingPksCount} Proses`
+              : activePksCount > 0
+              ? `${activePksCount} Aktif`
+              : undefined,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Pengajuan Dermaga",
+          href: "/kapal/permohonan",
+          icon: Calendar,
+          badge: pendingVisitsCount > 0 ? `${pendingVisitsCount} Proses` : undefined,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Riwayat Pelayanan",
+          href: "/kapal/riwayat",
+          icon: Clock,
+          badge: completedVisitsCount > 0 ? `${completedVisitsCount} Selesai` : "Logs",
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+      ],
+    },
+    {
+      title: "Sewa Ruangan & Aset",
+      items: [
+        {
+          label: "Katalog Ruangan & Aset",
+          href: "/kapal/sewa-ruangan",
+          icon: Store,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Kontrak Sewa (PKS)",
+          href: "/kapal/kontrak-sewa",
+          icon: FileText,
+          badge:
+            pendingLeasesCount > 0
+              ? `${pendingLeasesCount} Proses`
+              : activeLeasesCount > 0
+              ? `${activeLeasesCount} Aktif`
+              : undefined,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+      ],
+    },
+    {
+      title: "Manifes & Tagihan Retribusi",
+      items: [
+        {
+          label: "Pelaporan Manifes",
+          href: "/kapal/manifes",
+          icon: FileCheck2,
+          badge: unsubmittedManifestCount > 0 ? `${unsubmittedManifestCount} Wajib` : "SOLAS",
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Tagihan e-SKRD & Bayar",
+          href: "/kapal/penagihan",
+          icon: CreditCard,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Keberatan & Teguran",
+          href: "/kapal/keberatan",
+          icon: Scale,
+          badge: "Perbup 25",
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+        {
+          label: "Pusat Notifikasi",
+          href: "/kapal/notifikasi",
+          icon: Bell,
+          badge: unreadCount > 0 ? `${unreadCount} Baru` : undefined,
+          disabled: isUnverified,
+          disabledTooltip: lockedTooltip,
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#1E2922] font-sans flex antialiased selection:bg-[#D97706]/20 selection:text-[#0B241E]">
-      {/* ========================================================= */}
-      {/* 1. LEFT SIDEBAR (Collapsible Operator Navigation)         */}
-      {/* ========================================================= */}
-      <aside
-        className={`${
-          isSidebarCollapsed ? "w-20" : "w-64"
-        } bg-white flex flex-col justify-between shrink-0 shadow-xs z-30 sticky top-0 h-screen transition-all duration-300 ease-in-out relative`}
-      >
-        {/* Floating Circular Sidebar Toggle Button (Gambar 2 Reference: Clean Circular Button on Seam) */}
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute right-0 top-[138px] translate-x-1/2 -translate-y-1/2 z-40 w-8 h-8 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
-          title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-          aria-label={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
-          ) : (
-            <ChevronLeft className="w-4 h-4 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
-          )}
-        </button>
-
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Brand Logo Header (100% Seamless with Top Header Green) */}
-          <div
-            className={`h-16 bg-[#0B241E] border-b border-[#143E33] flex items-center ${
-              isSidebarCollapsed ? "justify-center px-2" : "justify-between px-5"
-            } text-white shrink-0 transition-all duration-300`}
-          >
-            {isSidebarCollapsed ? (
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed(false)}
-                className="w-10 h-10 rounded-lg bg-[#143E33] hover:bg-[#1E5748] p-1.5 flex items-center justify-center shadow-xs border border-[#1E5748] transition-colors cursor-pointer group"
-                title="Buka Sidebar"
-              >
-                <img
-                  src="/brand/symbol-white.svg"
-                  alt="PORTA Perusahaan Kapal"
-                  className="w-full h-full object-contain group-hover:scale-95 transition-transform"
-                />
-              </button>
-            ) : (
-              <>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#143E33] p-1 flex items-center justify-center shadow-xs border border-[#1E5748] shrink-0">
-                    <img
-                      src="/brand/symbol-white.svg"
-                      alt="PORTA"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="truncate">
-                    <span className="font-extrabold text-base tracking-wider text-white">
-                      PORTA
-                    </span>
-                    <span className="block text-[9px] font-mono tracking-widest text-[#85A69B] uppercase -mt-0.5 truncate">
-                      OPERATOR KAPAL
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] font-mono bg-[#143E33] text-[#D97706] border border-[#1E5748] font-bold px-1.5 py-0.5 rounded">
-                    ARMADA
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Sidebar Body with border-r */}
-          <div className="flex-1 overflow-y-auto border-r border-[#E2E8F0] py-2">
-            {/* Company Profile Mini Card */}
-            {isSidebarCollapsed ? (
-              <div className="my-2 flex justify-center">
-                <div
-                  className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs shadow-xs border border-[#164336] cursor-pointer"
-                  title={operatorName}
-                  onClick={() => setIsSidebarCollapsed(false)}
-                >
-                  {operatorInitials}
-                </div>
-              </div>
-            ) : (
-              <div className="p-3.5 mx-3 my-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center gap-3 shadow-2xs">
-                <div className="w-10 h-10 rounded-full bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-[#164336]">
-                  {operatorInitials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-[#0B241E] truncate" title={operatorName}>
-                    {operatorName}
-                  </p>
-                  <p className="text-[10px] text-[#64748B] truncate mt-0.5 flex items-center gap-1.5">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full inline-block shrink-0 ${
-                        isVerified || siupalDoc?.documentNumber
-                          ? "bg-emerald-500"
-                          : "bg-amber-500"
-                      }`}
-                    />
-                    <span title={siupalDisplayText} className="truncate">
-                      {siupalDisplayText}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Navigation Menus with Real Next.js Links */}
-            <div className={isSidebarCollapsed ? "px-2 space-y-4" : "px-3 space-y-6"}>
-              {/* Group 1: Operasional & Armada */}
-              <div>
-                {!isSidebarCollapsed && (
-                  <p className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8]">
-                    Operasional Armada
-                  </p>
-                )}
-                <div className="mt-1 space-y-1">
-                  {/* Link 1: Dashboard Armada (/kapal/dashboard) */}
-                  <Link
-                    href="/kapal/dashboard"
-                    title="Pusat Kendali Armada"
-                    className={`transition-all flex items-center cursor-pointer ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/dashboard" || pathname === "/kapal"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/dashboard" || pathname === "/kapal"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Radio
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/dashboard" || pathname === "/kapal"
-                            ? "text-[#D97706]"
-                            : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Pusat Kendali Armada</span>}
-                    </div>
-                    {!isSidebarCollapsed && (pathname === "/kapal/dashboard" || pathname === "/kapal") && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
-                    )}
-                  </Link>
-
-                  {/* Link 2: Profil & Master Data Armada (/kapal/profil) */}
-                  <Link
-                    href="/kapal/profil"
-                    title="Profil Perusahaan & Master Data Armada"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/profil"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/profil"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Building2
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/profil" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Profil & Master Kapal</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                          vesselsCount > 0
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {vesselsCount} Kapal
-                      </span>
-                    )}
-                  </Link>
-
-                  {/* Link 3: Fasilitas & Dermaga (/kapal/dermaga) */}
-                  <Link
-                    href="/kapal/dermaga"
-                    title="Fasilitas & Kesiapan Dermaga Fisik Pelabuhan Poumako"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/dermaga"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/dermaga"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Anchor
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/dermaga" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Fasilitas & Dermaga</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
-                        {berthsCount} Dermaga
-                      </span>
-                    )}
-                  </Link>
-
-                  {/* Link 4: Permohonan Jadwal & Dermaga (/kapal/permohonan) */}
-                  <Link
-                    href="/kapal/permohonan"
-                    title="Pengajuan Jadwal & Alokasi Dermaga"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/permohonan"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/permohonan"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Calendar
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/permohonan" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Pengajuan Dermaga</span>}
-                    </div>
-                    {pendingVisitsCount > 0 && (
-                      isSidebarCollapsed ? (
-                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      ) : (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold animate-pulse">
-                          {pendingVisitsCount} Proses
-                        </span>
-                      )
-                    )}
-                  </Link>
-
-                  {/* Link 4: Riwayat Pelayanan (/kapal/riwayat) */}
-                  <Link
-                    href="/kapal/riwayat"
-                    title="Riwayat Pelayanan & Realisasi Kunjungan Kapal"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/riwayat"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/riwayat"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Clock
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/riwayat" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Riwayat Pelayanan</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-[#475569] font-bold">
-                        {completedVisitsCount > 0 ? `${completedVisitsCount} Selesai` : "Logs"}
-                      </span>
-                    )}
-                  </Link>
-                </div>
-              </div>
-
-              {/* Group 2: Manifes & Keuangan */}
-              <div>
-                {!isSidebarCollapsed ? (
-                  <p className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8]">
-                    Manifes & Tagihan Retribusi
-                  </p>
-                ) : (
-                  <div className="my-2 border-t border-[#EDF2F7] mx-2" />
-                )}
-                <div className="mt-1 space-y-1">
-                  {/* Link 4: Pelaporan Manifes (/kapal/manifes) */}
-                  <Link
-                    href="/kapal/manifes"
-                    title="Pelaporan Manifes (Daftar Muatan & Penumpang)"
-                    className={`transition-all flex items-center cursor-pointer ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/manifes"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/manifes"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <FileCheck2
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/manifes" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Pelaporan Manifes</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span
-                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                          unsubmittedManifestCount > 0
-                            ? "bg-amber-100 text-amber-900 animate-pulse"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                      >
-                        {unsubmittedManifestCount > 0 ? `${unsubmittedManifestCount} Wajib` : "SOLAS"}
-                      </span>
-                    )}
-                  </Link>
-
-                  {/* Link 5: Penagihan & Pembayaran (/kapal/penagihan) */}
-                  <Link
-                    href="/kapal/penagihan"
-                    title="Tagihan e-SKRD & Pembayaran Retribusi"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/penagihan"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/penagihan"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <CreditCard
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/penagihan" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Tagihan e-SKRD & Bayar</span>}
-                    </div>
-                  </Link>
-
-                  {/* Link 6: Keberatan & Surat Teguran (/kapal/keberatan) */}
-                  <Link
-                    href="/kapal/keberatan"
-                    title="Permohonan Keberatan e-SKRD & Surat Teguran"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/keberatan"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/keberatan"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Scale
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/keberatan" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Keberatan & Teguran</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold">
-                        Perbup 25
-                      </span>
-                    )}
-                  </Link>
-
-                  {/* Link 7: Pusat Notifikasi Sistem (/kapal/notifikasi) */}
-                  <Link
-                    href="/kapal/notifikasi"
-                    title="Pusat Notifikasi Sistem Real-Time"
-                    className={`transition-all flex items-center cursor-pointer relative ${
-                      isSidebarCollapsed
-                        ? `w-11 h-11 mx-auto rounded-lg justify-center ${
-                            pathname === "/kapal/notifikasi"
-                              ? "bg-[#0B241E] text-[#D97706] shadow-xs"
-                              : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                        : `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold justify-between ${
-                            pathname === "/kapal/notifikasi"
-                              ? "bg-[#0B241E] text-white shadow-xs"
-                              : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0B241E]"
-                          }`
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Bell
-                        className={`${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"} ${
-                          pathname === "/kapal/notifikasi" ? "text-[#D97706]" : "text-[#64748B]"
-                        }`}
-                      />
-                      {!isSidebarCollapsed && <span>Pusat Notifikasi</span>}
-                    </div>
-                    {unreadCount > 0 && (
-                      <span
-                        className={`${
-                          isSidebarCollapsed
-                            ? "absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 animate-pulse"
-                            : "text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-red-600 text-white font-extrabold shadow-2xs"
-                        }`}
-                      >
-                        {!isSidebarCollapsed ? `${unreadCount} Baru` : ""}
-                      </span>
-                    )}
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Sidebar Footer */}
-          <div className="p-3 border-t border-[#E2E8F0] bg-[#F8FAFC]">
-            {isSidebarCollapsed ? (
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowLogoutModal(true)}
-                  className="w-10 h-10 rounded-lg text-[#64748B] hover:text-red-700 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Keluar / Ganti Akun"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowLogoutModal(true)}
-                  className="w-full py-2 px-3 text-xs font-semibold text-red-700 hover:bg-red-50 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer border border-transparent hover:border-red-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Ganti Akun / Keluar</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
+      {/* 1. REUSABLE OPERATOR SIDEBAR */}
+      <AppSidebar
+        portalTitle="Portal Operator"
+        portalSubtitle="Armada & Pelayaran"
+        portalBadge="OPERATOR KAPAL"
+        navGroups={navGroups}
+        user={{
+          name: operatorName,
+          roleOrStatus: siupalDisplayText,
+          initials: operatorInitials,
+          statusVariant: isVerified ? "emerald" : "amber",
+        }}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onLogout={() => setShowLogoutModal(true)}
+      />
 
       {/* ========================================================= */}
       {/* 2. MAIN CONTENT AREA (Header + Overlapping Banner + Body) */}
@@ -729,6 +430,10 @@ export default function KapalLayout({
                                 await markNotifRead(item.id);
                               }
                               setIsNotifDropdownOpen(false);
+                              if (isUnverified) {
+                                router.push("/kapal/profil");
+                                return;
+                              }
                               if (item.linkUrl) {
                                 router.push(item.linkUrl);
                               } else {
@@ -780,14 +485,21 @@ export default function KapalLayout({
 
                     {/* Dropdown Footer Link */}
                     <div className="p-2.5 bg-[#F8FAFC] border-t border-[#E2E8F0] text-center">
-                      <Link
-                        href="/kapal/notifikasi"
-                        onClick={() => setIsNotifDropdownOpen(false)}
-                        className="text-xs font-bold text-[#0B241E] hover:text-[#D97706] transition-colors inline-flex items-center gap-1"
-                      >
-                        <span>Buka Semua Notifikasi ({notifications.length})</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </Link>
+                      {isUnverified ? (
+                        <span className="text-[11px] font-medium text-[#64748B] inline-flex items-center gap-1.5">
+                          <Lock className="w-3 h-3 text-amber-600" />
+                          <span>Menu Notifikasi aktif setelah akun diverifikasi petugas</span>
+                        </span>
+                      ) : (
+                        <Link
+                          href="/kapal/notifikasi"
+                          onClick={() => setIsNotifDropdownOpen(false)}
+                          className="text-xs font-bold text-[#0B241E] hover:text-[#D97706] transition-colors inline-flex items-center gap-1"
+                        >
+                          <span>Buka Semua Notifikasi ({notifications.length})</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </>
@@ -806,21 +518,39 @@ export default function KapalLayout({
           </div>
         </header>
 
-        {/* Hero Section Banner (Dark Green Brand Gradient with Ample Space) */}
-        <div className="bg-gradient-to-r from-[#0B241E] via-[#10382D] to-[#16493B] text-white pt-7 pb-28 sm:pb-32 px-6 lg:px-8 border-b border-[#1E5748] shrink-0">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-start justify-between gap-6">
+        {/* Hero Section Banner (Maritime Background Image ONLY on /kapal/dashboard) */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#0B241E] via-[#10382D] to-[#16493B] text-white pt-7 pb-28 sm:pb-32 px-6 lg:px-8 border-b border-[#1E5748] shrink-0">
+          {pathname === "/kapal/dashboard" && (
+            <>
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-[1.01]"
+                style={{ backgroundImage: "url('/images/register-maritime-bg.jpg')" }}
+                aria-hidden="true"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-[#0B241E]/95 via-[#0B241E]/85 to-[#0B241E]/40"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-[#0B241E]/90 via-transparent to-[#0B241E]/40"
+                aria-hidden="true"
+              />
+            </>
+          )}
+
+          <div className="relative z-10 max-w-7xl mx-auto flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="max-w-3xl">
-              <div className="flex items-center gap-2 text-xs font-mono text-[#D97706] mb-1.5">
+              <div className="flex items-center gap-2 text-xs font-mono text-[#FBBF24] font-semibold mb-1.5 drop-shadow-2xs">
                 <Link href="/kapal/dashboard" className="hover:underline">
                   PORTA OPERATOR
                 </Link>
                 <span>/</span>
-                <span className="text-white">{getBreadcrumbLabel()}</span>
+                <span className="text-white font-bold">{getBreadcrumbLabel()}</span>
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-white leading-tight">
+              <h1 className="text-2xl font-black tracking-tight text-white leading-tight drop-shadow-xs">
                 {getPageTitle()}
               </h1>
-              <p className="text-xs text-[#A3BFB5] mt-2 max-w-2xl leading-relaxed">
+              <p className="text-xs text-[#D1E3DD] mt-2 max-w-2xl leading-relaxed drop-shadow-2xs">
                 {getPageDescription()}
               </p>
             </div>
@@ -828,8 +558,48 @@ export default function KapalLayout({
         </div>
 
         {/* Page Children Content Area (Overlapping the Hero Banner with luxurious breathing room) */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
-          {children}
+        <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
+          {isUnverified && !isAllowedRouteWhenUnverified ? (
+            <div className="bg-white border border-amber-200 rounded-2xl p-8 sm:p-10 shadow-sm text-center max-w-2xl mx-auto space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-7 h-7" />
+              </div>
+              <div className="space-y-1.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  <Lock className="w-3 h-3" />
+                  <span>MENUNGGU VERIFIKASI PETUGAS</span>
+                </span>
+                <h2 className="text-lg font-extrabold text-[#0B241E] pt-1">
+                  Akses Menu Dikunci Sementara
+                </h2>
+                <p className="text-xs text-[#64748B] leading-relaxed max-w-lg mx-auto">
+                  Akun operator kapal Anda saat ini sedang menunggu verifikasi dari{" "}
+                  <strong className="text-[#0B241E]">
+                    Petugas Registrasi &amp; Kontrak
+                  </strong>
+                  . Selama menunggu verifikasi petugas, Anda hanya dapat mengakses halaman{" "}
+                  <strong className="text-[#0B241E]">Dashboard Operator</strong> dan{" "}
+                  <strong className="text-[#0B241E]">Profil &amp; Master Kapal</strong>.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <Link
+                  href="/kapal/dashboard"
+                  className="px-4 py-2.5 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0B241E] text-xs font-bold transition-colors"
+                >
+                  Kembali ke Dashboard Operator
+                </Link>
+                <Link
+                  href="/kapal/profil"
+                  className="px-4 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold transition-colors"
+                >
+                  Buka Profil &amp; Lengkapi Berkas
+                </Link>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
 

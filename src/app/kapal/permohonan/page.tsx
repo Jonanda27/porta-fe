@@ -35,14 +35,23 @@ import {
   Anchor,
   Info,
   AlertCircle,
+  FileSignature,
 } from "lucide-react";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
+import { useTariffStore } from "@/store/tariff.store";
+import { useBillingStore } from "@/store/billing.store";
+import { BillingInvoice } from "@/types/billing.types";
+import { BerthType } from "@/types/port.types";
+import { ShipType, ShippingCategory } from "@/types/tariff.types";
+import { estimateVisitCosts } from "@/lib/tariff-estimator";
 
 // Types
 interface DockRequest {
   id: string;
+  visitId?: number;
+  backendStatus?: string;
   vesselName: string;
   callSign: string;
   gt: number;
@@ -67,7 +76,10 @@ interface DockRequest {
     power: number;
     waste: number;
     total: number;
+    labuhFormula?: string;
+    tambatFormula?: string;
   };
+  officialInvoice?: BillingInvoice | null;
   status: "submitted" | "verified" | "approved" | "rejected";
   statusLabel: string;
   allocatedDock?: string;
@@ -77,10 +89,14 @@ interface DockRequest {
 
 export default function KapalPermohonanPage() {
   const { user, initialize: initAuth } = useAuthStore();
-  const { vessels, visits, isLoading, fetchDashboardData, createVisitRequest } = useKapalStore();
-  const { berths, fetchBerths } = usePortStore();
+  const { vessels, visits, contracts, isLoading, fetchDashboardData, createVisitRequest } = useKapalStore();
+  const { ports, fetchPorts, berths, fetchBerths } = usePortStore();
+  const { tariffs, usdRate, isRateLoading, fetchTariffs, fetchUsdRate } = useTariffStore();
+  const { invoices, fetchInvoices, generateVisitEstimate } = useBillingStore();
 
   const [selectedBerthId, setSelectedBerthId] = useState<number>(1);
+  const [estimatingVisitId, setEstimatingVisitId] = useState<number | null>(null);
+  const [estimateErrorToast, setEstimateErrorToast] = useState<string | null>(null);
 
   // Master fasilitas dermaga Pelabuhan Poumako dengan fallback data resmi Perda No. 4/2023
   const displayBerths = useMemo(() => {
@@ -193,6 +209,10 @@ export default function KapalPermohonanPage() {
     initAuth();
     fetchDashboardData();
     fetchBerths(1);
+    fetchPorts();
+    fetchTariffs();
+    fetchUsdRate();
+    fetchInvoices();
 
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -203,7 +223,7 @@ export default function KapalPermohonanPage() {
         setWizardStep(1); // Tetap di Langkah 1 agar pemohon dapat memilih armada kapal
       }
     }
-  }, [initAuth, fetchDashboardData, fetchBerths]);
+  }, [initAuth, fetchDashboardData, fetchBerths, fetchPorts, fetchTariffs, fetchUsdRate, fetchInvoices]);
 
   const [activeTab, setActiveTab] = useState<"tracking" | "wizard">("tracking");
   const [wizardStep, setWizardStep] = useState<number>(1);
@@ -223,6 +243,8 @@ export default function KapalPermohonanPage() {
       gt: Number(v.grossTonnage) || 500,
       loa: v.lengthMeters || 65.0,
       draft: v.draftMeters || 3.5,
+      shippingCategory: (v.shippingCategory || "DALAM_NEGERI") as ShippingCategory,
+      shipType: (v.shipType || "NIAGA") as ShipType,
       defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
     }));
   }, [vessels]);
@@ -233,7 +255,56 @@ export default function KapalPermohonanPage() {
   // Langkah 1: Pilih Layanan & Fasilitas
   const [selectedVesselId, setSelectedVesselId] = useState<string>("");
   const [originPort, setOriginPort] = useState<string>("Pelabuhan Dobo");
-  const [destinationPort, setDestinationPort] = useState<string>("Pelabuhan Poumako");
+
+  // Master Pelabuhan Tujuan Pelayanan (sinkron dari API backend via usePortStore dengan fallback)
+  const destinationPortOptions = useMemo(() => {
+    if (ports && ports.length > 0) {
+      return ports.map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        label: `${p.name} (${p.code})`,
+      }));
+    }
+    return [
+      { id: 1, name: "Pelabuhan Umum Poumako", code: "PMK", label: "Pelabuhan Umum Poumako (Dermaga UPTD Pomako)" },
+      { id: 2, name: "Pelabuhan Barang & Logistik Poumako", code: "PMK-BRG", label: "Pelabuhan Barang & Logistik Poumako" },
+      { id: 3, name: "Pelabuhan Penumpang & Wisata Bahari Poumako", code: "PMK-PAS", label: "Pelabuhan Penumpang & Wisata Bahari Poumako" },
+      { id: 4, name: "Dermaga UPP Kemenhub Pomako", code: "UPP-PMK", label: "Dermaga UPP Kemenhub Pomako" },
+    ];
+  }, [ports]);
+
+  const [destinationPort, setDestinationPort] = useState<string>("Pelabuhan Umum Poumako");
+
+  useEffect(() => {
+    if (
+      destinationPortOptions.length > 0 &&
+      !destinationPortOptions.some((p) => p.name === destinationPort)
+    ) {
+      setDestinationPort(destinationPortOptions[0].name);
+    }
+  }, [destinationPortOptions, destinationPort]);
+
+  const targetPortId = useMemo(() => {
+    const p = destinationPortOptions.find((opt) => opt.name === destinationPort);
+    return p?.id || 1;
+  }, [destinationPortOptions, destinationPort]);
+
+  const activeBerthingContract = useMemo(() => {
+    if (!contracts || contracts.length === 0) return null;
+    const now = new Date();
+    return (
+      contracts.find(
+        (c) =>
+          c.portId === targetPortId &&
+          c.status === "ACTIVE" &&
+          new Date(c.startDate) <= now &&
+          new Date(c.endDate) >= now
+      ) || null
+    );
+  }, [contracts, targetPortId]);
+
+  const hasActiveBerthingContract = Boolean(activeBerthingContract);
 
   useEffect(() => {
     if (fleetOptions.length > 0 && (!selectedVesselId || !fleetOptions.some((f) => f.id === selectedVesselId))) {
@@ -254,7 +325,6 @@ export default function KapalPermohonanPage() {
   // Opsi 2: Lintasan otomatis terisi (Auto-Derived) dari Asal ➔ Tujuan
   const derivedRoute = `${getPortShortName(originPort)} ➔ ${getPortShortName(destinationPort)}`;
   const [activityType, setActivityType] = useState<string>("Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)");
-  const [dockPreference, setDockPreference] = useState<"Reguler" | "Eksekutif">("Reguler");
 
   // Kebutuhan Fasilitas & Utilitas (PDF Hal. 3 & 9)
   const [needFreshWater, setNeedFreshWater] = useState<boolean>(true);
@@ -326,8 +396,40 @@ export default function KapalPermohonanPage() {
       minute: "2-digit",
     }) + " WIT";
 
+    const durationHours = Math.max(
+      1,
+      Math.ceil((new Date(v.etd).getTime() - new Date(v.eta).getTime()) / (1000 * 60 * 60)) || 24
+    );
+
+    const visitInvoices = invoices.filter(
+      (inv) => inv.visitId === v.id && inv.status !== "VOID"
+    );
+    const officialInvoice =
+      visitInvoices.find((inv) => inv.billingStage === "FINAL_SKRD") ||
+      visitInvoices.find((inv) => inv.billingStage === "ADVANCE_SKRD") ||
+      visitInvoices.find((inv) => inv.billingStage === "ESTIMATE") ||
+      visitInvoices[0] ||
+      null;
+
+    const liveEstimate = estimateVisitCosts({
+      tariffs,
+      exchangeRateUsd: usdRate?.rate || 16000,
+      grossTonnage: gt,
+      durationHours,
+      shippingCategory: (v.vessel?.shippingCategory || "DALAM_NEGERI") as ShippingCategory,
+      shipType: (v.vessel?.shipType || "NIAGA") as ShipType,
+      berthType: v.berthingRecords?.[0]?.berth?.berthType as BerthType | undefined,
+      needFreshWater: false,
+      waterVolume: 0,
+      needShorePower: false,
+      powerKwh: 0,
+      needWasteDisposal: false,
+    });
+
     return {
       id: v.visitNumber,
+      visitId: v.id,
+      backendStatus: v.status,
       vesselName,
       callSign,
       gt,
@@ -337,24 +439,34 @@ export default function KapalPermohonanPage() {
       dockType: "Reguler",
       eta: etaStr,
       etd: etdStr,
-      durationHours: 24,
+      durationHours,
       utilities: {
-        freshWater: true,
-        waterVolume: 35,
+        freshWater: false,
+        waterVolume: 0,
         shorePower: false,
-        wasteDisposal: true,
+        wasteDisposal: false,
       },
       costBreakdown: {
-        mooring: gt * 120 * 24,
-        anchorage: gt * 40,
-        water: 280000,
+        mooring: liveEstimate.mooring,
+        anchorage: liveEstimate.anchorage,
+        water: 0,
         power: 0,
-        waste: 150000,
-        total: gt * 120 * 24 + gt * 40 + 280000 + 150000,
+        waste: 0,
+        total: officialInvoice
+          ? Number(officialInvoice.totalAmountIdr)
+          : liveEstimate.total,
+        labuhFormula: liveEstimate.labuh.formulaNote,
+        tambatFormula: liveEstimate.tambat.formulaNote,
       },
+      officialInvoice,
       status,
       statusLabel,
-      allocatedDock: v.berthingRecords?.[0]?.berth?.name || "Dermaga Pelabuhan Poumako",
+      allocatedDock:
+        v.berthingRecords?.[0]?.berth?.name ||
+        v.notes?.match(/\[Alokasi Dermaga: ([^\]]+)\]/)?.[1] ||
+        (v.status === "REQUESTED"
+          ? "Menunggu Penetapan Petugas Dermaga"
+          : "Dermaga Pelabuhan Poumako"),
       officerNotes: v.notes || "Permohonan terdaftar di sistem backend PORTA.",
       submittedAt: new Date(v.createdAt).toLocaleDateString("id-ID", {
         day: "numeric",
@@ -369,12 +481,12 @@ export default function KapalPermohonanPage() {
   // Gabungkan localRequests dan backendRequests tanpa ada ID kunjungan yang duplikat
   const requests = useMemo<DockRequest[]>(() => {
     const map = new Map<string, DockRequest>();
-    // Prioritaskan detail lokal (yang membawa breakdown biaya kalkulasi frontend lengkap)
-    localRequests.forEach((req) => {
+    // Prioritaskan data backend agar status & estimasi resmi server selalu paling mutakhir
+    backendRequests.forEach((req) => {
       if (req.id) map.set(req.id, req);
     });
-    // Tambahkan dari backend jika belum tercatat di map
-    backendRequests.forEach((req) => {
+    // Tambahkan localRequests jika belum tersinkron dari backend
+    localRequests.forEach((req) => {
       if (req.id && !map.has(req.id)) {
         map.set(req.id, req);
       }
@@ -401,41 +513,80 @@ export default function KapalPermohonanPage() {
       gt: 0,
       loa: 0,
       draft: 0,
+      shippingCategory: "DALAM_NEGERI" as ShippingCategory,
+      shipType: "NIAGA" as ShipType,
       defaultRoute: "-",
     };
 
-  // Calculation helpers (Tarif PP 35/2023)
-  const calculateDetailedCosts = () => {
-    const gt = activeVessel.gt;
-    // Tambat: Reguler Rp 120/GT/jam, Eksekutif Rp 180/GT/jam
-    const mooringRate = dockPreference === "Eksekutif" ? 180 : 120;
-    const mooring = gt * mooringRate * serviceDurationHours;
+  // Kalkulasi Retribusi Live berbasis Master Tarif Perda Mimika 4/2023 & Kurs USD Server
+  const costs = useMemo(
+    () =>
+      estimateVisitCosts({
+        tariffs,
+        exchangeRateUsd: usdRate?.rate || 16000,
+        grossTonnage: activeVessel.gt,
+        durationHours: serviceDurationHours,
+        shippingCategory: activeVessel.shippingCategory,
+        shipType: activeVessel.shipType,
+        berthType: activeBerth?.berthType,
+        needFreshWater,
+        waterVolume,
+        needShorePower,
+        powerKwh,
+        needWasteDisposal,
+      }),
+    [
+      tariffs,
+      usdRate,
+      activeVessel.gt,
+      activeVessel.shippingCategory,
+      activeVessel.shipType,
+      serviceDurationHours,
+      activeBerth?.berthType,
+      needFreshWater,
+      waterVolume,
+      needShorePower,
+      powerKwh,
+      needWasteDisposal,
+    ]
+  );
 
-    // Labuh: Rp 40/GT per kunjungan
-    const anchorage = gt * 40;
-
-    // Utilitas Air Bersih: Rp 28.000 / m3
-    const water = needFreshWater ? waterVolume * 28000 : 0;
-
-    // Utilitas Listrik Shore Power: Rp 3.200 / kWh
-    const power = needShorePower ? powerKwh * 3200 : 0;
-
-    // Jasa Pengelolaan Sampah Kapal: Biaya tetap Rp 150.000
-    const waste = needWasteDisposal ? 150000 : 0;
-
-    const total = mooring + anchorage + water + power + waste;
-
-    return {
-      mooring,
-      anchorage,
-      water,
-      power,
-      waste,
-      total,
-    };
+  const handleGenerateOfficialEstimate = async (visitId: number) => {
+    setEstimatingVisitId(visitId);
+    setEstimateErrorToast(null);
+    try {
+      const estimate = await generateVisitEstimate(visitId, {});
+      setSuccessToast(
+        `Estimasi resmi ${estimate.invoiceNumber} berhasil dihitung server (${formatRupiah(
+          Number(estimate.totalAmountIdr)
+        )})!`
+      );
+      setTimeout(() => setSuccessToast(null), 6000);
+      if (selectedDetailReq?.visitId === visitId) {
+        setSelectedDetailReq((prev) =>
+          prev
+            ? {
+                ...prev,
+                officialInvoice: estimate,
+                costBreakdown: {
+                  ...prev.costBreakdown,
+                  total: Number(estimate.totalAmountIdr),
+                },
+              }
+            : null
+        );
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Gagal menghitung estimasi resmi dari backend.";
+      setEstimateErrorToast(msg);
+      setTimeout(() => setEstimateErrorToast(null), 6000);
+    } finally {
+      setEstimatingVisitId(null);
+    }
   };
-
-  const costs = calculateDetailedCosts();
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -458,13 +609,11 @@ export default function KapalPermohonanPage() {
       const etaIso = new Date(`${etaDate}T${etaTime}:00`).toISOString();
       const etdIso = new Date(`${etdDate}T${etdTime}:00`).toISOString();
 
-      const selectedBerthObj = displayBerths.find((b) => b.id === selectedBerthId);
-      const berthNotePrefix = selectedBerthObj
-        ? `[Preferensi Tambat: ${selectedBerthObj.code} - ${selectedBerthObj.name}] `
-        : "";
+      const targetPort = destinationPortOptions.find((p) => p.name === destinationPort);
+      const targetPortId = targetPort?.id || 1;
 
       const newVisit = await createVisitRequest({
-        portId: 1, // Pelabuhan Poumako
+        portId: targetPortId,
         vesselId: activeVessel.numericId,
         visitOrigin: "OPERATOR_REQUEST",
         activityMode: "NORMAL",
@@ -474,23 +623,22 @@ export default function KapalPermohonanPage() {
         eta: etaIso,
         etd: etdIso,
         notes:
-          berthNotePrefix +
-          (additionalNote ||
-            `Permohonan sandar kapal ${activeVessel.name} (${activeVessel.gt} GT) di Pelabuhan Poumako. Kebutuhan: ${activityType}.`),
+          additionalNote ||
+          `Permohonan sandar kapal ${activeVessel.name} (${activeVessel.gt} GT) di ${destinationPort}. Kebutuhan: ${activityType}. Menunggu verifikasi & alokasi dermaga oleh Petugas UPT.`,
       });
 
       const newReq: DockRequest = {
         id: newVisit.visitNumber,
+        visitId: newVisit.id,
+        backendStatus: newVisit.status,
         vesselName: activeVessel.name,
         callSign: activeVessel.callSign,
         gt: activeVessel.gt,
         port: destinationPort,
         route: derivedRoute,
         activityType: activityType,
-        dockType: dockPreference,
-        allocatedDock: selectedBerthObj
-          ? `${selectedBerthObj.name} (Diajukan)`
-          : "Menunggu penetapan dermaga oleh UPT",
+        dockType: "Reguler",
+        allocatedDock: "Menunggu Penetapan Petugas Dermaga",
         eta: `${etaDate}, ${etaTime} WIT`,
         etd: `${etdDate}, ${etdTime} WIT`,
         durationHours: serviceDurationHours,
@@ -501,10 +649,20 @@ export default function KapalPermohonanPage() {
           powerKwh: needShorePower ? powerKwh : 0,
           wasteDisposal: needWasteDisposal,
         },
-        costBreakdown: costs,
+        costBreakdown: {
+          mooring: costs.mooring,
+          anchorage: costs.anchorage,
+          water: costs.water,
+          power: costs.power,
+          waste: costs.waste,
+          total: costs.total,
+          labuhFormula: costs.labuh.formulaNote,
+          tambatFormula: costs.tambat.formulaNote,
+        },
+        officialInvoice: null,
         status: "submitted",
-        statusLabel: "Diajukan (Menunggu Review UPT)",
-        officerNotes: "Permohonan baru berhasil dikirim ke backend PORTA dan masuk antrean verifikasi.",
+        statusLabel: "Diajukan (Menunggu Alokasi Dermaga)",
+        officerNotes: "Permohonan baru berhasil dikirim ke UPT Pelabuhan. Petugas Dermaga akan memverifikasi slot kosong dan menetapkan dermaga sandar.",
         submittedAt: "Hari ini, Baru saja",
       };
 
@@ -549,7 +707,23 @@ export default function KapalPermohonanPage() {
           </div>
           <button
             onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1"
+            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {estimateErrorToast && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{estimateErrorToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEstimateErrorToast(null)}
+            className="p-1 text-rose-600 hover:text-rose-900 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -658,6 +832,31 @@ export default function KapalPermohonanPage() {
           </div>
 
           <div className="p-6 sm:p-8">
+            {/* PKS SANDAR GATEKEEPER WARNING BANNER */}
+            {!hasActiveBerthingContract && (
+              <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-[#0B241E] text-sm">
+                      PKS Sandar Kapal (Kontrak Payung) Belum Aktif
+                    </h4>
+                    <p className="text-[#475569] text-xs mt-0.5 max-w-2xl">
+                      Operator wajib memiliki <strong>Perjanjian Kerja Sama (PKS Sandar)</strong> yang <strong>AKTIF</strong> dan telah disahkan <strong>Kepala Pelabuhan</strong> sebelum mengajukan warta sandar. Pengiriman permohonan dinonaktifkan sampai PKS Sandar disetujui.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/kapal/pks-sandar"
+                  className="px-4 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold rounded-xl text-xs shrink-0 inline-flex items-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <FileSignature className="w-4 h-4 text-[#D97706]" />
+                  <span>Ajukan PKS Sandar</span>
+                </Link>
+              </div>
+            )}
             {/* ------------------------------------------------------------- */}
             {/* STEP 1: PILIH LAYANAN & FASILITAS (PDF Hal. 9 Baris 1)         */}
             {/* ------------------------------------------------------------- */}
@@ -666,10 +865,10 @@ export default function KapalPermohonanPage() {
                 <div>
                   <h3 className="text-sm font-black text-[#0B241E] uppercase tracking-wide flex items-center gap-2">
                     <Ship className="w-4 h-4 text-[#D97706]" />
-                    <span>Langkah 1: Pilih Layanan & Kebutuhan Fasilitas Dermaga</span>
+                    <span>Langkah 1: Pilih Armada Kapal, Rute, &amp; Layanan Tambat</span>
                   </h3>
                   <p className="text-xs text-[#64748B] mt-0.5">
-                    Tentukan armada kapal, pelabuhan tujuan, kelas dermaga sandar, serta pesanan utilitas air tawar dan listrik darat.
+                    Tentukan armada kapal, pelabuhan tujuan, kelas layanan, serta utilitas air tawar &amp; listrik. Alokasi fisik dermaga akan ditetapkan oleh Petugas UPT.
                   </p>
                 </div>
 
@@ -768,8 +967,11 @@ export default function KapalPermohonanPage() {
                       onChange={(e) => setDestinationPort(e.target.value)}
                       className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
                     >
-                      <option value="Pelabuhan Poumako">Pelabuhan Poumako (Dermaga UPTD Pomako)</option>
-                      <option value="Dermaga UPP Kemenhub">Dermaga UPP Kemenhub Pomako</option>
+                      {destinationPortOptions.map((port) => (
+                        <option key={port.id} value={port.name}>
+                          {port.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -822,177 +1024,62 @@ export default function KapalPermohonanPage() {
                   </div>
                 </div>
 
-                {/* PILIHAN FASILITAS DERMAGA SANDAR (BERTH ALLOCATION) */}
+                {/* INFORMASI SOP: PENETAPAN DERMAGA OLEH PETUGAS UPT DERMAGA */}
                 <div className="space-y-3 pt-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <label className="text-xs font-bold text-[#0B241E] flex items-center gap-1.5">
-                      <Anchor className="w-4 h-4 text-[#D97706]" />
-                      <span>Pilih Fasilitas Dermaga Sandar yang Dituju <span className="text-red-500">*</span></span>
-                    </label>
-                    <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      Pelabuhan Poumako ({displayBerths.length} Dermaga)
-                    </span>
-                  </div>
-
-                  {/* Grid Pilihan Dermaga */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {displayBerths.map((b) => {
-                      const isSelected = selectedBerthId === b.id;
-                      const maxLen = Number(b.maxLengthMeters) || 100;
-                      const vesselLoa = Number(activeVessel.loa) || 0;
-                      const isLoaFit = vesselLoa <= maxLen;
-
-                      return (
-                        <div
-                          key={b.id}
-                          onClick={() => setSelectedBerthId(b.id)}
-                          className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2 relative ${
-                            isSelected
-                              ? "border-[#0B241E] bg-[#F4F9F6] shadow-xs ring-1 ring-[#0B241E]/30"
-                              : "border-[#E2E8F0] bg-white hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#0B241E]/10 text-[#0B241E]">
-                                {b.code}
-                              </span>
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                  b.authorityType === "PEMDA_DISHUB"
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : b.authorityType === "UPP_KEMENHUB"
-                                    ? "bg-blue-100 text-blue-800 border border-blue-200"
-                                    : "bg-purple-100 text-purple-800 border border-purple-200"
-                                }`}
-                              >
-                                {b.authorityType === "PEMDA_DISHUB"
-                                  ? "Retribusi Pemda"
-                                  : b.authorityType === "UPP_KEMENHUB"
-                                  ? "UPP Kemenhub"
-                                  : "TUKS Mitra"}
-                              </span>
-                            </div>
-
-                            <h4 className="font-extrabold text-xs text-[#0B241E] mt-2 leading-snug line-clamp-2">
-                              {b.name}
-                            </h4>
-
-                            <div className="flex items-center gap-2 mt-2 text-[10px] text-[#64748B]">
-                              <span>Kapasitas: <strong className="text-[#0B241E] font-mono">{maxLen}m</strong></span>
-                              <span>•</span>
-                              <span
-                                className={`font-semibold ${
-                                  isLoaFit ? "text-emerald-700" : "text-amber-700"
-                                }`}
-                              >
-                                {isLoaFit ? "✓ Muat Kapal" : "⚠️ Melebihi LoA"}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-[10px]">
-                            <span className="text-[#64748B] truncate max-w-[140px]">
-                              {b.berthType?.replace(/_/g, " ") || "Dermaga"}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              {isSelected && (
-                                <span className="text-[9px] font-mono font-bold text-emerald-700">Terpilih</span>
-                              )}
-                              <input
-                                type="radio"
-                                name="berthSelect"
-                                checked={isSelected}
-                                onChange={() => setSelectedBerthId(b.id)}
-                                className="w-3.5 h-3.5 text-[#0B241E] focus:ring-0 cursor-pointer"
-                              />
-                            </div>
-                          </div>
+                  <div className="p-4 sm:p-5 rounded-2xl bg-[#F8FAFC] border border-[#CBD5E1] space-y-3 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0 shadow-xs">
+                          <Anchor className="w-5 h-5" />
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Ringkasan Konfirmasi Dermaga Terpilih */}
-                  {activeBerth && (
-                    <div className="p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs">
-                      <div className="flex items-start sm:items-center gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
                         <div>
-                          <span className="text-[10px] text-[#64748B] block font-medium">Dermaga Pilihan yang Diajukan:</span>
-                          <strong className="text-[#0B241E] text-xs">
-                            {activeBerth.name} ({activeBerth.code})
-                          </strong>
-                          <span className="text-[11px] text-[#64748B] ml-1.5">
-                            • Kapasitas Garis Tambat {activeBerth.maxLengthMeters} Meter ({activeBerth.authorityType === "PEMDA_DISHUB" ? "Objek Retribusi Daerah PP 35/2023" : "Kemenhub"})
-                          </span>
+                          <h4 className="text-xs sm:text-sm font-extrabold text-[#0B241E]">
+                            Penetapan Dermaga Sandar Dikelola oleh Petugas UPT
+                          </h4>
+                          <p className="text-[11px] text-[#64748B]">
+                            SOP Alokasi Tambat Pelabuhan Poumako • Wewenang Petugas Dermaga
+                          </p>
                         </div>
                       </div>
-                      <span className="inline-flex items-center self-start sm:self-auto gap-1 text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
-                        <span>Status: SIAP LAYANAN</span>
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-300 self-start sm:self-auto">
+                        <Clock className="w-3.5 h-3.5 text-[#D97706]" />
+                        <span>Alokasi Pasca-Verifikasi</span>
                       </span>
                     </div>
-                  )}
-                </div>
 
-                {/* Pilihan Kelas Tarif Dermaga */}
-                <div className="space-y-2 pt-1">
-                  <label className="block text-xs font-bold text-[#0B241E]">
-                    Pilihan Fasilitas &amp; Kelas Layanan Tambat (Tarif PP No. 35/2023)
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div
-                      onClick={() => setDockPreference("Reguler")}
-                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
-                        dockPreference === "Reguler"
-                          ? "border-[#0B241E] bg-[#F4F9F6] shadow-sm"
-                          : "border-[#E2E8F0] hover:border-[#CBD5E1]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        checked={dockPreference === "Reguler"}
-                        onChange={() => setDockPreference("Reguler")}
-                        className="mt-1 text-[#0B241E]"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-sm text-[#0B241E]">Dermaga Reguler</span>
-                          <span className="bg-[#E2E8F0] text-[#475569] text-[10px] font-mono px-2 py-0.5 rounded font-bold">
-                            Rp 120 / GT / Jam
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#64748B] mt-1">
-                          Cocok untuk kapal kargo, LCT, dan kapal motor umum dengan fasilitas tambat standar.
-                        </p>
+                    <p className="text-xs text-[#334155] leading-relaxed">
+                      Sesuai Standar Operasional Prosedur (SOP) Pelabuhan Poumako dan tata kelola maritim daerah, operator kapal <strong>tidak memilih dermaga secara mandiri</strong>. Setelah permohonan ini diajukan, <strong>Petugas Dermaga UPT</strong> akan memverifikasi kelaikan kapal serta ketersediaan slot dermaga yang kosong (berth availability) untuk menetapkan alokasi dermaga resmi.
+                    </p>
+
+                    {/* Parameter Teknis Kapal yang Dievaluasi Petugas */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Panjang Kapal (LOA)</span>
+                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.loa} Meter</strong>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Draft Kedalaman</span>
+                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.draft} Meter</strong>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Bobot Kapal (GT)</span>
+                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.gt} GT</strong>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
+                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Status Alokasi Awal</span>
+                        <span className="text-[10.5px] font-bold text-amber-700 flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          <span>Menunggu Petugas</span>
+                        </span>
                       </div>
                     </div>
 
-                    <div
-                      onClick={() => setDockPreference("Eksekutif")}
-                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
-                        dockPreference === "Eksekutif"
-                          ? "border-[#0B241E] bg-[#F4F9F6] shadow-sm"
-                          : "border-[#E2E8F0] hover:border-[#CBD5E1]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        checked={dockPreference === "Eksekutif"}
-                        onChange={() => setDockPreference("Eksekutif")}
-                        className="mt-1 text-[#0B241E]"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-sm text-[#0B241E]">Dermaga Eksekutif / MB Ferry</span>
-                          <span className="bg-[#D97706]/15 text-[#92400E] text-[10px] font-mono px-2 py-0.5 rounded font-bold">
-                            Rp 180 / GT / Jam
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#64748B] mt-1">
-                          Dilengkapi movable bridge hidrolik, dolphin bressing pelindung lambung kapal, dan jalur prioritas.
-                        </p>
-                      </div>
+                    {/* Notice Penjelasan */}
+                    <div className="p-3 bg-amber-50/70 border border-amber-200/90 rounded-xl flex items-start gap-2 text-xs text-amber-900">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="leading-snug text-[11.5px]">
+                        Status permohonan yang baru diajukan adalah <strong>&ldquo;Menunggu Verifikasi &amp; Alokasi Dermaga&rdquo;</strong>. Petugas Dermaga akan memilih dermaga yang kosong dan hasil penetapan tambat akan otomatis tertera di tiket permohonan Anda.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1469,22 +1556,44 @@ export default function KapalPermohonanPage() {
                   <div>
                     <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Dermaga & Trayek</span>
                     <p className="font-bold text-[#0B241E] mt-0.5">
-                      {activeBerth?.name || `Dermaga ${dockPreference}`}
+                      {activeBerth?.name || "Ditetapkan Petugas UPT"}
                     </p>
                     <p className="text-[11px] text-[#64748B]">
-                      {derivedRoute} • {activeBerth?.code || dockPreference} ({dockPreference})
+                      {derivedRoute} • Menunggu Alokasi Resmi
                     </p>
                   </div>
                 </div>
 
-                {/* DETAILED COST BREAKDOWN TABLE (PP No. 35/2023) */}
+                {/* DETAILED COST BREAKDOWN TABLE (LIVE PERDA MIMIKA 4/2023 & PP 35/2023) */}
                 <div className="border border-[#CBD5E1] rounded-xl overflow-hidden text-xs">
-                  <div className="bg-[#0B241E] px-4 py-2.5 text-white flex items-center justify-between">
+                  <div className="bg-[#0B241E] px-4 py-2.5 text-white flex flex-wrap items-center justify-between gap-2">
                     <span className="font-bold text-xs flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-[#D97706]" />
-                      <span>Rincian Estimasi Retribusi Pelayanan Kepelabuhanan (PP 35/2023)</span>
+                      <span>Rincian Estimasi Retribusi Kepelabuhanan (Perda 4/2023 &amp; PP 35/2023)</span>
                     </span>
-                    <span className="text-[10px] font-mono text-[#A0C4B8]">DASAR TARIF RESMI</span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                          costs.isLiveTariff
+                            ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/30"
+                            : "bg-amber-500/20 text-amber-200 border border-amber-400/30"
+                        }`}
+                      >
+                        {costs.isLiveTariff ? "TARIF LIVE SERVER" : "TARIF REFERENSI"}
+                      </span>
+                      {usdRate && (
+                        <button
+                          type="button"
+                          onClick={() => fetchUsdRate(true)}
+                          disabled={isRateLoading}
+                          className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[#A0C4B8] cursor-pointer disabled:opacity-50"
+                          title={`Kurs USD Live (${usdRate.source}) — klik untuk perbarui`}
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isRateLoading ? "animate-spin" : ""}`} />
+                          <span>1 USD = Rp {usdRate.rate.toLocaleString("id-ID")}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <table className="w-full text-left">
@@ -1497,32 +1606,38 @@ export default function KapalPermohonanPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E2E8F0]">
-                      {/* Mooring */}
+                      {/* Mooring / Jasa Tambat */}
                       <tr>
                         <td className="p-3 font-semibold text-[#0B241E]">
-                          Jasa Tambat / Sandar Dermaga ({dockPreference})
+                          <span>Jasa Tambat / Sandar Dermaga</span>
+                          <span className="block text-[10px] font-mono text-[#64748B] font-normal mt-0.5">
+                            {costs.tambat.tariffCode} • {costs.tambat.legalBasis}
+                          </span>
                         </td>
                         <td className="p-3 font-mono text-[#64748B]">
-                          {activeVessel.gt} GT × {serviceDurationHours} Jam
+                          {costs.tambat.formulaNote}
                         </td>
                         <td className="p-3 font-mono text-[#64748B]">
-                          Rp {dockPreference === "Eksekutif" ? "180" : "120"} / GT / Jam
+                          {costs.tambat.rateLabel}
                         </td>
                         <td className="p-3 text-right font-mono font-bold text-[#0B241E]">
                           {formatRupiah(costs.mooring)}
                         </td>
                       </tr>
 
-                      {/* Anchorage */}
+                      {/* Anchorage / Jasa Labuh */}
                       <tr>
                         <td className="p-3 font-semibold text-[#0B241E]">
-                          Jasa Labuh Perairan Pelabuhan
+                          <span>Jasa Labuh Perairan Pelabuhan</span>
+                          <span className="block text-[10px] font-mono text-[#64748B] font-normal mt-0.5">
+                            {costs.labuh.tariffCode} • {costs.labuh.legalBasis}
+                          </span>
                         </td>
                         <td className="p-3 font-mono text-[#64748B]">
-                          {activeVessel.gt} GT × 1 Kunjungan
+                          {costs.labuh.formulaNote}
                         </td>
                         <td className="p-3 font-mono text-[#64748B]">
-                          Rp 40 / GT
+                          {costs.labuh.rateLabel}
                         </td>
                         <td className="p-3 text-right font-mono font-bold text-[#0B241E]">
                           {formatRupiah(costs.anchorage)}
@@ -1635,24 +1750,31 @@ export default function KapalPermohonanPage() {
                     <ChevronLeft className="w-4 h-4" />
                     <span>Kembali</span>
                   </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={handleFinalSubmit}
-                    className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#D97706]" />
-                        <span>Mengirim ke Backend...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 text-[#D97706]" />
-                        <span>Kirim Permohonan ke UPT Pelabuhan</span>
-                      </>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      disabled={isSubmitting || !hasActiveBerthingContract}
+                      onClick={handleFinalSubmit}
+                      className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#D97706]" />
+                          <span>Mengirim ke Backend...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 text-[#D97706]" />
+                          <span>Kirim Permohonan ke UPT Pelabuhan</span>
+                        </>
+                      )}
+                    </button>
+                    {!hasActiveBerthingContract && (
+                      <span className="text-[10px] text-amber-700 font-medium">
+                        * PKS Sandar Kapal aktif diperlukan untuk mengirim permohonan.
+                      </span>
                     )}
-                  </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1911,10 +2033,18 @@ export default function KapalPermohonanPage() {
 
                   <div>
                     <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Alokasi Dermaga</span>
-                    <p className="font-bold text-[#0284C7] mt-0.5">
-                      {req.allocatedDock || "Menunggu Penetapan Petugas"}
-                    </p>
-                    <p className="text-[10px] text-[#64748B]">Kelas: {req.dockType}</p>
+                    {req.status === "submitted" || req.allocatedDock?.includes("Menunggu") ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200 mt-1">
+                        <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span className="truncate">Menunggu Petugas</span>
+                      </span>
+                    ) : (
+                      <p className="font-bold text-emerald-800 flex items-center gap-1 mt-0.5 truncate">
+                        <Anchor className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+                        <span>{req.allocatedDock}</span>
+                      </p>
+                    )}
+                    <p className="text-[10px] text-[#64748B] mt-0.5">{req.route}</p>
                   </div>
 
                   <div>
@@ -1942,11 +2072,42 @@ export default function KapalPermohonanPage() {
                   </div>
 
                   <div>
-                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Estimasi Retribusi</span>
+                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">
+                      {req.officialInvoice ? "Estimasi / e-SKRD Resmi" : "Estimasi Retribusi"}
+                    </span>
                     <p className="font-mono font-extrabold text-[#0B241E] text-sm mt-0.5">
                       {formatRupiah(req.costBreakdown.total)}
                     </p>
-                    <p className="text-[10px] text-emerald-700 font-semibold">PP No. 35/2023</p>
+                    {req.officialInvoice ? (
+                      <Link
+                        href="/kapal/penagihan"
+                        className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:underline font-mono font-bold mt-0.5"
+                      >
+                        <span>{req.officialInvoice.invoiceNumber}</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    ) : req.visitId &&
+                      req.backendStatus &&
+                      req.backendStatus !== "REQUESTED" &&
+                      req.backendStatus !== "CANCELLED" ? (
+                      <button
+                        type="button"
+                        disabled={estimatingVisitId === req.visitId}
+                        onClick={() => handleGenerateOfficialEstimate(req.visitId!)}
+                        className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0B241E] hover:bg-[#143E33] text-white text-[10px] font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        {estimatingVisitId === req.visitId ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <DollarSign className="w-3 h-3 text-[#D97706]" />
+                        )}
+                        <span>Hitung Estimasi Resmi</span>
+                      </button>
+                    ) : (
+                      <p className="text-[10px] text-emerald-700 font-semibold">
+                        Tarif Perda 4/2023
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -2010,44 +2171,140 @@ export default function KapalPermohonanPage() {
                 <p className="text-[#64748B]">{selectedDetailReq.route}</p>
               </div>
               <div>
-                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Alokasi Penetapan UPT</span>
-                <p className="font-bold text-[#0284C7] mt-0.5">{selectedDetailReq.allocatedDock || "Menunggu Penetapan"}</p>
+                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Alokasi Penetapan Dermaga</span>
+                {selectedDetailReq.allocatedDock?.includes("Menunggu") || selectedDetailReq.status === "submitted" ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 mt-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Menunggu verifikasi &amp; alokasi oleh Petugas UPT</span>
+                  </span>
+                ) : (
+                  <p className="font-bold text-emerald-800 flex items-center gap-1.5 mt-1 text-xs">
+                    <Anchor className="w-4 h-4 text-[#D97706]" />
+                    <span>{selectedDetailReq.allocatedDock}</span>
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Rincian Biaya */}
             <div className="space-y-2 text-xs">
-              <span className="font-bold text-[#0B241E] block">Rincian Komponen Tarif Retribusi:</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-[#0B241E]">
+                  {selectedDetailReq.officialInvoice
+                    ? `Rincian Tagihan Resmi Server (${selectedDetailReq.officialInvoice.invoiceNumber}):`
+                    : "Rincian Estimasi Tarif Retribusi (Perda 4/2023):"}
+                </span>
+                {selectedDetailReq.officialInvoice ? (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    {selectedDetailReq.officialInvoice.billingStage}
+                  </span>
+                ) : (
+                  selectedDetailReq.visitId &&
+                  selectedDetailReq.backendStatus &&
+                  selectedDetailReq.backendStatus !== "REQUESTED" &&
+                  selectedDetailReq.backendStatus !== "CANCELLED" && (
+                    <button
+                      type="button"
+                      disabled={estimatingVisitId === selectedDetailReq.visitId}
+                      onClick={() => handleGenerateOfficialEstimate(selectedDetailReq.visitId!)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {estimatingVisitId === selectedDetailReq.visitId ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <DollarSign className="w-3 h-3 text-[#D97706]" />
+                      )}
+                      <span>Hitung Estimasi Resmi Server</span>
+                    </button>
+                  )
+                )}
+              </div>
+
               <div className="border border-[#CBD5E1] rounded-xl p-3 space-y-1.5 bg-slate-50">
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Jasa Tambat Dermaga ({selectedDetailReq.dockType}):</span>
-                  <span className="font-mono font-bold text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.mooring)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Jasa Labuh Perairan:</span>
-                  <span className="font-mono font-bold text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.anchorage)}</span>
-                </div>
-                {selectedDetailReq.utilities.freshWater && (
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">Air Bersih ({selectedDetailReq.utilities.waterVolume} m³):</span>
-                    <span className="font-mono font-bold text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.water)}</span>
-                  </div>
-                )}
-                {selectedDetailReq.utilities.shorePower && (
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">Listrik Darat Shore Power ({selectedDetailReq.utilities.powerKwh} kWh):</span>
-                    <span className="font-mono font-bold text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.power)}</span>
-                  </div>
-                )}
-                {selectedDetailReq.utilities.wasteDisposal && (
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">Jasa Pengelolaan Limbah Kapal:</span>
-                    <span className="font-mono font-bold text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.waste)}</span>
-                  </div>
+                {selectedDetailReq.officialInvoice?.items &&
+                selectedDetailReq.officialInvoice.items.length > 0 ? (
+                  selectedDetailReq.officialInvoice.items.map((item) => (
+                    <div key={item.id} className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="text-[#0B241E] font-semibold block">
+                          {item.description}
+                        </span>
+                        {item.formulaNote && (
+                          <span className="text-[10px] font-mono text-[#64748B]">
+                            {item.formulaNote}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
+                        {formatRupiah(Number(item.subtotalIdr))}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="text-[#64748B] block">Jasa Tambat / Sandar Dermaga:</span>
+                        {selectedDetailReq.costBreakdown.tambatFormula && (
+                          <span className="text-[10px] font-mono text-[#94A3B8]">
+                            {selectedDetailReq.costBreakdown.tambatFormula}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
+                        {formatRupiah(selectedDetailReq.costBreakdown.mooring)}
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="text-[#64748B] block">Jasa Labuh Perairan:</span>
+                        {selectedDetailReq.costBreakdown.labuhFormula && (
+                          <span className="text-[10px] font-mono text-[#94A3B8]">
+                            {selectedDetailReq.costBreakdown.labuhFormula}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
+                        {formatRupiah(selectedDetailReq.costBreakdown.anchorage)}
+                      </span>
+                    </div>
+                    {selectedDetailReq.utilities.freshWater && (
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B]">
+                          Air Bersih ({selectedDetailReq.utilities.waterVolume} m³):
+                        </span>
+                        <span className="font-mono font-bold text-[#0B241E]">
+                          {formatRupiah(selectedDetailReq.costBreakdown.water)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDetailReq.utilities.shorePower && (
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B]">
+                          Listrik Darat Shore Power ({selectedDetailReq.utilities.powerKwh} kWh):
+                        </span>
+                        <span className="font-mono font-bold text-[#0B241E]">
+                          {formatRupiah(selectedDetailReq.costBreakdown.power)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDetailReq.utilities.wasteDisposal && (
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B]">Jasa Pengelolaan Limbah Kapal:</span>
+                        <span className="font-mono font-bold text-[#0B241E]">
+                          {formatRupiah(selectedDetailReq.costBreakdown.waste)}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="flex justify-between border-t border-[#CBD5E1] pt-2 font-bold text-sm">
-                  <span className="text-[#0B241E]">Total Estimasi:</span>
-                  <span className="font-mono text-[#0B241E]">{formatRupiah(selectedDetailReq.costBreakdown.total)}</span>
+                  <span className="text-[#0B241E]">
+                    {selectedDetailReq.officialInvoice ? "Total Resmi Server:" : "Total Estimasi:"}
+                  </span>
+                  <span className="font-mono text-[#0B241E]">
+                    {formatRupiah(selectedDetailReq.costBreakdown.total)}
+                  </span>
                 </div>
               </div>
             </div>

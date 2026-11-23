@@ -56,6 +56,7 @@ interface FieldOpsState {
   updateMaintenanceStatus: (id: number, payload: UpdateMaintenanceStatusPayload, portId?: number) => Promise<void>;
 
   fetchShiftData: (portId?: number) => Promise<void>;
+  fetchDailyReportsOnly: (portId?: number) => Promise<void>;
   openHandover: (payload: OpenGateHandoverPayload, portId?: number) => Promise<void>;
   closeHandover: (id: number, payload: CloseGateHandoverPayload, portId?: number) => Promise<void>;
   createDailyReport: (payload: CreateDailyPortReportPayload, portId?: number) => Promise<void>;
@@ -311,6 +312,17 @@ export const useFieldOpsStore = create<FieldOpsState>((set, get) => ({
     }
   },
 
+  fetchDailyReportsOnly: async (portId) => {
+    try {
+      const dailyReports = await FieldOpsService.getDailyReports(portId);
+      set({ dailyReports });
+    } catch (err: unknown) {
+      set({
+        error: err instanceof Error ? err.message : "Gagal memuat laporan harian.",
+      });
+    }
+  },
+
   openHandover: async (payload, portId) => {
     set({ isSubmitting: true, error: null });
     try {
@@ -345,8 +357,8 @@ export const useFieldOpsStore = create<FieldOpsState>((set, get) => ({
     set({ isSubmitting: true, error: null });
     try {
       await FieldOpsService.createDailyReport(payload);
-      await get().fetchShiftData(portId);
-      set({ isSubmitting: false });
+      const dailyReports = await FieldOpsService.getDailyReports(portId);
+      set({ dailyReports, isSubmitting: false });
     } catch (err: unknown) {
       set({
         error: err instanceof Error ? err.message : "Gagal mengirim laporan harian.",

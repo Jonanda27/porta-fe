@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { RouteTransitionLoader } from "@/components/ui/RouteTransitionLoader";
 
 export const metadata: Metadata = {
   title: "PORTA - Sistem Pengelolaan Pelabuhan dan Penerimaan Daerah",
@@ -25,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="id" className="h-full">
       <body className="antialiased h-full font-sans bg-slate-50 text-slate-900 selection:bg-[#D97706]/20 selection:text-[#0B241E]">
+        <RouteTransitionLoader />
         {children}
       </body>
     </html>

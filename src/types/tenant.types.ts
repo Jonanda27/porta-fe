@@ -80,3 +80,80 @@ export interface TenantLeaseItem {
 }
 
 export type TenantDocumentCategory = "SIUPAL_NIB" | "NPWP" | "LAINNYA";
+
+export interface LeasePaymentReceiptPayload {
+  documentTitle: string;
+  subTitle: string;
+  ssrdNumber: string;
+  contractNumber: string;
+  paymentDate: string;
+  taxPeriod: string;
+  portName: string;
+  portLocation: string;
+  taxPayer: {
+    tenantName: string;
+    tenantNpwp: string;
+    tenantPhone: string;
+    businessName: string;
+    address: string;
+  };
+  retributionObject: {
+    assetCode: string;
+    assetName: string;
+    assetType: string;
+    areaSqm: number;
+    annualRatePerSqmIdr: number;
+    legalBasis: string;
+    revenueAccountCode: string;
+  };
+  paymentDetails: {
+    totalAnnualContractIdr: number;
+    periodYear: number;
+    amountPaidIdr: number;
+    idempotencyKey: string;
+    paymentStatus: string;
+    verifiedByName: string;
+    verifiedAt: string;
+  };
+  qrValidationCode: string;
+}
+
+export interface UtilityReceiptPayload {
+  documentTitle: string;
+  subTitle: string;
+  ssrdNumber: string;
+  readingNumber: string;
+  paymentDate: string;
+  portName: string;
+  portLocation: string;
+  taxPayer: {
+    tenantName: string;
+    tenantNpwp: string;
+    businessName: string;
+  };
+  retributionObject: {
+    utilityType: string;
+    assetCode: string;
+    assetName: string;
+    meterStart: number;
+    meterEnd: number;
+    volumeConsumed: number;
+    unitLabel: string;
+    ratePerUnitIdr: number;
+    legalBasis: string;
+    revenueAccountCode: string;
+  };
+  paymentDetails: {
+    totalAmountIdr: number;
+    paymentStatus: string;
+    paidAt?: string;
+    idempotencyKey: string;
+    recordedByName: string;
+  };
+  qrValidationCode: string;
+}
+
+export type ReceiptModalData =
+  | { type: "LEASE_PAYMENT"; data: LeasePaymentReceiptPayload }
+  | { type: "UTILITY"; data: UtilityReceiptPayload };
+

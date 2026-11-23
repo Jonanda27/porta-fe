@@ -1,44 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Landmark,
   Receipt,
   CheckCircle2,
-  FileText,
   AlertTriangle,
   Scale,
   Building2,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
   Search,
   Bell,
-  ArrowLeft,
-  ShieldCheck,
-  CreditCard,
-  Layers,
-  FileCheck2,
   Coins,
   LogOut,
+  ClipboardCheck,
+  BookOpen,
+  TrendingUp,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
+import { useNotificationStore } from "@/store/notification.store";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  exact?: boolean;
-  badge?: string;
-}
-
-interface NavGroup {
-  group: string;
-  items: NavItem[];
-}
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
+import { AppSidebar, SidebarNavGroup } from "@/components/layout/AppSidebar";
 
 export default function BendaharaLayout({
   children,
@@ -47,11 +31,25 @@ export default function BendaharaLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, initialize, logout } = useAuthStore();
+  const {
+    notifications,
+    unreadCount,
+    fetchNotifications,
+    markAsRead: markNotifRead,
+    markAllAsRead: markAllNotifsRead,
+  } = useNotificationStore();
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
+  const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    initialize();
+    fetchNotifications();
+  }, [initialize, fetchNotifications]);
 
   const handleConfirmLogout = () => {
     logout();
@@ -66,6 +64,9 @@ export default function BendaharaLayout({
     if (pathname.includes("/bendahara/rekonsiliasi")) return "Rekonsiliasi Kas Daerah & Tutup Buku Harian";
     if (pathname.includes("/bendahara/kios-utilitas")) return "Penerimaan Retribusi Sewa Tenant & Utilitas Kargo";
     if (pathname.includes("/bendahara/keberatan")) return "Telaah & Keputusan Keberatan Tarif Retribusi";
+    if (pathname.includes("/bendahara/tugas-saya")) return "Tugas & Checklist Kebendaharaan";
+    if (pathname.includes("/bendahara/tarif")) return "Referensi Master Tarif Retribusi Daerah (Perda 4/2023)";
+    if (pathname.includes("/bendahara/proyeksi")) return "Simulasi Proyeksi PAD & Potensi Lahan (GIS)";
     return "Dashboard Finansial & Penerimaan Kas Daerah (PAD)";
   };
 
@@ -76,6 +77,9 @@ export default function BendaharaLayout({
     if (pathname.includes("/bendahara/rekonsiliasi")) return "Rekonsiliasi Kasda";
     if (pathname.includes("/bendahara/kios-utilitas")) return "Tenant & Utilitas";
     if (pathname.includes("/bendahara/keberatan")) return "Keberatan Tarif";
+    if (pathname.includes("/bendahara/tugas-saya")) return "Tugas Saya";
+    if (pathname.includes("/bendahara/tarif")) return "Referensi Tarif";
+    if (pathname.includes("/bendahara/proyeksi")) return "Simulasi PAD & GIS";
     return "Dashboard Kasda";
   };
 
@@ -92,12 +96,18 @@ export default function BendaharaLayout({
       return "Pencatatan pembayaran sewa kios, lapak tenant, pemakaian alat kargo pelabuhan, dan penyaluran air bersih kapal.";
     if (pathname.includes("/bendahara/keberatan"))
       return "Penetapan keputusan persetujuan atau penolakan sengketa keberatan tarif dan permohonan keringanan force majeure dari operator kapal.";
+    if (pathname.includes("/bendahara/tugas-saya"))
+      return "Lembar tugas operasional kebendaharaan, pengisian checklist verifikasi kasda, unggah bukti kerja, dan pelaporan ke pimpinan.";
+    if (pathname.includes("/bendahara/tarif"))
+      return "Katalog resmi tarif retribusi jasa kepelabuhanan Perda Kab. Mimika No. 4/2023 beserta kurs referensi USD live untuk acuan verifikasi e-SKRD.";
+    if (pathname.includes("/bendahara/proyeksi"))
+      return "Kalkulator simulasi target Pendapatan Asli Daerah (PAD) tahunan dan pemetaan potensi monetisasi aset lahan serta dermaga pelabuhan.";
     return "Pusat monitoring pendapatan asli daerah (PAD), realisasi target APBD, status likuiditas kas pelabuhan, dan pengawasan anti-kebocoran retribusi.";
   };
 
-  const navMenuItems: NavGroup[] = [
+  const navGroups: SidebarNavGroup[] = [
     {
-      group: "Penerimaan & Kasda",
+      title: "Penerimaan & Kasda",
       items: [
         {
           label: "Dashboard Finansial",
@@ -120,7 +130,7 @@ export default function BendaharaLayout({
       ],
     },
     {
-      group: "Pengawasan & Kepatuhan",
+      title: "Pengawasan & Kepatuhan",
       items: [
         {
           label: "Pengawasan Piutang & STPD",
@@ -142,172 +152,44 @@ export default function BendaharaLayout({
           href: "/bendahara/keberatan",
           icon: Scale,
         },
+        {
+          label: "Tugas & Checklist Saya",
+          href: "/bendahara/tugas-saya",
+          icon: ClipboardCheck,
+        },
+        {
+          label: "Referensi Tarif Perda",
+          href: "/bendahara/tarif",
+          icon: BookOpen,
+        },
+        {
+          label: "Simulasi PAD & GIS",
+          href: "/bendahara/proyeksi",
+          icon: TrendingUp,
+        },
       ],
     },
   ];
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#1E2922] font-sans flex antialiased selection:bg-[#D97706]/20 selection:text-[#0B241E]">
-      {/* ========================================================= */}
-      {/* 1. LEFT SIDEBAR (Collapsible Bendahara Navigation)        */}
-      {/* ========================================================= */}
-      <aside
-        className={`${
-          isSidebarCollapsed ? "w-20" : "w-72"
-        } bg-white flex flex-col justify-between shrink-0 shadow-xs z-30 sticky top-0 h-screen transition-all duration-300 ease-in-out relative`}
-      >
-        {/* Floating Circular Sidebar Toggle Button */}
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute right-0 top-[138px] translate-x-1/2 -translate-y-1/2 z-40 w-8 h-8 rounded-full bg-[#0B241E] hover:bg-[#133D31] text-white border border-[#235848] hover:border-[#D97706]/70 shadow-md flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 group focus:outline-none"
-          title={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-          aria-label={isSidebarCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-[#D97706] group-hover:translate-x-0.5 transition-transform" strokeWidth={2.5} />
-          ) : (
-            <ChevronLeft className="w-4 h-4 text-white group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
-          )}
-        </button>
-
-        {/* Top Brand Identity */}
-        <div>
-          <div className="h-16 bg-[#0B241E] text-white px-5 flex items-center gap-3 border-b border-[#143E33]">
-            <div className="w-9 h-9 rounded-xl bg-[#D97706] text-[#0B241E] flex items-center justify-center font-black text-lg shadow-sm shrink-0">
-              <Landmark className="w-5 h-5 text-[#0B241E]" />
-            </div>
-
-            {!isSidebarCollapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-base tracking-tight text-white">
-                    PORTA
-                  </span>
-                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#D97706]/20 text-[#D97706] border border-[#D97706]/30 uppercase tracking-wider">
-                    BENDAHARA
-                  </span>
-                </div>
-                <p className="text-[10px] text-[#A0C4B8] truncate leading-tight font-medium mt-0.5">
-                  Kas Daerah & Penerimaan Retribusi
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Unit Pelaksana Teknis Context Badge */}
-          {!isSidebarCollapsed && (
-            <div className="p-4 border-b border-[#F1F5F9] bg-[#FAFCFB]">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-[#0B241E] truncate">
-                    BPKAD / Dishub Kab. Mimika
-                  </h3>
-                  <p className="text-[10px] text-[#64748B] truncate font-mono">
-                    Rekening Kasda: Bank Papua RKUD
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Nav Links */}
-          <nav className="p-3 space-y-4 overflow-y-auto max-h-[calc(100vh-270px)] scrollbar-none">
-            {navMenuItems.map((grp, gIdx) => (
-              <div key={gIdx} className="space-y-1">
-                {!isSidebarCollapsed && (
-                  <p className="px-3 text-[10px] font-mono font-bold text-[#94A3B8] uppercase tracking-wider mb-1.5">
-                    {grp.group}
-                  </p>
-                )}
-
-                {grp.items.map((item, iIdx) => {
-                  const isActive = item.exact
-                    ? pathname === item.href
-                    : pathname.startsWith(item.href);
-
-                  return (
-                    <Link
-                      key={iIdx}
-                      href={item.href}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
-                        isActive
-                          ? "bg-[#0B241E] text-white shadow-xs font-bold"
-                          : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0B241E]"
-                      }`}
-                      title={isSidebarCollapsed ? item.label : undefined}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <item.icon
-                          className={`w-4 h-4 shrink-0 transition-colors ${
-                            isActive
-                              ? "text-[#D97706]"
-                              : "text-[#64748B] group-hover:text-[#0B241E]"
-                          }`}
-                        />
-                        {!isSidebarCollapsed && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </div>
-
-                      {!isSidebarCollapsed && item.badge && (
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
-                            isActive
-                              ? "bg-[#D97706] text-[#0B241E] font-bold"
-                              : "bg-[#F1F5F9] text-[#64748B]"
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        {/* Bottom User Profile Section */}
-        <div className="p-3 border-t border-[#F1F5F9] bg-white">
-          <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div
-                onClick={() => setShowLogoutModal(true)}
-                className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs shrink-0 cursor-pointer hover:ring-2 hover:ring-rose-400 transition-all"
-                title="Klik untuk opsi keluar akun"
-              >
-                BK
-              </div>
-              {!isSidebarCollapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#0B241E] truncate">
-                    {user?.fullName || "Bendahara Kasda"}
-                  </p>
-                  <p className="text-[10px] text-emerald-700 font-mono truncate font-semibold">
-                    BENDAHARA PENERIMAAN
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {!isSidebarCollapsed && (
-              <button
-                type="button"
-                onClick={() => setShowLogoutModal(true)}
-                className="p-1.5 text-[#64748B] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                title="Keluar dari sesi Bendahara"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </aside>
+      {/* 1. REUSABLE BENDAHARA SIDEBAR */}
+      <AppSidebar
+        portalTitle="Portal Bendahara"
+        portalSubtitle="Kas Daerah & Retribusi"
+        portalBadge="BENDAHARA"
+        navGroups={navGroups}
+        user={{
+          name: user?.fullName || "Bendahara Kasda",
+          roleOrStatus: "BENDAHARA PENERIMAAN",
+          initials: "BK",
+          statusVariant: "emerald",
+        }}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onOpenAccountSettings={() => setIsAccountModalOpen(true)}
+        onLogout={() => setShowLogoutModal(true)}
+      />
 
       {/* ========================================================= */}
       {/* 2. MAIN APPLICATION CONTENT AREA                          */}
@@ -329,20 +211,103 @@ export default function BendaharaLayout({
 
           {/* Right Header Status Badges */}
           <div className="flex items-center gap-3">
-            {/* Host-to-Host RKUD Bank Status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12362C] text-emerald-300 border border-[#1C4D3F] text-xs font-mono font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>RKUD Bank Papua: Terhubung H2H</span>
-            </div>
+            {/* Interactive Notification Bell Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
+                className="relative p-2 rounded-lg bg-[#12362C] hover:bg-[#1C4E40] text-[#BED2CA] hover:text-white border border-[#1C4D3F] transition-colors cursor-pointer flex items-center justify-center"
+                title="Notifikasi Sistem Kasda"
+              >
+                <Bell className="w-4 h-4 text-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-mono text-[9px] font-black flex items-center justify-center border-2 border-[#0B241E]">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Quick Portal Jump */}
-            <Link
-              href="/"
-              className="p-2 rounded-lg bg-[#12362C] hover:bg-[#1A493B] text-[#BED2CA] hover:text-white transition-colors"
-              title="Ke Halaman Utama Portal"
-            >
-              <Building2 className="w-4 h-4" />
-            </Link>
+              {isNotifDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsNotifDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E2E8F0] z-50 text-[#1E2922] overflow-hidden">
+                    <div className="bg-[#0B241E] text-white p-3.5 px-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#D97706]" />
+                        <span className="text-xs font-bold">Notifikasi Bendahara</span>
+                        {unreadCount > 0 && (
+                          <span className="text-[10px] font-mono font-bold bg-[#D97706] text-[#0B241E] px-1.5 py-0.5 rounded-full">
+                            {unreadCount} Baru
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => markAllNotifsRead()}
+                          className="text-[10px] text-[#85A69B] hover:text-white hover:underline cursor-pointer flex items-center gap-1 font-medium"
+                        >
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>Tandai dibaca</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[#F1F5F9]">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-[#64748B]">
+                          <Bell className="w-6 h-6 text-[#94A3B8] mx-auto mb-2 opacity-50" />
+                          <p>Belum ada notifikasi baru.</p>
+                        </div>
+                      ) : (
+                        notifications.slice(0, 8).map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={async () => {
+                              if (!item.isRead) {
+                                await markNotifRead(item.id);
+                              }
+                              setIsNotifDropdownOpen(false);
+                            }}
+                            className={`p-3 px-4 hover:bg-[#F8FAFC] transition-colors cursor-pointer flex items-start gap-3 ${
+                              !item.isRead ? "bg-amber-50/30" : ""
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-xs mt-0.5 bg-teal-100 text-teal-700">
+                              <Bell className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="text-xs font-bold text-[#0B241E] truncate">
+                                  {item.title}
+                                </p>
+                                {!item.isRead && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#D97706] shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[11px] text-[#64748B] line-clamp-2 mt-0.5">
+                                {item.message}
+                              </p>
+                              <span className="text-[9px] font-mono text-[#94A3B8] mt-1 block">
+                                {new Date(item.createdAt).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="h-6 w-px bg-[#184438]" />
 
@@ -393,6 +358,11 @@ export default function BendaharaLayout({
         userName={user?.fullName || "Bendahara Kasda"}
         userRole="BENDAHARA PENERIMAAN"
         userEmail={user?.email || "bendahara.pomako@porta.mimikakab.go.id"}
+      />
+
+      <AccountSettingsModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
       />
     </div>
   );

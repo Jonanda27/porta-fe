@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Send,
   Eye,
+  Coins,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
 import { BillingInvoice, UnbilledVisit } from "@/types/billing.types";
@@ -29,6 +30,7 @@ export default function BendaharaSkrdPage() {
     isLoading,
     fetchInvoices,
     fetchUnbilledVisits,
+    generateAdvanceSkrd,
     generateFinalSkrd,
     issueInvoice,
     voidInvoice,
@@ -41,9 +43,11 @@ export default function BendaharaSkrdPage() {
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // Modal Terbitkan SKRD Rampung
+  // Modal Terbitkan SKRD (Rampung / Uang Muka)
   const [selectedVisitForSkrd, setSelectedVisitForSkrd] = useState<UnbilledVisit | null>(null);
+  const [skrdType, setSkrdType] = useState<"FINAL" | "ADVANCE">("FINAL");
   const [skrdDueDate, setSkrdDueDate] = useState<string>("");
+  const [skrdNotes, setSkrdNotes] = useState<string>("");
 
   // Modal Void / Batalkan SKRD
   const [selectedInvoiceForVoid, setSelectedInvoiceForVoid] = useState<BillingInvoice | null>(null);
@@ -87,15 +91,32 @@ export default function BendaharaSkrdPage() {
     });
   }, [invoices, statusFilter, searchQuery]);
 
-  const handleGenerateFinalSkrd = async () => {
+  const handleGenerateSkrd = async () => {
     if (!selectedVisitForSkrd) return;
     setIsProcessing(true);
     try {
-      const inv = await generateFinalSkrd(selectedVisitForSkrd.id, {
-        dueDate: skrdDueDate || undefined,
-      });
-      setFeedbackToast(`e-SKRD Rampung (${inv.invoiceNumber}) berhasil diterbitkan untuk kapal ${selectedVisitForSkrd.vessel?.name}!`);
+      let inv: BillingInvoice;
+      if (skrdType === "ADVANCE") {
+        inv = await generateAdvanceSkrd(selectedVisitForSkrd.id, {
+          dueDate: skrdDueDate || undefined,
+          notes: skrdNotes || undefined,
+        });
+        setFeedbackToast(
+          `e-SKRD Uang Muka (${inv.invoiceNumber}) berhasil diterbitkan untuk kapal ${selectedVisitForSkrd.vessel?.name}!`
+        );
+      } else {
+        inv = await generateFinalSkrd(selectedVisitForSkrd.id, {
+          dueDate: skrdDueDate || undefined,
+          notes: skrdNotes || undefined,
+        });
+        setFeedbackToast(
+          `e-SKRD Rampung (${inv.invoiceNumber}) berhasil diterbitkan untuk kapal ${selectedVisitForSkrd.vessel?.name}!`
+        );
+      }
       setSelectedVisitForSkrd(null);
+      setSkrdNotes("");
+      setSkrdDueDate("");
+      setSkrdType("FINAL");
       setActiveTab("invoices");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Gagal menerbitkan e-SKRD.");
@@ -425,14 +446,14 @@ export default function BendaharaSkrdPage() {
         </div>
       )}
 
-      {/* 4. Modal Konfirmasi Terbitkan SKRD Rampung */}
+      {/* 4. Modal Konfirmasi Terbitkan e-SKRD (Rampung / Uang Muka) */}
       {selectedVisitForSkrd && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-[#CBD5E1] space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#CBD5E1] space-y-4">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <h3 className="font-black text-sm text-[#0B241E] flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-[#D97706]" />
-                <span>Terbitkan e-SKRD Rampung (Final)</span>
+                <span>Penerbitan Ketetapan e-SKRD Pelabuhan</span>
               </h3>
               <button
                 onClick={() => setSelectedVisitForSkrd(null)}
@@ -442,20 +463,82 @@ export default function BendaharaSkrdPage() {
               </button>
             </div>
 
-            <p className="text-xs text-[#64748B]">
-              Sistem akan menghitung tarif resmi jasa labuh, jasa tambat dermaga, dan utilitas berdasarkan waktu sandar aktual kapal <strong>{selectedVisitForSkrd.vessel?.name}</strong>.
-            </p>
+            {/* Pilihan Mode e-SKRD */}
+            <div className="grid grid-cols-2 gap-2 bg-[#F8FAFC] p-1.5 rounded-xl border border-[#E2E8F0]">
+              <button
+                type="button"
+                onClick={() => setSkrdType("FINAL")}
+                className={`p-2.5 rounded-lg text-left transition-all cursor-pointer ${
+                  skrdType === "FINAL"
+                    ? "bg-[#0B241E] text-white shadow-xs"
+                    : "text-[#64748B] hover:text-[#0B241E] hover:bg-white"
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className={`w-3.5 h-3.5 ${skrdType === "FINAL" ? "text-[#D97706]" : "text-[#94A3B8]"}`} />
+                  e-SKRD Rampung (Final)
+                </div>
+                <div className="text-[10px] opacity-80 mt-0.5">
+                  Setelah selesai sandar & utilitas aktual
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSkrdType("ADVANCE")}
+                className={`p-2.5 rounded-lg text-left transition-all cursor-pointer ${
+                  skrdType === "ADVANCE"
+                    ? "bg-[#0B241E] text-white shadow-xs"
+                    : "text-[#64748B] hover:text-[#0B241E] hover:bg-white"
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Coins className={`w-3.5 h-3.5 ${skrdType === "ADVANCE" ? "text-[#D97706]" : "text-[#94A3B8]"}`} />
+                  e-SKRD Uang Muka (Advance)
+                </div>
+                <div className="text-[10px] opacity-80 mt-0.5">
+                  Deposit labuh/tambat saat warta kedatangan
+                </div>
+              </button>
+            </div>
+
+            <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl text-xs space-y-1 text-emerald-950">
+              <div className="font-bold flex items-center justify-between">
+                <span>Kapal: {selectedVisitForSkrd.vessel?.name}</span>
+                <span className="font-mono text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold">
+                  {selectedVisitForSkrd.visitNumber}
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800">
+                {skrdType === "FINAL"
+                  ? "Sistem menghitung tarif resmi jasa labuh, jasa tambat dermaga, dan utilitas berdasarkan durasi aktual sandar kapal."
+                  : "Menerbitkan tagihan deposit uang muka tambat/labuh di awal kedatangan kapal sesuai ketentuan Perda Mimika No. 4/2023."}
+              </p>
+            </div>
 
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-[#0B241E] mb-1">
-                  Tanggal Jatuh Tempo Pembayaran (30 Hari)
+                  Tanggal Jatuh Tempo Pembayaran
                 </label>
                 <input
                   type="date"
                   value={skrdDueDate}
                   onChange={(e) => setSkrdDueDate(e.target.value)}
                   className="w-full p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#0B241E] mb-1">
+                  Catatan Tambahan Ketetapan (Opsional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={skrdNotes}
+                  onChange={(e) => setSkrdNotes(e.target.value)}
+                  placeholder="Contoh: Uang muka labuh tambat 3 hari kedepan / Penyesuaian shift..."
+                  className="w-full p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs font-medium"
                 />
               </div>
             </div>
@@ -471,12 +554,14 @@ export default function BendaharaSkrdPage() {
 
               <button
                 type="button"
-                onClick={handleGenerateFinalSkrd}
+                onClick={handleGenerateSkrd}
                 disabled={isProcessing}
                 className="px-5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4 text-[#D97706]" />
-                <span>Tetapkan & Terbitkan SKRD</span>
+                <span>
+                  {skrdType === "ADVANCE" ? "Terbitkan e-SKRD Uang Muka" : "Tetapkan & Terbitkan e-SKRD Rampung"}
+                </span>
               </button>
             </div>
           </div>

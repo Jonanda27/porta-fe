@@ -222,6 +222,8 @@ export interface GenerateBillingDto {
   currency?: string;
   exchangeRateUsd?: number;
   dueDate?: string;
+  notes?: string;
+  collectionInstrument?: string;
 }
 
 export interface VoidInvoiceDto {
@@ -280,4 +282,24 @@ export interface UnbilledVisit {
     name: string;
     authorityType?: string;
   };
+}
+
+export interface PaymentConfig {
+  gatewayEnabled: boolean;
+  provider: "MIDTRANS" | "BANK_PAPUA" | "MANUAL";
+  isProduction: boolean;
+  midtransClientKey: string | null;
+}
+
+export interface CheckoutPaymentDto {
+  targetType: "INVOICE" | "ASSET_LEASE" | "UTILITY_READING";
+  targetId: number;
+}
+
+export interface CheckoutPaymentResponse {
+  orderId: string;
+  provider: string;
+  amountIdr: number;
+  snapToken?: string;
+  redirectUrl?: string;
 }

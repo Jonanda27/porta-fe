@@ -23,3 +23,106 @@ body {
   background: var(--background);
   font-family: var(--font-sans);
 }
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari, Edge, Opera and Firefox */
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  .no-scrollbar,
+  .scrollbar-none {
+    -ms-overflow-style: none !important; /* IE and Edge */
+    scrollbar-width: none !important; /* Firefox */
+  }
+}
+
+/* PORTA Maritime Loading Screen Keyframes */
+@keyframes porta-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes porta-radar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes porta-sonar-pulse {
+  0% {
+    transform: scale(0.88);
+    opacity: 0.65;
+  }
+  70% {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+}
+
+@keyframes porta-shimmer-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes porta-float-subtle {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.animate-porta-spin-slow {
+  animation: porta-spin-slow 16s linear infinite;
+}
+
+.animate-porta-radar-sweep {
+  animation: porta-radar-sweep 1.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.animate-porta-sonar {
+  animation: porta-sonar-pulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.animate-porta-sonar-delayed {
+  animation: porta-sonar-pulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) 1.1s infinite;
+}
+
+.animate-porta-shimmer {
+  animation: porta-shimmer-bar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-porta-float {
+  animation: porta-float-subtle 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-porta-spin-slow,
+  .animate-porta-radar-sweep,
+  .animate-porta-sonar,
+  .animate-porta-sonar-delayed,
+  .animate-porta-shimmer,
+  .animate-porta-float {
+    animation: none;
+  }
+}

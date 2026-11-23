@@ -6,7 +6,10 @@ import {
   CreateBerthPayload,
   CreatePortPayload,
   PortCategory,
+  PortFacilityItem,
   PortItem,
+  PortTerminalItem,
+  PortZoneItem,
   UpdateBerthPayload,
   UpdatePortPayload,
 } from "@/types/port.types";
@@ -72,5 +75,35 @@ export const PortService = {
       `${API_CONFIG.ENDPOINTS.PORTS.BERTHS}/${berthId}`,
       payload
     );
+  },
+
+  /**
+   * Mengambil daftar terminal aktif di pelabuhan tertentu
+   */
+  async getTerminalsByPort(portId: number = 1): Promise<PortTerminalItem[]> {
+    const response = await apiClient.get<PortTerminalItem[]>(
+      API_CONFIG.ENDPOINTS.PORTS.PORT_TERMINALS(portId)
+    );
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Mengambil daftar zona operasional pelabuhan tertentu
+   */
+  async getZonesByPort(portId: number = 1): Promise<PortZoneItem[]> {
+    const response = await apiClient.get<PortZoneItem[]>(
+      API_CONFIG.ENDPOINTS.PORTS.PORT_ZONES(portId)
+    );
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Mengambil daftar fasilitas penunjang pelabuhan (listrik, air bersih, gudang, peralatan, dll)
+   */
+  async getFacilitiesByPort(portId: number = 1): Promise<PortFacilityItem[]> {
+    const response = await apiClient.get<PortFacilityItem[]>(
+      API_CONFIG.ENDPOINTS.PORTS.PORT_FACILITIES(portId)
+    );
+    return Array.isArray(response) ? response : [];
   },
 };

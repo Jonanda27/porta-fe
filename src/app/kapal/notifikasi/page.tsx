@@ -20,30 +20,113 @@ import {
   Info,
   Calendar,
   Layers,
+  SlidersHorizontal,
+  X,
+  Loader2,
+  Building2,
 } from "lucide-react";
 import { useNotificationStore } from "@/store/notification.store";
-import { AppNotification, NotificationType } from "@/types/notification.types";
+import {
+  AppNotification,
+  NotificationPriority,
+  NotificationType,
+} from "@/types/notification.types";
 
 type FilterTab = "ALL" | "UNREAD" | "VISITS" | "BILLING" | "WARNINGS";
+
+const NOTIFICATION_CATEGORIES: Array<{
+  category: string;
+  label: string;
+  description: string;
+}> = [
+  {
+    category: "VESSEL",
+    label: "Izin Sandar & Operasional Kapal",
+    description: "Persetujuan jadwal sandar, alokasi dermaga, dan override tambat.",
+  },
+  {
+    category: "BILLING",
+    label: "Tagihan e-SKRD, Pembayaran & Teguran",
+    description: "Penerbitan e-SKRD, verifikasi e-SSRD, serta surat teguran piutang.",
+  },
+  {
+    category: "LEASE",
+    label: "Pengajuan & Kontrak Sewa Ruangan",
+    description: "Progres verifikasi Petugas Ruangan & pengesahan PKS Kepala Pelabuhan.",
+  },
+  {
+    category: "MANIFEST",
+    label: "Pelaporan Manifes SOLAS",
+    description: "Konfirmasi laporan manifes penumpang, kendaraan, dan muatan kapal.",
+  },
+  {
+    category: "GENERAL",
+    label: "Informasi Umum Sistem",
+    description: "Pengumuman operasional pelabuhan dan pemberitahuan umum lainnya.",
+  },
+];
+
+const PRIORITY_OPTIONS: Array<{ value: NotificationPriority; label: string }> = [
+  { value: "INFORMATIONAL", label: "Semua (Info ke atas)" },
+  { value: "WARNING", label: "Peringatan ke atas" },
+  { value: "URGENT", label: "Mendesak ke atas" },
+  { value: "CRITICAL", label: "Hanya Kritis" },
+];
 
 export default function NotifikasiPage() {
   const router = useRouter();
   const {
     notifications,
+    preferences,
     unreadCount,
     isLoading,
     error,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
+    fetchPreferences,
+    updatePreference,
   } = useNotificationStore();
 
   const [activeTab, setActiveTab] = useState<FilterTab>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isPrefModalOpen, setIsPrefModalOpen] = useState<boolean>(false);
+  const [savingCategory, setSavingCategory] = useState<string | null>(null);
+  const [prefToast, setPrefToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchNotifications();
-  }, [fetchNotifications]);
+    fetchPreferences();
+  }, [fetchNotifications, fetchPreferences]);
+
+  const getPreferenceForCategory = (category: string) => {
+    const found = preferences.find((p) => p.category === category);
+    return {
+      inAppEnabled: found ? found.inAppEnabled : true,
+      minPriority: (found?.minPriority || "INFORMATIONAL") as NotificationPriority,
+    };
+  };
+
+  const handleUpdateCategoryPref = async (
+    category: string,
+    patch: { inAppEnabled?: boolean; minPriority?: NotificationPriority }
+  ) => {
+    setSavingCategory(category);
+    try {
+      const current = getPreferenceForCategory(category);
+      await updatePreference({
+        category,
+        inAppEnabled: patch.inAppEnabled ?? current.inAppEnabled,
+        minPriority: patch.minPriority ?? current.minPriority,
+      });
+      setPrefToast(`Preferensi kategori ${category} berhasil disimpan.`);
+      setTimeout(() => setPrefToast(null), 3000);
+    } catch {
+      // Error state handled by store
+    } finally {
+      setSavingCategory(null);
+    }
+  };
 
   // Statistik Ringkas
   const stats = useMemo(() => {
@@ -352,6 +435,19 @@ export default function NotifikasiPage() {
 
             <button
               type="button"
+              onClick={() => {
+                fetchPreferences();
+                setIsPrefModalOpen(true);
+              }}
+              className="px-3 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-bold text-[#0B241E] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Pengaturan preferensi notifikasi"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-[#D97706]" />
+              <span>Preferensi</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => markAllAsRead()}
               disabled={stats.unread === 0 || isLoading}
               className="px-3 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-bold text-[#0B241E] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
@@ -523,6 +619,140 @@ export default function NotifikasiPage() {
           Pelajari Sistem Notifikasi & Prosedur Respon &rarr;
         </Link>
       </div>
+
+      {/* ===================================================================== */}
+      {/* MODAL: PENGATURAN PREFERENSI NOTIFIKASI (GET/PUT /notifications/preferences) */}
+      {/* ===================================================================== */}
+      {isPrefModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-auto">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-[#0B241E]">
+                    Preferensi Notifikasi Operasional
+                  </h3>
+                  <p className="text-[11px] text-[#64748B]">
+                    Atur kategori notifikasi yang ingin diterima dan tingkat prioritas minimumnya.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrefModalOpen(false)}
+                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0B241E] hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {prefToast && (
+              <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{prefToast}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {NOTIFICATION_CATEGORIES.map((cat) => {
+                const pref = getPreferenceForCategory(cat.category);
+                const isSavingThis = savingCategory === cat.category;
+
+                return (
+                  <div
+                    key={cat.category}
+                    className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-extrabold text-[#0B241E]">
+                          {cat.label}
+                        </span>
+                        <span className="text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                          {cat.category}
+                        </span>
+                        {isSavingThis && (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D97706]" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#64748B] mt-0.5">{cat.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <select
+                        value={pref.minPriority}
+                        disabled={!pref.inAppEnabled || isSavingThis}
+                        onChange={(e) =>
+                          handleUpdateCategoryPref(cat.category, {
+                            minPriority: e.target.value as NotificationPriority,
+                          })
+                        }
+                        className="text-[11px] font-semibold px-2.5 py-1.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0B241E] focus:outline-none focus:border-[#0B241E] disabled:opacity-50"
+                      >
+                        {PRIORITY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={pref.inAppEnabled}
+                        disabled={isSavingThis}
+                        onClick={() =>
+                          handleUpdateCategoryPref(cat.category, {
+                            inAppEnabled: !pref.inAppEnabled,
+                          })
+                        }
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                          pref.inAppEnabled ? "bg-emerald-600" : "bg-slate-300"
+                        }`}
+                        title={
+                          pref.inAppEnabled
+                            ? "Nonaktifkan notifikasi kategori ini"
+                            : "Aktifkan notifikasi kategori ini"
+                        }
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                            pref.inAppEnabled ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-3 border-t border-[#F1F5F9] flex items-center justify-between text-[11px] text-[#64748B]">
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[#94A3B8]" />
+                <span>Perubahan langsung tersimpan ke server PORTA</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPrefModalOpen(false)}
+                className="px-4 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

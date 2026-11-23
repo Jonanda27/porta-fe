@@ -3,12 +3,15 @@ import { apiClient } from "@/lib/api-client";
 import {
   BillingAdjustment,
   BillingInvoice,
+  CheckoutPaymentDto,
+  CheckoutPaymentResponse,
   CreateBillingAdjustmentDto,
   CreateWarningDto,
   DecideBillingAdjustmentDto,
   GateHandoverRecord,
   GenerateBillingDto,
   InvoicePrintPayload,
+  PaymentConfig,
   PaymentRecord,
   RecordPaymentDto,
   RevenueSummary,
@@ -20,9 +23,16 @@ import {
 import {
   AssetLease,
   AssetLeasePayment,
+  LeasePaymentReceiptPayload,
   PortAsset,
   RecordLeasePaymentDto,
 } from "@/types/asset.types";
+import {
+  CloseGateHandoverPayload,
+  GateHandoverItem,
+  GateTicketBookItem,
+} from "@/types/field-ops.types";
+import { VesselManifestItem } from "@/types/manifest.types";
 
 export class BillingService {
   /**
@@ -92,23 +102,38 @@ export class BillingService {
       formData.append("file", emptyBlob, `bukti_bayar_${payload.idempotencyKey}.pdf`);
     }
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("porta_token") : null;
-    const url = `${API_CONFIG.BASE_URL}/billing/invoices/${invoiceId}/submit-payment`;
+    return apiClient.post<unknown>(
+      API_CONFIG.ENDPOINTS.BILLING.SUBMIT_PAYMENT(invoiceId),
+      formData
+    );
+  }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
+  /**
+   * Menghitung & menerbitkan dokumen Estimasi Tagihan Resmi (ESTIMATE) dari Backend
+   * berdasarkan tarif Perda Mimika 4/2023 & kurs USD live
+   */
+  public static async generateVisitEstimate(
+    visitId: number,
+    dto: GenerateBillingDto = {}
+  ): Promise<BillingInvoice> {
+    return apiClient.post<BillingInvoice>(
+      API_CONFIG.ENDPOINTS.BILLING.ESTIMATE(visitId),
+      dto
+    );
+  }
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => null);
-      throw new Error(errData?.message || "Gagal mengunggah bukti pembayaran.");
-    }
+  /**
+   * Mengambil konfigurasi status dan provider gateway pembayaran digital
+   */
+  public static async getPaymentConfig(): Promise<PaymentConfig> {
+    return apiClient.get<PaymentConfig>(API_CONFIG.ENDPOINTS.PAYMENTS.CONFIG);
+  }
 
-    return response.json();
+  /**
+   * Melakukan checkout pembayaran digital (Midtrans / QRIS / VA) untuk e-SKRD atau sewa aset
+   */
+  public static async checkoutPayment(dto: CheckoutPaymentDto): Promise<CheckoutPaymentResponse> {
+    return apiClient.post<CheckoutPaymentResponse>(API_CONFIG.ENDPOINTS.PAYMENTS.CHECKOUT, dto);
   }
 
   /**
@@ -208,19 +233,44 @@ export class BillingService {
   /**
    * Mengambil buku tiket/karcis pas pelabuhan
    */
-  public static async getTicketBooks(): Promise<unknown[]> {
-    const response = await apiClient.get<unknown[]>("/gate-ticketing/books");
+  public static async getTicketBooks(): Promise<GateTicketBookItem[]> {
+    const response = await apiClient.get<GateTicketBookItem[]>(
+      API_CONFIG.ENDPOINTS.GATE_TICKETING.BOOKS
+    );
     return Array.isArray(response) ? response : [];
   }
 
   /**
-   * Tutup serah terima kas tiket gerbang (Handover Close)
+   * Mengambil sesi serah terima penerimaan fisik kas karcis loket gerbang (Gate Handovers)
+   */
+  public static async getHandovers(): Promise<GateHandoverItem[]> {
+    const response = await apiClient.get<GateHandoverItem[]>(
+      API_CONFIG.ENDPOINTS.GATE_TICKETING.HANDOVERS
+    );
+    return Array.isArray(response) ? response : [];
+  }
+
+  /**
+   * Tutup dan validasi fisik serah terima kas tiket gerbang ke Bendahara Kasda (Handover Close)
    */
   public static async closeHandover(
     handoverId: number,
-    dto: { lastReturnedSerial: number; actualCashSettledIdr: number; notes?: string }
-  ): Promise<unknown> {
-    return apiClient.post(`/gate-ticketing/handovers/${handoverId}/close`, dto);
+    dto: CloseGateHandoverPayload
+  ): Promise<GateHandoverItem> {
+    return apiClient.post<GateHandoverItem>(
+      `/gate-ticketing/handovers/${handoverId}/close`,
+      dto
+    );
+  }
+
+  /**
+   * Mengambil daftar manifes penumpang & kendaraan kapal penyeberangan untuk audit retribusi pas dermaga
+   */
+  public static async getManifests(): Promise<VesselManifestItem[]> {
+    const response = await apiClient.get<VesselManifestItem[]>(
+      API_CONFIG.ENDPOINTS.GATE_TICKETING.MANIFESTS
+    );
+    return Array.isArray(response) ? response : [];
   }
 
   /**
@@ -255,5 +305,16 @@ export class BillingService {
     dto: RecordLeasePaymentDto
   ): Promise<AssetLeasePayment> {
     return apiClient.post<AssetLeasePayment>(`/assets-leases/leases/${leaseId}/payments`, dto);
+  }
+
+  /**
+   * Mengambil kuitansi e-SSRD resmi pembayaran sewa aset/kios/lahan (Perda Mimika No. 4/2023)
+   */
+  public static async getLeasePaymentReceipt(
+    paymentId: number
+  ): Promise<LeasePaymentReceiptPayload> {
+    return apiClient.get<LeasePaymentReceiptPayload>(
+      API_CONFIG.ENDPOINTS.ASSETS.LEASE_PAYMENT_RECEIPT(paymentId)
+    );
   }
 }

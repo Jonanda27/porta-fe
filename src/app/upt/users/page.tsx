@@ -26,24 +26,52 @@ import { UserRole } from "@/types/auth.types";
 const ROLE_BADGE_MAP: Record<UserRole, string> = {
   SUPERADMIN: "bg-purple-100 text-purple-800 border-purple-200",
   ADMIN_PELABUHAN: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  KEPALA_PELABUHAN: "bg-cyan-100 text-cyan-800 border-cyan-200",
+  PETUGAS_PELABUHAN: "bg-teal-100 text-teal-800 border-teal-200",
+  PETUGAS_REGISTRASI_KONTRAK: "bg-emerald-100 text-emerald-800 border-emerald-200",
   PETUGAS_DERMAGA: "bg-teal-100 text-teal-800 border-teal-200",
+  PETUGAS_DERMAGA_BARANG: "bg-teal-100 text-teal-800 border-teal-200",
+  PETUGAS_DERMAGA_PENUMPANG: "bg-teal-100 text-teal-800 border-teal-200",
+  PETUGAS_RUANGAN: "bg-sky-100 text-sky-800 border-sky-200",
+  PETUGAS_TAGIHAN: "bg-amber-100 text-amber-800 border-amber-200",
   BENDAHARA: "bg-amber-100 text-amber-800 border-amber-200",
   OPERATOR_KAPAL: "bg-blue-100 text-blue-800 border-blue-200",
   TENANT: "bg-indigo-100 text-indigo-800 border-indigo-200",
   DISHUB_EKSEKUTIF: "bg-slate-100 text-slate-800 border-slate-200",
+  KEPALA_DINAS: "bg-rose-100 text-rose-800 border-rose-200",
+  KEPALA_BIDANG: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
 const ALL_ROLES: UserRole[] = [
   "SUPERADMIN",
   "ADMIN_PELABUHAN",
+  "KEPALA_PELABUHAN",
+  "PETUGAS_REGISTRASI_KONTRAK",
+  "PETUGAS_PELABUHAN",
   "PETUGAS_DERMAGA",
+  "PETUGAS_DERMAGA_BARANG",
+  "PETUGAS_DERMAGA_PENUMPANG",
+  "PETUGAS_RUANGAN",
+  "PETUGAS_TAGIHAN",
   "BENDAHARA",
   "DISHUB_EKSEKUTIF",
   "OPERATOR_KAPAL",
   "TENANT",
+  "KEPALA_DINAS",
+  "KEPALA_BIDANG",
 ];
 
-const ADMIN_ALLOWED_ROLES: UserRole[] = ["PETUGAS_DERMAGA", "BENDAHARA"];
+const ADMIN_ALLOWED_ROLES: UserRole[] = [
+  "PETUGAS_REGISTRASI_KONTRAK",
+  "PETUGAS_DERMAGA",
+  "PETUGAS_DERMAGA_BARANG",
+  "PETUGAS_DERMAGA_PENUMPANG",
+  "PETUGAS_RUANGAN",
+  "PETUGAS_TAGIHAN",
+  "BENDAHARA",
+  "KEPALA_PELABUHAN",
+  "PETUGAS_PELABUHAN",
+];
 
 export default function UsersPage() {
   const { user: currentUser } = useAuthStore();

@@ -3,12 +3,14 @@ import { apiClient } from "@/lib/api-client";
 import { LoginResponse } from "@/types/auth.types";
 import { UtilityReadingItem } from "@/types/field-ops.types";
 import {
+  LeasePaymentReceiptPayload,
   PortAssetCatalogItem,
   RegisterTenantPayload,
   RequestLeasePayload,
   TenantDocumentCategory,
   TenantLeaseItem,
   TenantProfile,
+  UtilityReceiptPayload,
 } from "@/types/tenant.types";
 import { DocumentItem } from "@/types/upt.types";
 
@@ -64,6 +66,18 @@ export const TenantService = {
   getMyUtilities(): Promise<UtilityReadingItem[]> {
     return apiClient.get<UtilityReadingItem[]>(
       API_CONFIG.ENDPOINTS.CARGO_UTILITY.UTILITIES
+    );
+  },
+
+  getLeasePaymentReceipt(paymentId: number): Promise<LeasePaymentReceiptPayload> {
+    return apiClient.get<LeasePaymentReceiptPayload>(
+      API_CONFIG.ENDPOINTS.ASSETS.LEASE_PAYMENT_RECEIPT(paymentId)
+    );
+  },
+
+  getUtilityReceipt(utilityId: number): Promise<UtilityReceiptPayload> {
+    return apiClient.get<UtilityReceiptPayload>(
+      API_CONFIG.ENDPOINTS.CARGO_UTILITY.UTILITY_RECEIPT(utilityId)
     );
   },
 };

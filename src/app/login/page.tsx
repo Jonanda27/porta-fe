@@ -1,20 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Lock,
-  Mail,
   Eye,
   EyeOff,
-  ArrowRight,
-  ShieldCheck,
   AlertCircle,
   Loader2,
-  Anchor,
-  ArrowLeft,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { AuthService } from "@/services/auth.service";
 import { UserRole } from "@/types/auth.types";
@@ -26,49 +21,60 @@ const DEMO_ACCOUNTS = [
     roleLabel: "Superadmin PORTA Mimika",
     email: "superadmin@porta.mimikakab.go.id",
     password: "Porta123!",
-    badge: "bg-purple-900/60 text-purple-200 border-purple-700",
     targetRoute: "/upt/pelabuhan",
   },
   {
     roleLabel: "Operator Kapal (PT Pelayaran Mimika)",
     email: "operator@mimika-shipping.co.id",
     password: "Porta123!",
-    badge: "bg-blue-900/60 text-blue-200 border-blue-700",
     targetRoute: "/kapal/dashboard",
   },
   {
     roleLabel: "Admin Pelabuhan (UPT)",
     email: "admin.pomako@porta.mimikakab.go.id",
     password: "Porta123!",
-    badge: "bg-emerald-800 text-emerald-200 border-emerald-700",
     targetRoute: "/upt/dashboard",
   },
   {
     roleLabel: "Kepala Dinas (Dishub)",
     email: "dishub@porta.mimikakab.go.id",
     password: "Porta123!",
-    badge: "bg-[#0B241E] text-[#D97706] border-[#1E5748]",
     targetRoute: "/dinas/dashboard",
   },
   {
     roleLabel: "Bendahara Kasda",
     email: "bendahara.pomako@porta.mimikakab.go.id",
     password: "Porta123!",
-    badge: "bg-amber-900/60 text-amber-200 border-amber-700",
     targetRoute: "/bendahara/dashboard",
+  },
+  {
+    roleLabel: "Petugas Registrasi & Kontrak",
+    email: "petugas.registrasi@porta.mimikakab.go.id",
+    password: "Porta123!",
+    targetRoute: "/upt/dashboard",
   },
   {
     roleLabel: "Petugas Dermaga",
     email: "petugas.pomako@porta.mimikakab.go.id",
     password: "Porta123!",
-    badge: "bg-teal-900/60 text-teal-200 border-teal-700",
     targetRoute: "/upt/kapal",
+  },
+  {
+    roleLabel: "Petugas Ruangan",
+    email: "petugas.ruangan@porta.mimikakab.go.id",
+    password: "Porta123!",
+    targetRoute: "/upt/verifikasi",
+  },
+  {
+    roleLabel: "Kepala Pelabuhan",
+    email: "kepala.pelabuhan@porta.mimikakab.go.id",
+    password: "Porta123!",
+    targetRoute: "/upt/verifikasi",
   },
   {
     roleLabel: "Tenant / Mitra Usaha",
     email: "tenant@sinarpapua.co.id",
     password: "Porta123!",
-    badge: "bg-indigo-900/60 text-indigo-200 border-indigo-700",
     targetRoute: "/tenant",
   },
 ];
@@ -85,7 +91,7 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Otomatis isi email jika diarahkan dari pendaftaran baru (?email=...)
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const emailParam = params.get("email");
@@ -95,7 +101,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const handleQuickFill = (acc: typeof DEMO_ACCOUNTS[0]) => {
+  const handleQuickFill = (acc: (typeof DEMO_ACCOUNTS)[0]) => {
     setEmail(acc.email);
     setPassword(acc.password);
     setErrorMessage(null);
@@ -146,8 +152,14 @@ export default function LoginPage() {
                   ? "SUPERADMIN"
                   : matchedDemo.roleLabel.includes("Dishub")
                   ? "DISHUB_EKSEKUTIF"
+                  : matchedDemo.roleLabel.includes("Registrasi")
+                  ? "PETUGAS_REGISTRASI_KONTRAK"
                   : matchedDemo.roleLabel.includes("Dermaga")
                   ? "PETUGAS_DERMAGA"
+                  : matchedDemo.roleLabel.includes("Ruangan")
+                  ? "PETUGAS_RUANGAN"
+                  : matchedDemo.roleLabel.includes("Kepala Pelabuhan")
+                  ? "KEPALA_PELABUHAN"
                   : matchedDemo.roleLabel.includes("Bendahara")
                   ? "BENDAHARA"
                   : matchedDemo.roleLabel.includes("Operator Kapal")
@@ -164,7 +176,7 @@ export default function LoginPage() {
           }
 
           setErrorMessage(
-            "Tidak dapat terhubung ke server backend (port 4000). Pastikan backend porta-be sudah berjalan dengan 'npm run start:dev', atau gunakan akun demo di bawah."
+            "Tidak dapat terhubung ke server backend (port 4000). Pastikan backend porta-be sudah berjalan dengan 'npm run start:dev', atau gunakan akun demo."
           );
         } else {
           setErrorMessage(err.message || "Email atau kata sandi tidak valid.");
@@ -178,245 +190,205 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#071914] text-white flex flex-col lg:flex-row selection:bg-[#D97706]/30 selection:text-white">
+    <div className="min-h-screen lg:h-screen lg:max-h-screen bg-white text-slate-900 flex flex-col lg:flex-row lg:overflow-hidden font-sans">
       {/* ========================================================= */}
-      {/* 1. SISI KIRI: BRANDING & VIDEO LATAR OMBAK SAMUDRA         */}
+      {/* SISI KIRI: FASILITAS PELABUHAN DENGAN LABEL RESMI (58%)   */}
       {/* ========================================================= */}
-      <div className="relative w-full lg:w-[48%] xl:w-[46%] p-6 sm:p-10 lg:p-12 flex flex-col justify-between overflow-hidden bg-black min-h-[480px] lg:min-h-screen">
-        {/* Background Video Lautan Ombak (Transparan & Jelas) */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            className="w-full h-full object-cover object-center scale-105"
-          >
-            <source
-              src="/videos/Ship_battling_rough_ocean_waves_dd7fabd4_1080p.mp4"
-              type="video/mp4"
-            />
-          </video>
-          {/* Overlay Tipis (Layer Hijau Dikurangi agar Ombak & Kapal Terlihat Jelas) */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/40" />
-          <div className="absolute inset-0 bg-[#0B241E]/20" />
-        </div>
+      <div className="relative w-full lg:w-[58%] min-h-[380px] lg:min-h-0 lg:h-full bg-[#071914] overflow-hidden shrink-0">
+        {/* Background Media: Video Operasional Pelabuhan / Ombak Laut */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="w-full h-full object-cover object-center"
+        >
+          <source
+            src="/videos/Ship_battling_rough_ocean_waves_dd7fabd4_1080p.mp4"
+            type="video/mp4"
+          />
+        </video>
 
-        {/* Top Header: Navigasi Kembali & Identitas Logo Compact */}
-        <div className="relative z-10 flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-xs font-mono text-white/90 hover:text-white bg-black/40 hover:bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 transition-all group shadow-sm"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform text-[#D97706]" />
-            <span>Beranda Publik</span>
-          </Link>
+        {/* Gradasi Lembut di Bagian Bawah untuk Keterbacaan Teks */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0.1) 50%, transparent 70%)",
+          }}
+        />
 
-          <div className="flex items-center gap-2.5 bg-black/35 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-sm">
-            <img
-              src="/brand/symbol-white.svg"
-              alt="PORTA"
-              className="w-5 h-5 object-contain"
-            />
-            <span className="text-xs font-black tracking-wider text-white">
-              PORTA
-            </span>
-          </div>
-        </div>
-
-        {/* Bottom Section: Hanya Bagian Otoritas Layanan (Minimalis & Elegan) */}
-        <div className="relative z-10 mt-auto pt-16 space-y-4">
-          <div className="bg-black/55 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-white/15 shadow-2xl space-y-3 max-w-lg">
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Otoritas Layanan Maritim Terpadu</span>
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">
-              Otoritas Layanan Maritim & Transparansi Penerimaan Daerah
-            </h1>
-
-            <p className="text-xs text-slate-300 leading-relaxed font-normal">
-              Sistem resmi Dinas Perhubungan & UPTD Pelabuhan Kabupaten Mimika untuk integrasi operasional dermaga, tata kelola armada kapal, dan kepatuhan retribusi daerah.
-            </p>
-
-            <div className="pt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-300 border-t border-white/10">
-              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold">
-                PP No. 35/2023 & Perbup 25/2024
-              </span>
-              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold">
-                Standar SOLAS 1974
-              </span>
-              <span className="bg-white/10 px-2.5 py-1 rounded-md border border-white/10 font-semibold text-amber-300">
-                Wilayah Kerja Poumako
-              </span>
-            </div>
-          </div>
+        {/* Teks Identitas Fasilitas di Kiri Bawah (Persis seperti "Bandara Mozes Kilangin") */}
+        <div className="absolute bottom-8 left-8 sm:bottom-12 sm:left-12 z-10 text-white space-y-1 max-w-xl">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white drop-shadow-md">
+            Pelabuhan Poumako
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-200 font-medium tracking-wide drop-shadow-sm">
+            UPTD Pelabuhan Poumako • Dinas Perhubungan Kabupaten Mimika
+          </p>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* 2. SISI KANAN: FORM LOGIN OTENTIKASI TUNGGAL               */}
+      {/* SISI KANAN: FORM LOGIN BERSIH BERLATAR PUTIH (42%)        */}
       {/* ========================================================= */}
-      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 lg:p-16 bg-[#071914]">
-        <div className="w-full max-w-md space-y-8">
-          {/* Headline Form */}
-          <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Masuk ke Portal Layanan
+      <div className="flex-1 lg:w-[42%] bg-white border-t lg:border-t-0 lg:border-l border-slate-200 flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 h-full overflow-y-auto">
+        {/* Top Header: Logo Brand di Kiri & Link Beranda di Kanan */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 flex items-center justify-center shrink-0">
+              <img
+                src="/brand/symbol.svg"
+                alt="PORTA Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <span className="font-extrabold text-2xl tracking-wider text-[#0B241E] leading-none">
+              PORTA
+            </span>
+          </div>
+
+          <Link
+            href="/"
+            className="text-xs font-bold text-slate-500 hover:text-[#0B241E] tracking-widest uppercase transition-colors"
+          >
+            BERANDA
+          </Link>
+        </div>
+
+        {/* Center Area: Form Login Portal */}
+        <div className="w-full max-w-sm mx-auto my-auto py-6 space-y-5">
+          {/* Headline & Subtitle */}
+          <div className="space-y-1">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Login Portal
             </h2>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Masukkan alamat email dan kata sandi akun resmi Anda. Sistem akan mengarahkan modul secara otomatis berdasarkan wewenang peran Anda.
+            <p className="text-xs sm:text-sm text-slate-500">
+              Masukkan email dan password Anda.
             </p>
+          </div>
+
+          {/* Quick Demo Account Selector (Dev Mode) */}
+          <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-1.5 text-amber-800 text-[11px] font-medium shrink-0 font-mono">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>Demo Cepat:</span>
+            </div>
+            <select
+              id="demo-account-dropdown"
+              aria-label="Pilih Akun Demo"
+              value={DEMO_ACCOUNTS.some((a) => a.email === email) ? email : ""}
+              onChange={(e) => {
+                const selected = DEMO_ACCOUNTS.find((a) => a.email === e.target.value);
+                if (selected) {
+                  handleQuickFill(selected);
+                }
+              }}
+              className="text-xs bg-white text-slate-800 border border-amber-300 rounded-md px-2.5 py-1 outline-none cursor-pointer w-full max-w-[190px] truncate font-medium focus:border-amber-500 shadow-xs"
+              title="Pilih akun pengujian demo untuk mengisi email & password otomatis"
+            >
+              <option value="" disabled className="text-slate-400">
+                -- Pilih Profil Role --
+              </option>
+              {DEMO_ACCOUNTS.map((acc) => (
+                <option key={acc.email} value={acc.email} className="text-slate-900">
+                  {acc.roleLabel}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Alert Error / Sukses */}
           {errorMessage && (
-            <div className="p-4 rounded-xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-start gap-3 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <p className="leading-relaxed">{errorMessage}</p>
             </div>
           )}
 
           {successMessage && (
-            <div className="p-4 rounded-xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs flex items-start gap-3 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2.5 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">{successMessage}</p>
             </div>
           )}
 
-          {/* Form Login */}
-          <form onSubmit={handleLogin} className="space-y-5">
-            {/* Field Email atau Username */}
+          {/* Form Login Utama */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* Field Email */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
-                Email atau Username
+              <label className="block text-xs font-bold text-slate-700 tracking-wider uppercase font-mono">
+                EMAIL
               </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email atau username Anda"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.06] border border-white/15 focus:border-[#D97706] focus:bg-black/40 text-white placeholder-slate-500 text-sm outline-none transition-all font-sans"
-                />
-              </div>
+              <input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Masukkan email"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B241E] focus:bg-white focus:border-transparent transition-all"
+              />
             </div>
 
             {/* Field Password */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
-                  Kata Sandi
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    alert(
-                      "Untuk reset kata sandi akun resmi pelabuhan, hubungi Administrator Dishub / IT Pelabuhan di: syahbandar@porta.go.id"
-                    )
-                  }
-                  className="text-xs text-[#F59E0B] hover:underline cursor-pointer"
-                >
-                  Lupa kata sandi?
-                </button>
-              </div>
+              <label className="block text-xs font-bold text-slate-700 tracking-wider uppercase font-mono">
+                PASSWORD
+              </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full pl-10 pr-11 py-3 rounded-xl bg-white/[0.06] border border-white/15 focus:border-[#D97706] focus:bg-black/40 text-white placeholder-slate-500 text-sm outline-none transition-all font-sans"
+                  placeholder="Masukkan password"
+                  className="w-full pl-4 pr-11 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B241E] focus:bg-white focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
+                  title={showPassword ? "Sembunyikan password" : "Lihat password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-700 bg-white/10 text-[#D97706] focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                />
-                <span>Ingat sesi masuk di perangkat ini</span>
-              </label>
-            </div>
-
-            {/* Tombol Submit */}
+            {/* Submit Button (Dark Maritime Green #0B241E) */}
             <button
               type="submit"
               disabled={isStoreLoading}
-              className="w-full py-3.5 px-6 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full py-3.5 px-6 rounded-xl bg-[#0B241E] hover:bg-[#143E33] active:bg-[#071914] text-white font-extrabold text-sm tracking-widest uppercase shadow-md shadow-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none mt-2"
             >
               {isStoreLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Memverifikasi Akun...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>MEMPROSES...</span>
                 </>
               ) : (
-                <>
-                  <span>Masuk ke Portal Layanan</span>
-                  <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-                </>
+                <span>MASUK PORTAL</span>
               )}
             </button>
           </form>
 
-          {/* Quick Demo Fill Box */}
-          <div className="pt-4 border-t border-white/10 space-y-3">
-            <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-              <span>Akun Demo Cepat (Klik untuk Isi):</span>
-              <span className="text-[#F59E0B]">Pass: Porta123!</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleQuickFill(acc)}
-                  className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-[#D97706]/50 text-left transition-all cursor-pointer group"
-                >
-                  <span className="text-[11px] font-bold text-white group-hover:text-[#F59E0B] transition-colors block">
-                    {acc.roleLabel}
-                  </span>
-                  <span className="text-[9.5px] font-mono text-slate-400 truncate block mt-0.5">
-                    {acc.email}
-                  </span>
-                </button>
-              ))}
-            </div>
+          {/* Link Registrasi Mitra (Satu Pintu Terpadu di /register) */}
+          <div className="text-center text-xs text-slate-500 pt-3">
+            <span>Belum memiliki akun mitra? </span>
+            <Link
+              href="/register"
+              className="font-bold text-[#0284C7] hover:underline"
+            >
+              Daftar Sekarang
+            </Link>
           </div>
+        </div>
 
-          {/* Register Link Footer */}
-          <div className="text-center text-xs text-slate-400 pt-2 space-y-1">
-            <div>
-              <span>Operator Kapal baru? </span>
-              <Link href="/register" className="text-[#F59E0B] font-bold hover:underline">
-                Registrasi Perusahaan Kapal
-              </Link>
-            </div>
-            <div>
-              <span>Mitra / Penyewa Kios & Gudang? </span>
-              <Link href="/register-tenant" className="text-[#F59E0B] font-bold hover:underline">
-                Registrasi Tenant Usaha
-              </Link>
-            </div>
-          </div>
+        {/* Bottom Footer: Copyright Resmi */}
+        <div className="text-center text-xs text-slate-400 pt-4 border-t border-slate-100">
+          <span>© 2026 Dinas Perhubungan Kabupaten Mimika</span>
         </div>
       </div>
     </div>

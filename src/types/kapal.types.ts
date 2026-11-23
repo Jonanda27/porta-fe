@@ -19,6 +19,12 @@ export interface OperatorDocument {
   updatedAt: string;
 }
 
+export interface FleetSummary {
+  totalVessels: number;
+  verifiedVesselsCount: number;
+  pendingVesselsCount: number;
+}
+
 export interface ShipOperator {
   id: number;
   name: string;
@@ -34,6 +40,17 @@ export interface ShipOperator {
   createdAt: string;
   updatedAt: string;
   documents?: OperatorDocument[];
+  vessels?: Vessel[];
+  fleetSummary?: FleetSummary;
+}
+
+export interface UpdateOperatorPayload {
+  name?: string;
+  npwp?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  operatorProfile?: "REGULAR_SCHEDULED" | "INCIDENTAL";
 }
 
 export interface Vessel {
@@ -145,8 +162,93 @@ export interface CreateVesselPayload {
   draftMeters?: number;
 }
 
+export interface UpdateVesselPayload {
+  registrationNumber?: string;
+  imoNumber?: string;
+  name?: string;
+  flag?: string;
+  grossTonnage?: number;
+  shipType?: "NIAGA" | "NON_NIAGA";
+  vesselCategory?: "BARANG" | "PENUMPANG" | "CAMPURAN";
+  shippingCategory?: "LUAR_NEGERI" | "DALAM_NEGERI" | "PELRA_PERINTIS";
+  lengthMeters?: number;
+  draftMeters?: number;
+}
+
 export interface UploadDocumentPayload {
   category: "SIUPAL_NIB" | "NPWP" | "SURAT_UKUR" | "PAS_BESAR_KECIL" | "LAINNYA";
   documentNumber?: string;
   notes?: string;
+}
+
+export interface VesselRegistrationAttachment {
+  category: "SURAT_UKUR" | "PAS_BESAR_KECIL" | "LAINNYA";
+  documentNumber?: string;
+  notes?: string;
+  file: File;
+}
+
+export type ContractStatus =
+  | "PENDING_VERIFICATION"
+  | "PENDING_HEAD_OF_PORT"
+  | "ACTIVE"
+  | "REJECTED"
+  | "EXPIRED";
+
+export interface OperatorBerthingContract {
+  id: number;
+  contractNumber: string;
+  title: string;
+  operatorId: number;
+  portId: number;
+  startDate: string;
+  endDate: string;
+  monthlyQuota?: number | null;
+  usedQuota: number;
+  dockAllocation?: string | null;
+  filePath?: string | null;
+  fileName?: string | null;
+  status: ContractStatus;
+  rejectionReason?: string | null;
+  reviewedByOfficerId?: number | null;
+  reviewedByOfficerAt?: string | null;
+  officerReviewNotes?: string | null;
+  reviewedByOfficer?: {
+    id: number;
+    fullName: string;
+    role: string;
+  };
+  verifiedById?: number | null;
+  verifiedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  port?: {
+    id: number;
+    code: string;
+    name: string;
+  };
+  operator?: {
+    id: number;
+    name: string;
+  };
+  verifiedBy?: {
+    id: number;
+    fullName: string;
+    role: string;
+  };
+}
+
+export interface CreateBerthingContractPayload {
+  title: string;
+  portId: number;
+  startDate: string;
+  endDate: string;
+  monthlyQuota?: number;
+  dockAllocation?: string;
+  file?: File;
+}
+
+export interface VerifyBerthingContractPayload {
+  status: "ACTIVE" | "REJECTED";
+  rejectionReason?: string;
 }

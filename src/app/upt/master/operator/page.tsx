@@ -17,7 +17,10 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Upload,
+  ExternalLink,
 } from "lucide-react";
+import { API_CONFIG } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { UptService } from "@/services/upt.service";
@@ -27,11 +30,58 @@ import { ShipOperatorItem } from "@/types/upt.types";
 
 export default function MasterOperatorPage() {
   const { user } = useAuthStore();
-  const { operators, isLoading, fetchVerificationData } = useUptStore();
+  const {
+    operators,
+    isLoading,
+    fetchVerificationData,
+    uploadOperatorDocumentByOfficer,
+  } = useUptStore();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
   const isAdmin = user?.role === "ADMIN_PELABUHAN";
-  const canAccess = isSuperadmin || isAdmin;
+  const isRegistrasiKontrak = user?.role === "PETUGAS_REGISTRASI_KONTRAK";
+  const canAccess = isSuperadmin || isAdmin || isRegistrasiKontrak;
+
+  // Inline document upload state in Detail Modal (POST /operators/:id/documents)
+  const [docCategory, setDocCategory] = useState<"SIUPAL_NIB" | "NPWP" | "LAINNYA">("SIUPAL_NIB");
+  const [docNumber, setDocNumber] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+
+  const backendOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/, "");
+  const getBackendFileUrl = (filePath?: string | null): string | null => {
+    if (!filePath) return null;
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) return filePath;
+    return `${backendOrigin}/${filePath.replace(/^\/+/, "")}`;
+  };
+
+  const handleUploadDocForOperator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOperator || !docFile) return;
+    setIsUploadingDoc(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await uploadOperatorDocumentByOfficer(
+        selectedOperator.id,
+        {
+          category: docCategory,
+          documentNumber: docNumber.trim() || `${docCategory}-${new Date().getFullYear()}`,
+          notes: "Diunggah oleh Petugas Registrasi & Kontrak",
+        },
+        docFile
+      );
+      const refreshed = await UptService.getOperatorById(selectedOperator.id);
+      setSelectedOperator(refreshed);
+      setDocNumber("");
+      setDocFile(null);
+      setFeedback(`Berkas ${formatLabel(docCategory)} untuk ${selectedOperator.name} berhasil diunggah!`);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Gagal mengunggah dokumen operator.");
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [profileFilter, setProfileFilter] = useState<string>("");
@@ -313,7 +363,7 @@ export default function MasterOperatorPage() {
                         <Eye className="w-3.5 h-3.5 text-[#133D31]" />
                         Detail
                       </button>
-                      {isSuperadmin && (
+                      {canAccess && (
                         <>
                           <button
                             type="button"
@@ -323,15 +373,17 @@ export default function MasterOperatorPage() {
                             <Edit3 className="w-3.5 h-3.5 text-[#D97706]" />
                             Ubah
                           </button>
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => handleDeactivateOperator(op)}
-                            className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
-                            title="Nonaktifkan Operator"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {isSuperadmin && (
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleDeactivateOperator(op)}
+                              className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                              title="Nonaktifkan Operator"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </>
                       )}
                     </td>
@@ -546,10 +598,10 @@ export default function MasterOperatorPage() {
               </div>
 
               {/* Dokumen Perusahaan */}
-              <div>
-                <h4 className="text-xs font-bold text-[#0B241E] mb-2.5 flex items-center gap-1.5">
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-[#0B241E] flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-[#133D31]" />
-                  Dokumen Legalitas & SIUPAL Perusahaan
+                  Dokumen Legalitas &amp; SIUPAL Perusahaan
                 </h4>
                 {!selectedOperator.documents || selectedOperator.documents.length === 0 ? (
                   <p className="text-[#94A3B8] italic p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
@@ -557,29 +609,112 @@ export default function MasterOperatorPage() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedOperator.documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]"
-                      >
-                        <div>
-                          <div className="font-semibold text-[#1E293B]">{formatLabel(doc.category)}</div>
-                          <div className="text-[11px] text-[#64748B]">
-                            {doc.documentNumber || doc.fileName}
+                    {selectedOperator.documents.map((doc) => {
+                      const docUrl = getBackendFileUrl(doc.filePath);
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] gap-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-[#1E293B] truncate">
+                              {formatLabel(doc.category)}
+                            </div>
+                            <div className="text-[11px] text-[#64748B] truncate">
+                              {doc.documentNumber || doc.fileName}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {docUrl && (
+                              <a
+                                href={docUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-white border border-[#CBD5E1] text-[#0B241E] hover:bg-[#0B241E] hover:text-white text-[10.5px] font-bold inline-flex items-center gap-1"
+                              >
+                                <span>Buka</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                            <span
+                              className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                doc.verificationStatus === "VERIFIED"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}
+                            >
+                              {formatLabel(doc.verificationStatus)}
+                            </span>
                           </div>
                         </div>
-                        <span
-                          className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-semibold border ${doc.verificationStatus === "VERIFIED"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                            }`}
-                        >
-                          {formatLabel(doc.verificationStatus)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
+
+                {/* Form Unggah Berkas Legalitas oleh Petugas (POST /operators/:id/documents) */}
+                <form
+                  onSubmit={handleUploadDocForOperator}
+                  className="p-4 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] space-y-3"
+                >
+                  <p className="text-xs font-extrabold text-[#0B241E] flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5 text-[#D97706]" />
+                    <span>Unggah Berkas Legalitas Perusahaan (Oleh Petugas)</span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#334155] mb-1">
+                        Kategori Berkas
+                      </label>
+                      <select
+                        value={docCategory}
+                        onChange={(e) =>
+                          setDocCategory(
+                            e.target.value as "SIUPAL_NIB" | "NPWP" | "LAINNYA"
+                          )
+                        }
+                        className="w-full px-3 py-2 rounded-lg border border-[#CBD5E1] bg-white text-xs font-semibold"
+                      >
+                        <option value="SIUPAL_NIB">SIUPAL / NIB</option>
+                        <option value="NPWP">NPWP Badan Usaha</option>
+                        <option value="LAINNYA">Akta / Domisili / Lainnya</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#334155] mb-1">
+                        Nomor Surat / Dokumen
+                      </label>
+                      <input
+                        type="text"
+                        value={docNumber}
+                        onChange={(e) => setDocNumber(e.target.value)}
+                        placeholder="Contoh: SIUPAL-042/2026"
+                        className="w-full px-3 py-2 rounded-lg border border-[#CBD5E1] bg-white text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <input
+                      type="file"
+                      required
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                      className="text-xs text-[#64748B] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#0B241E] file:text-white file:font-bold cursor-pointer"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isUploadingDoc || !docFile}
+                      className="px-3.5 py-2 rounded-xl bg-[#0B241E] hover:bg-[#143E33] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {isUploadingDoc ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-[#D97706]" />
+                      )}
+                      <span>Unggah Berkas</span>
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
 

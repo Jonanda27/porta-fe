@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   CalendarCheck2,
   AlertTriangle,
@@ -12,12 +12,21 @@ import {
   RefreshCw,
   ShieldAlert,
   Search,
+  Anchor,
+  Clock,
+  Check,
+  X,
+  Info,
+  ShieldCheck,
+  Ship,
+  MapPin,
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { usePortStore } from "@/store/port.store";
 import { formatLabel } from "@/lib/format-labels";
+import { ShipVisitItem } from "@/types/upt.types";
 
 type TabType = "visits" | "overrides" | "leases";
 
@@ -55,14 +64,89 @@ export default function AlokasiPage() {
   } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  // Modal Alokasi Dermaga oleh Petugas Dermaga
+  const [allocatingVisit, setAllocatingVisit] = useState<ShipVisitItem | null>(null);
+  const [selectedBerthId, setSelectedBerthId] = useState<number>(1);
+  const [allocationNotes, setAllocationNotes] = useState<string>("");
+  const [allocatedBerthsMap, setAllocatedBerthsMap] = useState<Record<number, string>>({});
+
   const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
+
+  // Master fasilitas dermaga Pelabuhan Poumako
+  const availableBerths = useMemo(() => {
+    const fromPort = ports.find((p) => p.id === (numericPortId || 1))?.berths;
+    if (fromPort && fromPort.length > 0) return fromPort;
+    return [
+      {
+        id: 1,
+        code: "DRM-PEMDA-01",
+        name: "Dermaga Beton Nusantara Pemda",
+        authorityType: "PEMDA_DISHUB",
+        maxLengthMeters: 120,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_CAMPURAN",
+      },
+      {
+        id: 2,
+        code: "TLD-PEMDA-01",
+        name: "Tambatan Talud Cenderawasih",
+        authorityType: "PEMDA_DISHUB",
+        maxLengthMeters: 60,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_BARANG",
+      },
+      {
+        id: 3,
+        code: "DOL-PEMDA-01",
+        name: "Dolphin Bressing MB Penyeberangan Ferry",
+        authorityType: "PEMDA_DISHUB",
+        maxLengthMeters: 90,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_PENUMPANG",
+      },
+      {
+        id: 4,
+        code: "DRM-PELRA-01",
+        name: "Dermaga Pelabuhan Rakyat Muara Pomako",
+        authorityType: "PEMDA_DISHUB",
+        maxLengthMeters: 50,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_BARANG",
+      },
+      {
+        id: 5,
+        code: "DRM-UPP-01",
+        name: "Dermaga UPP Kemenhub (Non-Retribusi)",
+        authorityType: "UPP_KEMENHUB",
+        maxLengthMeters: 150,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_CAMPURAN",
+      },
+      {
+        id: 6,
+        code: "TUKS-LPS-01",
+        name: "Dermaga TUKS Logistik Pantai Selatan",
+        authorityType: "TUKS_TERSUS",
+        maxLengthMeters: 80,
+        operationalStatus: "OPEN",
+        berthServiceCategory: "DERMAGA_BARANG",
+      },
+    ];
+  }, [ports, numericPortId]);
+
+  // Cek apakah dermaga sedang digunakan kapal lain yang aktif bersandar
+  const isBerthOccupied = (berthId: number) => {
+    return visits.some((v) =>
+      v.berthings?.some((b) => b.berthId === berthId && !b.actualEndAt)
+    );
+  };
 
   useEffect(() => {
     if (canAccess) {
       fetchAllocationData(numericPortId);
-      if (isMultiPortAdmin) fetchPorts();
+      fetchPorts();
     }
-  }, [canAccess, isMultiPortAdmin, numericPortId, fetchAllocationData, fetchPorts]);
+  }, [canAccess, numericPortId, fetchAllocationData, fetchPorts]);
 
   if (!canAccess) {
     return (
@@ -136,6 +220,36 @@ export default function AlokasiPage() {
     clearError();
     await approveVisit(visitId, numericPortId);
     setFeedback(`Kunjungan ${visitNumber} berhasil disetujui (APPROVED).`);
+  };
+
+  const handleOpenAllocationModal = (visit: ShipVisitItem) => {
+    setAllocatingVisit(visit);
+    setSelectedBerthId(availableBerths[0]?.id || 1);
+    setAllocationNotes("");
+  };
+
+  const handleConfirmAllocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!allocatingVisit) return;
+    setFeedback(null);
+    clearError();
+
+    const chosenBerth = availableBerths.find((b) => b.id === selectedBerthId);
+    await approveVisit(allocatingVisit.id, numericPortId);
+
+    if (chosenBerth) {
+      setAllocatedBerthsMap((prev) => ({
+        ...prev,
+        [allocatingVisit.id]: chosenBerth.name,
+      }));
+    }
+
+    setFeedback(
+      `Permohonan sandar kapal ${allocatingVisit.vessel?.name || allocatingVisit.visitNumber} berhasil disetujui & dialokasikan ke ${
+        chosenBerth?.name || "Dermaga Terpilih"
+      }.`
+    );
+    setAllocatingVisit(null);
   };
 
   const handleDecideOverride = async (
@@ -304,17 +418,18 @@ export default function AlokasiPage() {
                 <thead>
                   <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
                     <th className="py-3 px-4">No. Kunjungan</th>
-                    <th className="py-3 px-4">Kapal & Operator</th>
+                    <th className="py-3 px-4">Kapal &amp; Operator</th>
                     <th className="py-3 px-4">Rute</th>
                     <th className="py-3 px-4">ETA / ETD</th>
+                    <th className="py-3 px-4">Alokasi Dermaga</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
+                    <th className="py-3 px-4 text-right">Aksi Petugas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
                   {pagedVisits.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
+                      <td colSpan={7} className="py-10 text-center text-[#94A3B8]">
                         Belum ada data kunjungan kapal yang sesuai.
                       </td>
                     </tr>
@@ -339,6 +454,19 @@ export default function AlokasiPage() {
                           <div>ETA: {new Date(v.eta).toLocaleString("id-ID")}</div>
                           <div>ETD: {new Date(v.etd).toLocaleString("id-ID")}</div>
                         </td>
+                        <td className="py-3 px-4">
+                          {v.status === "REQUESTED" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Menunggu Petugas</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <Anchor className="w-3 h-3 text-emerald-600" />
+                              <span>{allocatedBerthsMap[v.id] || v.berthings?.[0]?.berth?.name || "Dermaga Nusantara"}</span>
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
@@ -355,13 +483,14 @@ export default function AlokasiPage() {
                             <button
                               type="button"
                               disabled={isSubmitting}
-                              onClick={() => handleApproveVisit(v.id, v.visitNumber)}
-                              className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer"
+                              onClick={() => handleOpenAllocationModal(v)}
+                              className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
                             >
-                              Setujui Kunjungan
+                              <Anchor className="w-3.5 h-3.5 text-[#D97706]" />
+                              <span>Pilih Dermaga &amp; Setujui</span>
                             </button>
                           ) : (
-                            <span className="text-[11px] text-[#94A3B8]">Diproses</span>
+                            <span className="text-[11px] text-[#94A3B8]">Ditetapkan &amp; Disetujui</span>
                           )}
                         </td>
                       </tr>
@@ -542,6 +671,217 @@ export default function AlokasiPage() {
             onPageChange={setCurrentPage}
             onItemsPerPageChange={setItemsPerPage}
           />
+        </div>
+      )}
+
+      {/* Modal Verifikasi & Alokasi Dermaga Sandar oleh Petugas */}
+      {allocatingVisit && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <form
+            onSubmit={handleConfirmAllocation}
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-8 space-y-5 shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-200"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shadow-xs">
+                  <Anchor className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#0B241E]">
+                    Alokasikan Dermaga Sandar Kapal
+                  </h3>
+                  <p className="text-xs text-[#64748B]">
+                    Verifikasi kelaikan kapal &amp; pilih dermaga kosong di Pelabuhan Poumako
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAllocatingVisit(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Informasi Detail Kapal Pemohon */}
+            <div className="bg-[#F8FAFC] border border-[#CBD5E1] rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-mono font-bold text-[#0B241E] bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                  {allocatingVisit.visitNumber}
+                </span>
+                <span className="text-[11px] text-[#64748B]">
+                  Rute: <strong>{allocatingVisit.originPort || "Dobo"}</strong> ➔ <strong>{allocatingVisit.destinationPort || "Poumako"}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Nama Kapal</span>
+                  <p className="font-extrabold text-[#0B241E] truncate mt-0.5">
+                    {allocatingVisit.vessel?.name || `Kapal #${allocatingVisit.vesselId}`}
+                  </p>
+                  <p className="text-[10px] font-mono text-[#64748B]">
+                    {allocatingVisit.vessel?.registrationNumber || "-"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Operator</span>
+                  <p className="font-bold text-[#334155] truncate mt-0.5">
+                    {allocatingVisit.operator?.name || "PT Pelayaran Mitra"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Bobot &amp; Panjang</span>
+                  <p className="font-mono font-bold text-[#0B241E] mt-0.5">
+                    {allocatingVisit.vessel?.grossTonnage || 500} GT
+                  </p>
+                  <p className="text-[10.5px] font-mono text-[#64748B]">
+                    LOA: {allocatingVisit.vessel?.lengthMeters || 65}m • Draft: {allocatingVisit.vessel?.draftMeters || 3.5}m
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Jadwal ETA / ETD</span>
+                  <p className="text-[11px] font-mono font-semibold text-[#0B241E] mt-0.5">
+                    {new Date(allocatingVisit.eta).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {new Date(allocatingVisit.eta).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <p className="text-[10px] font-mono text-[#64748B]">
+                    s/d {new Date(allocatingVisit.etd).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {new Date(allocatingVisit.etd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Pilihan Fasilitas Dermaga (Pilih Dermaga yang Kosong) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#0B241E] flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                  <Anchor className="w-4 h-4 text-[#D97706]" />
+                  <span>PILIH FASILITAS DERMAGA SANDAR (SLOT KOSONG) <span className="text-red-500">*</span></span>
+                </label>
+                <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  {availableBerths.length} Dermaga Terdaftar
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+                {availableBerths.map((b) => {
+                  const isSelected = selectedBerthId === b.id;
+                  const occupied = isBerthOccupied(b.id);
+                  const maxLen = Number(b.maxLengthMeters) || 100;
+                  const vesselLoa = Number(allocatingVisit.vessel?.lengthMeters) || 65;
+                  const isLoaFit = vesselLoa <= maxLen;
+
+                  return (
+                    <div
+                      key={b.id}
+                      onClick={() => setSelectedBerthId(b.id)}
+                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2 relative ${
+                        isSelected
+                          ? "border-[#0B241E] bg-[#F4F9F6] shadow-sm ring-1 ring-[#0B241E]/20"
+                          : "border-[#E2E8F0] bg-white hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#0B241E]/10 text-[#0B241E]">
+                            {b.code}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                              occupied
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            }`}
+                          >
+                            {occupied ? "🟡 Sedang Terisi" : "🟢 Tersedia (Kosong)"}
+                          </span>
+                        </div>
+
+                        <h4 className="font-extrabold text-xs text-[#0B241E] mt-1.5 leading-snug">
+                          {b.name}
+                        </h4>
+
+                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[#64748B]">
+                          <span>Kapasitas: <strong className="text-[#0B241E] font-mono">{maxLen}m</strong></span>
+                          <span>•</span>
+                          <span
+                            className={`font-semibold ${
+                              isLoaFit ? "text-emerald-700" : "text-amber-700"
+                            }`}
+                          >
+                            {isLoaFit ? "✓ Muat LOA Kapal" : "⚠️ Melebihi Garis Tambat"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-[10px]">
+                        <span className="text-[#64748B] font-medium">
+                          {b.authorityType === "PEMDA_DISHUB" ? "Retribusi Pemda (PP 35/2023)" : "UPP Kemenhub"}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isSelected && (
+                            <span className="text-[9px] font-mono font-bold text-emerald-700">Dialokasikan</span>
+                          )}
+                          <input
+                            type="radio"
+                            name="allocatedBerth"
+                            checked={isSelected}
+                            onChange={() => setSelectedBerthId(b.id)}
+                            className="w-3.5 h-3.5 text-[#0B241E] focus:ring-0 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Catatan Verifikasi Petugas */}
+            <div>
+              <label className="block text-xs font-bold text-[#334155] mb-1">
+                Catatan Operasional Petugas Dermaga (Opsional)
+              </label>
+              <textarea
+                rows={2}
+                value={allocationNotes}
+                onChange={(e) => setAllocationNotes(e.target.value)}
+                placeholder="Contoh: Disetujui sandar di sisi barat Dermaga Beton Pemda. Wajib koordinasi radio VHF saat tiba di muara."
+                className="w-full px-3.5 py-2 rounded-xl border border-[#CBD5E1] text-xs focus:outline-none focus:ring-2 focus:ring-[#0B241E] resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#E2E8F0]">
+              <button
+                type="button"
+                onClick={() => setAllocatingVisit(null)}
+                className="px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/20 transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menetapkan Dermaga...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 text-[#D97706] stroke-[3]" />
+                    <span>Tetapkan Dermaga &amp; Setujui Kunjungan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

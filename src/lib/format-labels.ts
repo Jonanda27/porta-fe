@@ -7,11 +7,20 @@ const LABEL_DICTIONARY: Record<string, string> = {
   // Peran Pengguna (Roles)
   SUPERADMIN: "Superadmin",
   ADMIN_PELABUHAN: "Admin Pelabuhan",
+  KEPALA_PELABUHAN: "Kepala Pelabuhan",
+  PETUGAS_REGISTRASI_KONTRAK: "Petugas Registrasi & Kontrak",
+  PETUGAS_RUANGAN: "Petugas Ruangan",
+  PETUGAS_PELABUHAN: "Petugas Pelabuhan",
   PETUGAS_DERMAGA: "Petugas Dermaga",
+  PETUGAS_DERMAGA_BARANG: "Petugas Dermaga Barang",
+  PETUGAS_DERMAGA_PENUMPANG: "Petugas Dermaga Penumpang",
+  PETUGAS_TAGIHAN: "Petugas Tagihan",
   BENDAHARA: "Bendahara",
   OPERATOR_KAPAL: "Operator Kapal",
   TENANT: "Penyewa (Tenant)",
   DISHUB_EKSEKUTIF: "Pimpinan Dishub",
+  KEPALA_DINAS: "Kepala Dinas",
+  KEPALA_BIDANG: "Kepala Bidang",
 
   // Kategori Pelabuhan & Dermaga
   BARANG: "Barang",

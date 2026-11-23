@@ -1,23 +1,38 @@
 import { create } from "zustand";
-import { DailyPortReport, MaintenanceTicket } from "@/types/dinas.types";
+import {
+  DailyPortReport,
+  GisOpportunitiesResult,
+  MaintenanceTicket,
+  SimulateRevenueDto,
+  SimulateRevenueResult,
+} from "@/types/dinas.types";
 import { DinasService } from "@/services/dinas.service";
 
 interface DinasState {
   dailyReports: DailyPortReport[];
   maintenanceTickets: MaintenanceTicket[];
+  gisOpportunities: GisOpportunitiesResult | null;
+  simulationResult: SimulateRevenueResult | null;
   isLoading: boolean;
+  isSimulating: boolean;
   error: string | null;
 
   // Actions
   fetchDailyReports: (portId?: number) => Promise<void>;
   fetchMaintenanceTickets: (portId?: number) => Promise<void>;
   acknowledgeDailyReport: (id: number) => Promise<void>;
+  fetchGisOpportunities: (portId?: number) => Promise<void>;
+  simulateRevenue: (dto: SimulateRevenueDto) => Promise<SimulateRevenueResult>;
+  clearError: () => void;
 }
 
 export const useDinasStore = create<DinasState>((set, get) => ({
   dailyReports: [],
   maintenanceTickets: [],
+  gisOpportunities: null,
+  simulationResult: null,
   isLoading: false,
+  isSimulating: false,
   error: null,
 
   fetchDailyReports: async (portId?: number) => {
@@ -55,4 +70,32 @@ export const useDinasStore = create<DinasState>((set, get) => ({
       throw err;
     }
   },
+
+  fetchGisOpportunities: async (portId?: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const gisOpportunities = await DinasService.getGisOpportunities(portId);
+      set({ gisOpportunities, isLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat data potensi GIS aset pelabuhan.";
+      set({ isLoading: false, error: message });
+    }
+  },
+
+  simulateRevenue: async (dto: SimulateRevenueDto) => {
+    set({ isSimulating: true, error: null });
+    try {
+      const simulationResult = await DinasService.simulateRevenue(dto);
+      set({ simulationResult, isSimulating: false });
+      return simulationResult;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal menjalankan simulasi proyeksi PAD.";
+      set({ isSimulating: false, error: message });
+      throw err;
+    }
+  },
+
+  clearError: () => set({ error: null }),
 }));
