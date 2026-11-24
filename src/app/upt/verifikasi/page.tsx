@@ -6,7 +6,6 @@ import {
   Ship,
   Store,
   Building2,
-  CheckCircle2,
   XCircle,
   AlertCircle,
   Loader2,
@@ -26,14 +25,20 @@ import { API_CONFIG } from "@/config/api.config";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
-import { DocumentItem } from "@/types/upt.types";
-
-type TabType = "operators" | "vessels" | "tenants" | "pks_sandar" | "pks_ruangan";
-
-export interface VerifikasiPageProps {
-  forcedTab?: TabType;
-}
+import {
+  DocumentItem,
+  InspectDocsTarget,
+  RejectVerifikasiTarget,
+  VerifikasiPageProps,
+  VerifikasiTabType as TabType,
+} from "@/types/upt.types";
+import {
+  CreatePksContractModal,
+  InspectDocumentsModal,
+  RejectVerifikasiModal,
+} from "@/components/upt/verifikasi/VerifikasiModals";
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-800 border-amber-200",
@@ -92,23 +97,13 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Reject modal state
-  const [rejectTarget, setRejectTarget] = useState<{
-    type: TabType;
-    id: number;
-    name: string;
-  } | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<RejectVerifikasiTarget | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
   // Inspect Documents modal state
-  const [inspectDocsTarget, setInspectDocsTarget] = useState<{
-    title: string;
-    subtitle: string;
-    docs: DocumentItem[];
-    missingWarning?: string | null;
-  } | null>(null);
+  const [inspectDocsTarget, setInspectDocsTarget] = useState<InspectDocsTarget | null>(null);
 
   // Create Berthing Contract modal state (POST /operators/:id/contracts)
   const [isCreatePksModalOpen, setIsCreatePksModalOpen] = useState(false);
@@ -309,17 +304,16 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   );
 
   const handleApprove = async (type: TabType, id: number, name: string) => {
-    setFeedback(null);
     clearError();
     if (type === "operators") {
       await verifyOperator(id, { status: "VERIFIED" });
-      setFeedback(`Operator ${name} berhasil diverifikasi (VERIFIED)!`);
+      toast.success("Operator Diverifikasi", `Operator ${name} berhasil diverifikasi (VERIFIED)!`);
     } else if (type === "vessels") {
       await verifyVessel(id, { status: "VERIFIED" });
-      setFeedback(`Kapal ${name} berhasil diverifikasi (VERIFIED)!`);
+      toast.success("Kapal Diverifikasi", `Kapal ${name} berhasil diverifikasi (VERIFIED)!`);
     } else if (type === "tenants") {
       await verifyTenant(id, { verificationStatus: "VERIFIED" });
-      setFeedback(`Tenant ${name} berhasil diverifikasi (VERIFIED)!`);
+      toast.success("Tenant Diverifikasi", `Tenant ${name} berhasil diverifikasi (VERIFIED)!`);
     } else if (type === "pks_sandar") {
       if (user?.role === "PETUGAS_REGISTRASI_KONTRAK") {
         await reviewBerthingContractByOfficer(
@@ -327,22 +321,23 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
           "APPROVE",
           "Prasyarat legalitas & draf kontrak PKS Sandar dinyatakan lengkap oleh Petugas Registrasi & Kontrak."
         );
-        setFeedback(
+        toast.success(
+          "Prasyarat PKS Disetujui",
           `Tahap 1 Prasyarat PKS Sandar (${name}) berhasil disetujui Petugas Registrasi & Kontrak dan diteruskan ke Kepala Pelabuhan!`
         );
       } else {
         await verifyBerthingContract(id, "ACTIVE");
-        setFeedback(`PKS Sandar Kapal (${name}) berhasil disahkan Kepala Pelabuhan (ACTIVE)!`);
+        toast.success("PKS Sandar Disahkan", `PKS Sandar Kapal (${name}) berhasil disahkan Kepala Pelabuhan (ACTIVE)!`);
       }
     }
   };
 
   const handleVerifyRoomLease = async (leaseId: number, code: string) => {
-    setFeedback(null);
     clearError();
     try {
       await verifyRoomLease(leaseId);
-      setFeedback(
+      toast.success(
+        "Verifikasi Ruangan Disetujui",
         `Tahap 1 Verifikasi Ruangan (${code}) berhasil disetujui. Nomor PKS resmi diterbitkan dan diteruskan ke Kepala Pelabuhan!`
       );
     } catch {
@@ -351,11 +346,11 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   };
 
   const handleApproveHeadOfPortLease = async (leaseId: number, code: string) => {
-    setFeedback(null);
     clearError();
     try {
       await approveLease(leaseId);
-      setFeedback(
+      toast.success(
+        "PKS Ruangan Disahkan",
         `Tahap 2 Pengesahan PKS Ruangan (${code}) berhasil disahkan Kepala Pelabuhan. Status sewa kini AKTIF!`
       );
     } catch {
@@ -366,7 +361,6 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   const handleConfirmReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectTarget) return;
-    setFeedback(null);
     clearError();
 
     try {
@@ -403,7 +397,7 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
         await rejectLease(rejectTarget.id, rejectionReason.trim());
       }
 
-      setFeedback(`${rejectTarget.name} telah ditolak (REJECTED).`);
+      toast.success("Pengajuan Ditolak", `${rejectTarget.name} telah ditolak (REJECTED).`);
       setRejectTarget(null);
       setRejectionReason("");
     } catch {
@@ -414,7 +408,6 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   const handleCreateBerthingContract = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pksOperatorId) return;
-    setFeedback(null);
     clearError();
     try {
       await createBerthingContractForOperator(Number(pksOperatorId), {
@@ -428,7 +421,7 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
       });
       setIsCreatePksModalOpen(false);
       setPksFile(null);
-      setFeedback("Kontrak PKS Sandar baru berhasil didaftarkan untuk operator!");
+      toast.success("Kontrak PKS Didaftarkan", "Kontrak PKS Sandar baru berhasil didaftarkan untuk operator!");
     } catch {
       // handled in store
     }
@@ -625,13 +618,6 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
           )}
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -1395,282 +1381,43 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
       )}
 
       {/* Modal Pratinjau Berkas Dokumen yang Diunggah Mitra */}
-      {inspectDocsTarget && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-7 space-y-4 shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3.5">
-              <div>
-                <h3 className="text-base font-extrabold text-[#0B241E]">
-                  {inspectDocsTarget.title}
-                </h3>
-                <p className="text-xs text-[#64748B] mt-0.5">{inspectDocsTarget.subtitle}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectDocsTarget(null)}
-                className="p-1.5 rounded-xl text-[#64748B] hover:text-[#0B241E] hover:bg-[#F1F5F9] cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {inspectDocsTarget.missingWarning && (
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Berkas Wajib Belum Lengkap</p>
-                  <p className="mt-0.5 text-amber-800">
-                    {inspectDocsTarget.missingWarning}. Tombol verifikasi akan terbuka otomatis setelah operator mengunggah berkas wajib tersebut.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {inspectDocsTarget.docs.length === 0 ? (
-              <div className="py-10 text-center text-xs text-[#64748B] space-y-2 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0]">
-                <FileText className="w-8 h-8 text-[#94A3B8] mx-auto" />
-                <p className="font-bold text-[#0B241E]">Belum Ada Berkas Diunggah</p>
-                <p>Operator kapal ini belum mengunggah dokumen legalitas apapun ke server.</p>
-              </div>
-            ) : (
-              <div className="max-h-80 overflow-y-auto divide-y divide-[#F1F5F9] border border-[#E2E8F0] rounded-2xl">
-                {inspectDocsTarget.docs.map((doc) => {
-                  const fileUrl = getBackendFileUrl(doc.filePath);
-                  const cleanNotes = doc.notes?.replace(/^SLOT:[A-Z_]+\s*-\s*/, "");
-                  return (
-                    <div
-                      key={doc.id}
-                      className="p-3.5 px-4 flex items-center justify-between gap-3 text-xs hover:bg-[#F8FAFC]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-[#0B241E] truncate">
-                          {cleanNotes || formatLabel(doc.category)}
-                        </p>
-                        <p className="text-[11px] font-mono text-[#64748B] truncate mt-0.5">
-                          File: {doc.fileName} • No: {doc.documentNumber || "-"} •{" "}
-                          {new Date(doc.createdAt).toLocaleDateString("id-ID")}
-                        </p>
-                      </div>
-                      {fileUrl && (
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold inline-flex items-center gap-1.5 shrink-0"
-                        >
-                          <span>Buka File</span>
-                          <ExternalLink className="w-3 h-3 text-[#D97706]" />
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setInspectDocsTarget(null)}
-                className="px-4 py-2 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-xs font-bold text-[#0B241E] cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <InspectDocumentsModal
+        target={inspectDocsTarget}
+        getBackendFileUrl={getBackendFileUrl}
+        onClose={() => setInspectDocsTarget(null)}
+      />
 
       {/* Modal Daftarkan Kontrak PKS Sandar Baru (POST /operators/:id/contracts) */}
-      {isCreatePksModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleCreateBerthingContract}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-7 space-y-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#0B241E]">
-                  Daftarkan Kontrak PKS Sandar Kapal
-                </h3>
-                <p className="text-xs text-[#64748B]">
-                  Buat dan unggah dokumen Perjanjian Kerja Sama (PKS) Sandar untuk perusahaan pelayaran.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreatePksModalOpen(false)}
-                className="p-1.5 rounded-xl text-[#64748B] hover:text-[#0B241E] hover:bg-[#F1F5F9] cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-[#334155] mb-1">
-                  Perusahaan Operator Kapal <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={pksOperatorId}
-                  onChange={(e) => setPksOperatorId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-semibold"
-                >
-                  <option value="">-- Pilih Perusahaan Operator --</option>
-                  {operators.map((op) => (
-                    <option key={op.id} value={op.id}>
-                      {op.name} ({formatLabel(op.verificationStatus)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-[#334155] mb-1">
-                  Judul Kontrak PKS <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={pksTitle}
-                  onChange={(e) => setPksTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#334155] mb-1">
-                  Tanggal Mulai Berlaku <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={pksStartDate}
-                  onChange={(e) => setPksStartDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#334155] mb-1">
-                  Tanggal Berakhir <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={pksEndDate}
-                  onChange={(e) => setPksEndDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#334155] mb-1">
-                  Kuota Sandar Bulanan (Slot)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={pksMonthlyQuota}
-                  onChange={(e) => setPksMonthlyQuota(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#334155] mb-1">
-                  Alokasi Dermaga
-                </label>
-                <input
-                  type="text"
-                  value={pksDockAllocation}
-                  onChange={(e) => setPksDockAllocation(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-[#334155] mb-1">
-                  Lampiran Dokumen PKS (PDF / Gambar)
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={(e) => setPksFile(e.target.files?.[0] || null)}
-                  className="w-full text-xs text-[#64748B] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#0B241E] file:text-white file:font-bold cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
-              <button
-                type="button"
-                onClick={() => setIsCreatePksModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5 text-[#D97706]" />
-                )}
-                <span>Simpan Kontrak PKS</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <CreatePksContractModal
+        isOpen={isCreatePksModalOpen}
+        isSubmitting={isSubmitting}
+        operators={operators}
+        pksOperatorId={pksOperatorId}
+        onChangeOperatorId={setPksOperatorId}
+        pksTitle={pksTitle}
+        onChangeTitle={setPksTitle}
+        pksStartDate={pksStartDate}
+        onChangeStartDate={setPksStartDate}
+        pksEndDate={pksEndDate}
+        onChangeEndDate={setPksEndDate}
+        pksMonthlyQuota={pksMonthlyQuota}
+        onChangeMonthlyQuota={setPksMonthlyQuota}
+        pksDockAllocation={pksDockAllocation}
+        onChangeDockAllocation={setPksDockAllocation}
+        onChangeFile={setPksFile}
+        onSubmit={handleCreateBerthingContract}
+        onClose={() => setIsCreatePksModalOpen(false)}
+      />
 
       {/* Reject Reason Modal */}
-      {rejectTarget && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleConfirmReject}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
-          >
-            <h3 className="text-base font-extrabold text-[#0B241E]">
-              Tolak Verifikasi: {rejectTarget.name}
-            </h3>
-            <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
-                Alasan Penolakan
-              </label>
-              <textarea
-                required
-                rows={3}
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Misal: Dokumen tidak valid, kuota penuh, atau ruangan tidak tersedia..."
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectTarget(null)}
-                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Tolak Verifikasi
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <RejectVerifikasiModal
+        target={rejectTarget}
+        rejectionReason={rejectionReason}
+        onChangeReason={setRejectionReason}
+        isSubmitting={isSubmitting}
+        onSubmit={handleConfirmReject}
+        onClose={() => setRejectTarget(null)}
+      />
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   Package,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
+import { formatRupiah } from "@/lib/kapal-billing";
 
 export default function BendaharaDashboardPage() {
   const {
@@ -40,14 +41,6 @@ export default function BendaharaDashboardPage() {
     fetchUnbilledVisits();
   }, [fetchRevenueSummary, fetchInvoices, fetchUnbilledVisits]);
 
-  const formatRupiah = (val: number | string) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
 
   // Tagihan yang menunggu verifikasi bukti pembayaran
   const pendingVerificationInvoices = useMemo(() => {

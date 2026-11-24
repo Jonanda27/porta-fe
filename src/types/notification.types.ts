@@ -57,3 +57,10 @@ export type NotificationFilterCategory =
   | "BILLING"
   | "WARNINGS"
   | "LEASES";
+
+export type KapalNotificationFilterTab =
+  | "ALL"
+  | "UNREAD"
+  | "VISITS"
+  | "BILLING"
+  | "WARNINGS";

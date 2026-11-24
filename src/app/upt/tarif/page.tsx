@@ -6,7 +6,6 @@ import {
   Plus,
   RefreshCw,
   DollarSign,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   ShieldAlert,
@@ -17,6 +16,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
 import { useTariffStore } from "@/store/tariff.store";
 import { usePaymentStore } from "@/store/payment.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { PaymentProviderType } from "@/types/payment.types";
 import {
@@ -61,7 +61,6 @@ export default function TarifPage() {
   const [searchTariffQuery, setSearchTariffQuery] = useState("");
   const [tariffPage, setTariffPage] = useState(1);
   const [tariffItemsPerPage, setTariffItemsPerPage] = useState(10);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tariffCode, setTariffCode] = useState("");
@@ -119,7 +118,6 @@ export default function TarifPage() {
 
   const handleCreateTariff = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     await createTariff({
       tariffCode: tariffCode.trim().toUpperCase(),
       serviceCode,
@@ -133,14 +131,13 @@ export default function TarifPage() {
       legalBasis: legalBasis.trim(),
       effectiveFrom: new Date(effectiveFrom).toISOString(),
     });
-    setFeedback(`Tarif ${tariffCode.toUpperCase()} berhasil ditambahkan.`);
+    toast.success("Tarif Ditambahkan", `Tarif ${tariffCode.toUpperCase()} berhasil ditambahkan.`);
     setIsModalOpen(false);
   };
 
   const handleDeactivate = async (id: number, code: string) => {
-    setFeedback(null);
     await deactivateTariff(id);
-    setFeedback(`Tarif ${code} berhasil dinonaktifkan.`);
+    toast.success("Tarif Dinonaktifkan", `Tarif ${code} berhasil dinonaktifkan.`);
   };
 
   return (
@@ -215,13 +212,6 @@ export default function TarifPage() {
         </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {/* Payment Gateway Feature Flag Switch (SUPERADMIN Only) */}
       {isSuperadmin && paymentConfig && (
         <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
@@ -243,7 +233,7 @@ export default function TarifPage() {
                   gatewayEnabled: paymentConfig.gatewayEnabled,
                   provider: nextProvider,
                 });
-                setFeedback(`Provider pembayaran diubah ke ${nextProvider}.`);
+                toast.success("Provider Diubah", `Provider pembayaran diubah ke ${nextProvider}.`);
               }}
               className="px-3 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-xs font-semibold text-[#0B241E]"
             >
@@ -260,7 +250,8 @@ export default function TarifPage() {
                   gatewayEnabled: nextState,
                   provider: paymentConfig.provider,
                 });
-                setFeedback(
+                toast.success(
+                  nextState ? "Pembayaran Online Diaktifkan" : "Pembayaran Online Disembunyikan",
                   nextState
                     ? "Pembayaran online diaktifkan (tampil di portal)."
                     : "Pembayaran online disembunyikan (hanya transfer Bank Papua / Bendahara)."

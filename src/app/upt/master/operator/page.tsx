@@ -15,7 +15,6 @@ import {
   Edit3,
   Trash2,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Upload,
   ExternalLink,
@@ -23,6 +22,7 @@ import {
 import { API_CONFIG } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { UptService } from "@/services/upt.service";
 import { formatLabel } from "@/lib/format-labels";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -60,7 +60,6 @@ export default function MasterOperatorPage() {
     if (!selectedOperator || !docFile) return;
     setIsUploadingDoc(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       await uploadOperatorDocumentByOfficer(
         selectedOperator.id,
@@ -75,7 +74,10 @@ export default function MasterOperatorPage() {
       setSelectedOperator(refreshed);
       setDocNumber("");
       setDocFile(null);
-      setFeedback(`Berkas ${formatLabel(docCategory)} untuk ${selectedOperator.name} berhasil diunggah!`);
+      toast.success(
+        "Berkas Diunggah",
+        `Berkas ${formatLabel(docCategory)} untuk ${selectedOperator.name} berhasil diunggah!`
+      );
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal mengunggah dokumen operator.");
     } finally {
@@ -89,7 +91,6 @@ export default function MasterOperatorPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -99,12 +100,14 @@ export default function MasterOperatorPage() {
   // Create/Edit Modal
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingOperator, setEditingOperator] = useState<ShipOperatorItem | null>(null);
-  const [name, setName] = useState("");
-  const [npwp, setNpwp] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [operatorProfile, setOperatorProfile] = useState<"REGULAR_SCHEDULED" | "INCIDENTAL">("REGULAR_SCHEDULED");
+  const [operatorForm, setOperatorForm] = useState({
+    name: "",
+    npwp: "",
+    phone: "",
+    email: "",
+    address: "",
+    operatorProfile: "REGULAR_SCHEDULED" as "REGULAR_SCHEDULED" | "INCIDENTAL",
+  });
 
   useEffect(() => {
     if (canAccess) {
@@ -114,24 +117,28 @@ export default function MasterOperatorPage() {
 
   const openCreateModal = () => {
     setEditingOperator(null);
-    setName("");
-    setNpwp("");
-    setPhone("");
-    setEmail("");
-    setAddress("");
-    setOperatorProfile("REGULAR_SCHEDULED");
+    setOperatorForm({
+      name: "",
+      npwp: "",
+      phone: "",
+      email: "",
+      address: "",
+      operatorProfile: "REGULAR_SCHEDULED",
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
 
   const openEditModal = (op: ShipOperatorItem) => {
     setEditingOperator(op);
-    setName(op.name);
-    setNpwp(op.npwp || "");
-    setPhone(op.phone || "");
-    setEmail(op.email || "");
-    setAddress(op.address || "");
-    setOperatorProfile(op.operatorProfile);
+    setOperatorForm({
+      name: op.name,
+      npwp: op.npwp || "",
+      phone: op.phone || "",
+      email: op.email || "",
+      address: op.address || "",
+      operatorProfile: op.operatorProfile,
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
@@ -140,22 +147,21 @@ export default function MasterOperatorPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       const payload = {
-        name: name.trim(),
-        npwp: npwp.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-        address: address.trim() || undefined,
-        operatorProfile,
+        name: operatorForm.name.trim(),
+        npwp: operatorForm.npwp.trim() || undefined,
+        phone: operatorForm.phone.trim() || undefined,
+        email: operatorForm.email.trim() || undefined,
+        address: operatorForm.address.trim() || undefined,
+        operatorProfile: operatorForm.operatorProfile,
       };
       if (editingOperator) {
         await UptService.updateOperator(editingOperator.id, payload);
-        setFeedback(`Data operator "${payload.name}" berhasil diperbarui.`);
+        toast.success("Operator Diperbarui", `Data operator "${payload.name}" berhasil diperbarui.`);
       } else {
         await UptService.createOperator(payload);
-        setFeedback(`Operator baru "${payload.name}" berhasil ditambahkan.`);
+        toast.success("Operator Ditambahkan", `Operator baru "${payload.name}" berhasil ditambahkan.`);
       }
       setIsFormModalOpen(false);
       await fetchVerificationData();
@@ -170,10 +176,9 @@ export default function MasterOperatorPage() {
     if (!confirm(`Nonaktifkan operator "${op.name}" dari daftar aktif?`)) return;
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       await UptService.updateOperator(op.id, { isActive: false });
-      setFeedback(`Operator "${op.name}" telah dinonaktifkan.`);
+      toast.success("Operator Dinonaktifkan", `Operator "${op.name}" telah dinonaktifkan.`);
       await fetchVerificationData();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal menonaktifkan operator.");
@@ -277,13 +282,6 @@ export default function MasterOperatorPage() {
           </div>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -439,8 +437,10 @@ export default function MasterOperatorPage() {
                 <input
                   type="text"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={operatorForm.name}
+                  onChange={(e) =>
+                    setOperatorForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   placeholder="Contoh: PT Pelayaran Mimika Sejahtera"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -451,9 +451,14 @@ export default function MasterOperatorPage() {
                   Profil Operasional
                 </label>
                 <select
-                  value={operatorProfile}
+                  value={operatorForm.operatorProfile}
                   onChange={(e) =>
-                    setOperatorProfile(e.target.value as "REGULAR_SCHEDULED" | "INCIDENTAL")
+                    setOperatorForm((prev) => ({
+                      ...prev,
+                      operatorProfile: e.target.value as
+                        | "REGULAR_SCHEDULED"
+                        | "INCIDENTAL",
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
@@ -468,8 +473,10 @@ export default function MasterOperatorPage() {
                 </label>
                 <input
                   type="text"
-                  value={npwp}
-                  onChange={(e) => setNpwp(e.target.value)}
+                  value={operatorForm.npwp}
+                  onChange={(e) =>
+                    setOperatorForm((prev) => ({ ...prev, npwp: e.target.value }))
+                  }
                   placeholder="01.234.567.8-954.000"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
@@ -481,8 +488,10 @@ export default function MasterOperatorPage() {
                 </label>
                 <input
                   type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={operatorForm.phone}
+                  onChange={(e) =>
+                    setOperatorForm((prev) => ({ ...prev, phone: e.target.value }))
+                  }
                   placeholder="08123456789"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -494,8 +503,10 @@ export default function MasterOperatorPage() {
                 </label>
                 <input
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={operatorForm.email}
+                  onChange={(e) =>
+                    setOperatorForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
                   placeholder="ops@mimika-shipping.co.id"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -507,8 +518,10 @@ export default function MasterOperatorPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  value={operatorForm.address}
+                  onChange={(e) =>
+                    setOperatorForm((prev) => ({ ...prev, address: e.target.value }))
+                  }
                   placeholder="Alamat lengkap kantor operasional"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />

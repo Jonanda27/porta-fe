@@ -145,9 +145,9 @@ export default function KeberatanTarifPage() {
                 Telaah & Sidang Keputusan Keberatan Tarif Retribusi
               </h1>
               <p className="text-sm text-gray-500">
-                Penyelesaian sengketa tarif, angsuran, penundaan, & kondisi kahar sesuai{" "}
+                Penyelesaian sengketa tarif, angsuran (SPARD maks. 6 bulan), penundaan (H-10 jatuh tempo), &amp; kondisi kahar sesuai{" "}
                 <span className="font-semibold text-[#0B241E]">
-                  Pasal 10, 19, & 20 Perbup Mimika No. 25 Tahun 2024
+                  Pasal 19, 20, 27, &amp; 29–32 Perbup Mimika No. 25 Tahun 2024
                 </span>
               </p>
             </div>

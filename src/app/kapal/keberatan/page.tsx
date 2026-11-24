@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
 import { useAuthStore } from "@/store/auth.store";
+import { toast } from "@/store/toast.store";
+import { formatRupiah } from "@/lib/kapal-billing";
 import {
   BillingAdjustment,
   BillingAdjustmentType,
@@ -43,7 +45,6 @@ export default function KapalKeberatanPage() {
 
   const [activeTab, setActiveTab] = useState<"adjustments" | "warnings">("adjustments");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -104,6 +105,66 @@ export default function KapalKeberatanPage() {
       return;
     }
 
+    // Validasi Perbup Mimika No. 25 Tahun 2024 (Pasal 19 ayat 2 & Pasal 20 ayat 2)
+    if (
+      (adjustmentType === "INSTALLMENT_PLAN" || adjustmentType === "PAYMENT_DEFERRAL") &&
+      selectedInvoice?.dueDate
+    ) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = new Date(selectedInvoice.dueDate);
+      due.setHours(0, 0, 0, 0);
+      const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilDue < 10) {
+        setErrorMessage(
+          "Sesuai Pasal 19 ayat (2) & Pasal 20 ayat (2) Perbup Mimika No. 25/2024, permohonan angsuran atau penundaan wajib diajukan paling lambat 10 hari sebelum tanggal jatuh tempo SKRD."
+        );
+        return;
+      }
+
+      if (adjustmentType === "PAYMENT_DEFERRAL" && deferredDate) {
+        const maxDeferral = new Date(due);
+        maxDeferral.setMonth(maxDeferral.getMonth() + 6);
+        const requestedDeferral = new Date(deferredDate);
+        if (requestedDeferral > maxDeferral) {
+          setErrorMessage(
+            "Sesuai Pasal 20 ayat (5) Perbup Mimika No. 25/2024, penundaan pembayaran diberikan paling lama 6 (enam) bulan terhitung sejak tanggal jatuh tempo SKRD."
+          );
+          return;
+        }
+      }
+    }
+
+    if (adjustmentType === "INSTALLMENT_PLAN" && (installmentCount < 2 || installmentCount > 6)) {
+      setErrorMessage(
+        "Sesuai Pasal 19 ayat (6) Perbup Mimika No. 25/2024, pembayaran angsuran (SPARD) diberikan paling banyak 6 (enam) kali dalam waktu paling lama 6 (enam) bulan."
+      );
+      return;
+    }
+
+    // Validasi Pasal 29 ayat (2) untuk Pengembalian Kelebihan Bayar (SKRDLB) & Kompensasi
+    if (
+      (adjustmentType === "OVERPAYMENT_REFUND" || adjustmentType === "CREDIT_TRANSFER") &&
+      selectedInvoice
+    ) {
+      if (selectedInvoice.status !== "PAID") {
+        setErrorMessage(
+          "Permohonan pengembalian kelebihan bayar (SKRDLB) atau pemindahbukuan hanya dapat diajukan atas tagihan yang sudah lunas (memiliki e-SSRD)."
+        );
+        return;
+      }
+      const paidRefDate = new Date(selectedInvoice.updatedAt || selectedInvoice.issuedAt);
+      const oneMonthDeadline = new Date(paidRefDate);
+      oneMonthDeadline.setMonth(oneMonthDeadline.getMonth() + 1);
+      if (new Date() > oneMonthDeadline) {
+        setErrorMessage(
+          "Sesuai Pasal 29 ayat (2) Perbup Mimika No. 25/2024, permohonan pengembalian kelebihan pembayaran (SKRDLB) diajukan paling lama 1 (satu) bulan sejak tanggal pembayaran pada SSRD."
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -117,10 +178,10 @@ export default function KapalKeberatanPage() {
       });
 
       setIsModalOpen(false);
-      setSuccessToast(
-        `Permohonan penyesuaian ${created.requestNumber} berhasil diajukan ke UPTD Pelabuhan & Bapenda Mimika!`
+      toast.success(
+        "Pengajuan Keberatan Terkirim",
+        `Permohonan penyesuaian ${created.requestNumber} berhasil diajukan ke UPTD Pelabuhan & Bapenda Mimika.`
       );
-      setTimeout(() => setSuccessToast(null), 6000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal mengajukan permohonan.";
       setErrorMessage(msg);
@@ -129,20 +190,12 @@ export default function KapalKeberatanPage() {
     }
   };
 
-  const formatRupiah = (val?: number | string | null) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
 
   const getAdjustmentTypeLabel = (type: BillingAdjustmentType) => {
     switch (type) {
       case "INSTALLMENT_PLAN":
         return {
-          title: "Angsuran Pembayaran e-SKRD",
+          title: "Angsuran Pembayaran (SPARD)",
           basis: "Pasal 19 Perbup Mimika 25/2024",
           badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
         };
@@ -154,14 +207,14 @@ export default function KapalKeberatanPage() {
         };
       case "OVERPAYMENT_REFUND":
         return {
-          title: "Pengembalian Kelebihan Bayar",
-          basis: "Pasal 23 Perbup Mimika 25/2024",
+          title: "Pengembalian Kelebihan Bayar (SKRDLB)",
+          basis: "Pasal 29–32 Perbup Mimika 25/2024",
           badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
         };
       case "CREDIT_TRANSFER":
         return {
           title: "Pemindahbukuan / Kompensasi",
-          basis: "Pasal 24 Perbup Mimika 25/2024",
+          basis: "Pasal 32 Perbup Mimika 25/2024",
           badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
         };
     }
@@ -194,22 +247,6 @@ export default function KapalKeberatanPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-fade-in border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Global Error Banner */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
@@ -533,11 +570,19 @@ export default function KapalKeberatanPage() {
                   required
                 >
                   <option value="">-- Pilih e-SKRD --</option>
-                  {invoices.map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.invoiceNumber} • {formatRupiah(inv.totalAmountIdr)} ({inv.status}) - {inv.visit?.vessel?.name}
-                    </option>
-                  ))}
+                  {invoices
+                    .filter((inv) =>
+                      adjustmentType === "OVERPAYMENT_REFUND" ||
+                      adjustmentType === "CREDIT_TRANSFER"
+                        ? inv.status === "PAID"
+                        : inv.status === "ISSUED" || inv.status === "PARTIAL"
+                    )
+                    .map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.invoiceNumber} - {formatRupiah(inv.totalAmountIdr)} ({inv.status}) -{" "}
+                        {inv.visit?.vessel?.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -551,18 +596,21 @@ export default function KapalKeberatanPage() {
                   className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E]"
                 >
                   <option value="PAYMENT_DEFERRAL">
-                    Penundaan Waktu Pembayaran (Maks. 3 Bulan - Pasal 20)
+                    Penundaan Waktu Pembayaran (Maks. 6 Bulan - Pasal 20)
                   </option>
                   <option value="INSTALLMENT_PLAN">
-                    Angsuran Bertahap (Maks. 6 Kali - Pasal 19)
+                    Angsuran Bertahap / SPARD (Maks. 6 Kali / 6 Bulan - Pasal 19)
                   </option>
                   <option value="OVERPAYMENT_REFUND">
-                    Pengembalian Kelebihan Bayar (Pasal 23)
+                    Pengembalian Kelebihan Bayar / SKRDLB (Pasal 29–32)
                   </option>
                   <option value="CREDIT_TRANSFER">
-                    Pemindahbukuan / Kompensasi Saldo Retribusi (Pasal 24)
+                    Pemindahbukuan / Kompensasi Saldo Retribusi (Pasal 32)
                   </option>
                 </select>
+                <p className="text-[10.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1.5">
+                  Ketentuan Perbup 25/2024: Pengajuan angsuran/penundaan wajib dilakukan paling lambat 10 hari sebelum jatuh tempo SKRD, dan pengajuan keberatan tidak menunda kewajiban membayar retribusi (Pasal 27 ayat 3).
+                </p>
               </div>
 
               {adjustmentType === "INSTALLMENT_PLAN" && (

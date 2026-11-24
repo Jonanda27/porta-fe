@@ -19,8 +19,10 @@ import {
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useKapalStore } from "@/store/kapal.store";
+import { toast } from "@/store/toast.store";
 import { AssetLease } from "@/types/asset.types";
 import { formatLabel } from "@/lib/format-labels";
+import { formatRupiah } from "@/lib/kapal-billing";
 
 export default function KapalKontrakSewaPage() {
   const {
@@ -40,7 +42,6 @@ export default function KapalKontrakSewaPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAssetLeases();
@@ -95,14 +96,13 @@ export default function KapalKontrakSewaPage() {
   const handleRenewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!renewTarget) return;
-    setFeedback(null);
     try {
       await requestAssetLease({
         assetId: renewTarget.assetId,
         startDate,
         endDate,
       });
-      setFeedback(
+      toast.success(
         `Permohonan perpanjangan sewa untuk ${
           renewTarget.asset?.name || `Aset #${renewTarget.assetId}`
         } berhasil diajukan dan masuk antrean verifikasi Petugas Ruangan.`
@@ -113,12 +113,6 @@ export default function KapalKontrakSewaPage() {
     }
   };
 
-  const formatRupiah = (amount: number | string) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(Number(amount || 0));
 
   const getLeasePaymentInfo = (lease: AssetLease) => {
     const totalDue = Number(lease.totalAnnualAmountIdr || 0);
@@ -224,13 +218,6 @@ export default function KapalKontrakSewaPage() {
       </div>
 
       {/* ALERTS */}
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {leaseError && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />

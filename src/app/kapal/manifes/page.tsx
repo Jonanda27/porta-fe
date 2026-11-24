@@ -1,192 +1,123 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Download,
   FileCheck2,
+  FileSpreadsheet,
+  Info,
+  RefreshCw,
+  Search,
+  ShieldCheck,
   Ship,
   Users,
-  Car,
-  ShieldCheck,
-  AlertTriangle,
-  Upload,
-  CheckCircle2,
-  Lock,
-  Download,
-  Send,
-  FileText,
-  Clock,
   X,
-  RefreshCw,
-  Info,
-  Calendar,
-  Compass,
-  FileSpreadsheet,
 } from "lucide-react";
 import { useManifestStore } from "@/store/manifest.store";
 import { useKapalStore } from "@/store/kapal.store";
-import { useAuthStore } from "@/store/auth.store";
-import { VesselVisit } from "@/types/kapal.types";
+import { VesselManifestItem } from "@/types/manifest.types";
 
 export default function KapalManifesPage() {
-  const { user } = useAuthStore();
   const { visits, fetchVisits, isLoading: isLoadingVisits } = useKapalStore();
   const {
     manifests,
-    ferryRoutes,
     isLoading: isLoadingManifests,
-    isSubmitting,
     error,
     fetchManifests,
-    fetchFerryRoutes,
-    createManifest,
     clearError,
   } = useManifestStore();
 
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [selectedVisitId, setSelectedVisitId] = useState<number | null>(null);
-  const [selectedFerryRouteId, setSelectedFerryRouteId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedManifest, setSelectedManifest] = useState<VesselManifestItem | null>(null);
 
-  // Passenger Form Fields
-  const [paxAdult, setPaxAdult] = useState<number>(312);
-  const [paxChild, setPaxChild] = useState<number>(45);
-  const [paxInfant, setPaxInfant] = useState<number>(8);
-  const [crewCount, setCrewCount] = useState<number>(18);
-  const [greeterCount, setGreeterCount] = useState<number>(0);
-  const [cargoTons, setCargoTons] = useState<number>(15.5);
-
-  // Vehicle Form Fields
-  const [vehGol1, setVehGol1] = useState<number>(4);
-  const [vehGol2, setVehGol2] = useState<number>(28);
-  const [vehGol3, setVehGol3] = useState<number>(2);
-  const [vehGol4A, setVehGol4A] = useState<number>(24);
-  const [vehGol4B, setVehGol4B] = useState<number>(6);
-  const [vehGol5, setVehGol5] = useState<number>(8);
-  const [vehGol6_7, setVehGol6_7] = useState<number>(4);
-
-  // Uploaded PDF State
-  const [attachedFile, setAttachedFile] = useState<{
-    name: string;
-    size: string;
-    hash: string;
-  } | null>({
-    name: "MANIFES_RESMI_SOLAS_PELABUHAN_POUMAKO.pdf",
-    size: "1.8 MB",
-    hash: "SHA256: 7f8c4...e1920",
-  });
-
-  const [isCaptainDeclared, setIsCaptainDeclared] = useState<boolean>(true);
-  const [captainName, setCaptainName] = useState<string>(
-    user?.fullName ? `Capt. ${user.fullName}` : "Capt. Aris Munandar (NIP: 19820411 200802 1 003)"
-  );
-
-  // Fetch initial data
   useEffect(() => {
     fetchVisits();
     fetchManifests();
-    fetchFerryRoutes();
-  }, [fetchVisits, fetchManifests, fetchFerryRoutes]);
+  }, [fetchVisits, fetchManifests]);
 
-  // Filter kunjungan kapal yang valid untuk pelaporan manifes (kategori PENUMPANG atau CAMPURAN)
-  const availableVisits = useMemo(() => {
-    if (visits.length === 0) return [];
+  const issuedVisitIds = useMemo(() => {
+    return new Set(manifests.map((m) => m.visitId));
+  }, [manifests]);
+
+  const pendingManifestVisits = useMemo(() => {
     return visits.filter(
       (v) =>
-        v.vessel?.vesselCategory === "PENUMPANG" ||
-        v.vessel?.vesselCategory === "CAMPURAN" ||
-        !v.vessel?.vesselCategory // fallback jika field optional
+        ["APPROVED", "SCHEDULED", "ARRIVED", "BERTHED"].includes(v.status) &&
+        !issuedVisitIds.has(v.id)
     );
-  }, [visits]);
+  }, [visits, issuedVisitIds]);
 
-  // Set default selected visit
-  useEffect(() => {
-    if (availableVisits.length > 0 && selectedVisitId === null) {
-      setSelectedVisitId(availableVisits[0].id);
-    }
-  }, [availableVisits, selectedVisitId]);
-
-  // Set default ferry route if available
-  useEffect(() => {
-    if (ferryRoutes.length > 0 && selectedFerryRouteId === null) {
-      setSelectedFerryRouteId(ferryRoutes[0].id);
-    }
-  }, [ferryRoutes, selectedFerryRouteId]);
-
-  const activeVisit = useMemo(() => {
-    return availableVisits.find((v) => v.id === selectedVisitId) || availableVisits[0] || null;
-  }, [availableVisits, selectedVisitId]);
-
-  // Calculations
-  const totalPax = paxAdult + paxChild + paxInfant + crewCount;
-  const maxPaxCapacity = 500;
-  const paxUtilization = ((totalPax / maxPaxCapacity) * 100).toFixed(1);
-
-  const totalVehicles = vehGol1 + vehGol2 + vehGol3 + vehGol4A + vehGol4B + vehGol5 + vehGol6_7;
-  const maxVehicleCapacity = 80;
-  const vehicleUtilization = ((totalVehicles / maxVehicleCapacity) * 100).toFixed(1);
-
-  // UPT Ticket Gate Cross-check data (estimasi pas masuk penumpang & kendaraan di gate UPT)
-  const uptScannedTickets = {
-    passengers: paxAdult + paxChild,
-    vehicles: totalVehicles,
-  };
-
-  const isOverloaded = totalPax > maxPaxCapacity || totalVehicles > maxVehicleCapacity;
-
-  const handleSubmitManifest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearError();
-
-    if (!isCaptainDeclared) {
-      alert("Pernyataan kelaiklautan dan keselamatan nakhoda wajib dicentang sebelum mengirim manifes!");
-      return;
-    }
-
-    // Tentukan visitId target
-    const targetVisitId = activeVisit?.id || 1;
-    const targetPortId = activeVisit?.portId || 1;
-
-    try {
-      const result = await createManifest({
-        portId: targetPortId,
-        visitId: targetVisitId,
-        ferryRouteId: selectedFerryRouteId || undefined,
-        terminalClass: "KELAS_B",
-        adultCount: paxAdult,
-        childCount: paxChild,
-        infantCount: paxInfant,
-        greeterCount: greeterCount,
-        vehicleCount: totalVehicles,
-        cargoTons: cargoTons,
-        notes: `Laporan manifes resmi diserahkan oleh ${captainName}. ABK: ${crewCount} orang. Status: Kelaiklautan SOLAS Terverifikasi.`,
-      });
-
-      setSuccessToast(
-        `Laporan Manifes resmi ${result.manifestNumber} berhasil diserahkan ke Petugas UPT dan Syahbandar. Status: Menunggu Clearance SPB.`
+  const filteredManifests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return manifests;
+    return manifests.filter((m) => {
+      const vesselName = m.visit?.vessel?.name?.toLowerCase() || "";
+      const visitNo = m.visit?.visitNumber?.toLowerCase() || "";
+      const mnfNo = m.manifestNumber.toLowerCase();
+      const dest = m.ferryRoute?.destinationName?.toLowerCase() || "";
+      return (
+        mnfNo.includes(q) ||
+        vesselName.includes(q) ||
+        visitNo.includes(q) ||
+        dest.includes(q)
       );
-      setTimeout(() => setSuccessToast(null), 6000);
-    } catch {
-      // Error otomatis tersimpan di useManifestStore.error
-    }
+    });
+  }, [manifests, searchQuery]);
+
+  const totalPassengers = useMemo(() => {
+    return manifests.reduce(
+      (sum, m) => sum + m.adultCount + m.childCount + m.infantCount,
+      0
+    );
+  }, [manifests]);
+
+  const handleDownloadSummary = (mnf: VesselManifestItem) => {
+    const vesselName = mnf.visit?.vessel?.name || `Visit #${mnf.visitId}`;
+    const visitNumber = mnf.visit?.visitNumber || `#${mnf.visitId}`;
+    const destination = mnf.ferryRoute?.destinationName || "Pelayaran Domestik";
+    const totalPax = mnf.adultCount + mnf.childCount + mnf.infantCount;
+
+    const lines = [
+      "=======================================================",
+      "   DOKUMEN MANIFES RESMI PELAYARAN (PORTA - UPT)      ",
+      "=======================================================",
+      `Nomor Manifes      : ${mnf.manifestNumber}`,
+      `Nomor Kunjungan    : ${visitNumber}`,
+      `Nama Kapal         : ${vesselName}`,
+      `Trayek Tujuan      : ${destination}`,
+      `Kelas Terminal     : ${mnf.terminalClass}`,
+      `Waktu Terbit       : ${new Date(mnf.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jayapura" })} WIT`,
+      "-------------------------------------------------------",
+      `Penumpang Dewasa   : ${mnf.adultCount} Orang`,
+      `Penumpang Anak     : ${mnf.childCount} Orang`,
+      `Penumpang Bayi     : ${mnf.infantCount} Orang`,
+      `Total Penumpang    : ${totalPax} Orang`,
+      `Pengantar/Penjemput: ${mnf.greeterCount} Orang`,
+      `Total Kendaraan    : ${mnf.vehicleCount} Unit`,
+      `Muatan Kargo       : ${mnf.cargoTons} Ton`,
+      `Biaya Pas Terminal : Rp ${Number(mnf.terminalFeeIdr || 0).toLocaleString("id-ID")}`,
+      "-------------------------------------------------------",
+      `Catatan Petugas    : ${mnf.notes || "-"}`,
+      "=======================================================",
+      "Diterbitkan resmi oleh Petugas Pelabuhan (UPT).",
+    ].join("\n");
+
+    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${mnf.manifestNumber}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="space-y-8">
-      {/* Toast Alert */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-fade-in border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
+    <div className="space-y-6">
       {/* Error Alert */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
@@ -203,534 +134,171 @@ export default function KapalManifesPage() {
         </div>
       )}
 
-      {/* 1. SELECTOR KAPAL, KUNJUNGAN, & TRAYEK */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold shrink-0">
-              <Ship className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold text-[#0B241E]">
-                Pilih Armada & Kunjungan Pelayaran untuk Pelaporan Manifes
-              </h2>
-              <p className="text-xs text-[#64748B]">
-                Laporan wajib diserahkan maksimal 30 menit sebelum kapal bertolak (SOP SOLAS Perda Mimika 4/2023)
-              </p>
-            </div>
+      {/* Banner SOP Penerbitan Manifes oleh Petugas UPT */}
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                fetchVisits();
-                fetchManifests();
-                fetchFerryRoutes();
-              }}
-              disabled={isLoadingVisits || isLoadingManifests}
-              className="p-2 text-xs font-bold text-[#0B241E] hover:bg-[#F1F5F9] rounded-xl border border-[#CBD5E1] flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Refresh Data Kunjungan & Manifes"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingVisits ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh Data</span>
-            </button>
+          <div>
+            <h2 className="text-sm font-extrabold text-[#0B241E]">
+              Manifes Resmi Pelayaran dari Petugas Pelabuhan (UPT)
+            </h2>
+            <p className="text-xs text-[#64748B] mt-0.5 leading-relaxed max-w-3xl">
+              Sesuai SOP operasional pelabuhan, rekap manifes penumpang, kendaraan, dan muatan diterbitkan secara resmi oleh{" "}
+              <strong className="text-[#0B241E]">Petugas UPT</strong> berdasarkan pencatatan gerbang/terminal untuk diserahkan kepada Operator Kapal sebagai kelengkapan{" "}
+              <strong className="text-[#0B241E]">Clearance SPB</strong>.
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#F1F5F9]">
-          {/* Selector Kunjungan Kapal */}
-          <div>
-            <label className="block text-xs font-bold text-[#0B241E] mb-1.5 flex items-center gap-1.5">
-              <Ship className="w-3.5 h-3.5 text-[#0284C7]" />
-              <span>Kunjungan Kapal (Nomor PPK / Voyage) <span className="text-red-500">*</span></span>
-            </label>
-            <select
-              value={selectedVisitId || ""}
-              onChange={(e) => setSelectedVisitId(Number(e.target.value))}
-              className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-            >
-              {availableVisits.length > 0 ? (
-                availableVisits.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.vessel?.name || "Kapal"} ({v.visitNumber}) — {v.status}
-                  </option>
-                ))
-              ) : (
-                <option value={1}>KMP Mutiara Persada (VS-202611-001) — Sandar Aktif</option>
-              )}
-            </select>
-          </div>
-
-          {/* Selector Trayek Penyeberangan (Ferry Route) */}
-          <div>
-            <label className="block text-xs font-bold text-[#0B241E] mb-1.5 flex items-center gap-1.5">
-              <Compass className="w-3.5 h-3.5 text-[#D97706]" />
-              <span>Lintasan / Trayek Penyeberangan Resmi</span>
-            </label>
-            <select
-              value={selectedFerryRouteId || ""}
-              onChange={(e) => setSelectedFerryRouteId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-            >
-              <option value="">-- Tanpa Rute Tertentu / Pelayaran Reguler --</option>
-              {ferryRoutes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  Tujuan {r.destinationName} ({r.distanceMiles} Mil) — Tarif Rp {Number(r.adultFareIdr).toLocaleString("id-ID")}
-                </option>
-              ))}
-              {ferryRoutes.length === 0 && (
-                <>
-                  <option value={1}>Pelabuhan Poumako ➔ Dobo (Kepulauan Aru)</option>
-                  <option value={2}>Pelabuhan Poumako ➔ Agats (Kabupaten Asmat)</option>
-                </>
-              )}
-            </select>
-          </div>
-        </div>
+        <button
+          onClick={() => {
+            fetchVisits();
+            fetchManifests();
+          }}
+          disabled={isLoadingVisits || isLoadingManifests}
+          className="px-3.5 py-2 text-xs font-bold text-[#0B241E] bg-[#F8FAFC] hover:bg-[#F1F5F9] rounded-xl border border-[#CBD5E1] flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+        >
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${isLoadingVisits || isLoadingManifests ? "animate-spin" : ""}`}
+          />
+          <span>Refresh Data</span>
+        </button>
       </div>
 
-      {/* 2. SOLAS SAFETY CAPACITY & CROSS-CHECK WITH UPT TICKETS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Card 1: Penumpang Utilization */}
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 shadow-xs space-y-3">
+      {/* Ringkasan KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold text-[#0B241E] flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#0284C7]" />
-              <span>Kapasitas Keselamatan Penumpang (SOLAS)</span>
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
+              Manifes Terbit (UPT)
             </span>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                Number(paxUtilization) > 100
-                  ? "bg-rose-100 text-rose-800"
-                  : Number(paxUtilization) > 90
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
-              {paxUtilization}% Terisi
-            </span>
+            <FileCheck2 className="w-4 h-4 text-emerald-600" />
           </div>
-
-          <div className="flex items-baseline justify-between">
-            <p className="text-2xl font-black font-mono text-[#0B241E]">
-              {totalPax} <span className="text-xs font-normal text-[#64748B]">/ {maxPaxCapacity} Orang</span>
-            </p>
-            <p className="text-xs text-[#64748B]">
-              Tiket Gate UPT: <strong className="text-[#0B241E]">{uptScannedTickets.passengers} Orang</strong>
-            </p>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="w-full h-2.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                Number(paxUtilization) > 100
-                  ? "bg-rose-600"
-                  : Number(paxUtilization) > 90
-                  ? "bg-amber-500"
-                  : "bg-emerald-600"
-              }`}
-              style={{ width: `${Math.min(Number(paxUtilization), 100)}%` }}
-            />
-          </div>
-          <p
-            className={`text-[10px] font-semibold flex items-center gap-1 ${
-              Number(paxUtilization) > 100 ? "text-rose-700" : "text-emerald-700"
-            }`}
-          >
-            {Number(paxUtilization) > 100 ? (
-              <>
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                <span>PERINGATAN: Muatan melebihi batas keselamatan SOLAS!</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Kapasitas penumpang memenuhi batas aman standar SOLAS</span>
-              </>
-            )}
+          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">
+            {manifests.length} Dokumen
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            Diterbitkan resmi untuk armada Anda
           </p>
         </div>
 
-        {/* Card 2: Kendaraan Utilization */}
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold text-[#0B241E] flex items-center gap-2">
-              <Car className="w-4 h-4 text-[#D97706]" />
-              <span>Kapasitas Dek Kendaraan (Car Deck)</span>
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
+              Total Penumpang Tercatat
             </span>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                Number(vehicleUtilization) > 100
-                  ? "bg-rose-100 text-rose-800"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
-              {vehicleUtilization}% Terisi
-            </span>
-          </div>
-
-          <div className="flex items-baseline justify-between">
-            <p className="text-2xl font-black font-mono text-[#0B241E]">
-              {totalVehicles} <span className="text-xs font-normal text-[#64748B]">/ {maxVehicleCapacity} Unit</span>
-            </p>
-            <p className="text-xs text-[#64748B]">
-              Tiket Gate UPT: <strong className="text-[#0B241E]">{uptScannedTickets.vehicles} Unit</strong>
-            </p>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="w-full h-2.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                Number(vehicleUtilization) > 95 ? "bg-amber-500" : "bg-[#D97706]"
-              }`}
-              style={{ width: `${Math.min(Number(vehicleUtilization), 100)}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Sisa slot dek: {Math.max(0, maxVehicleCapacity - totalVehicles)} unit kendaraan campuran</span>
-          </p>
-        </div>
-      </div>
-
-      {/* 3. FORMULIR RINCIAN MUATAN & PENUMPANG (INTEGRATED FORM) */}
-      <form onSubmit={handleSubmitManifest} className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
-        <div className="border-b border-[#F1F5F9] pb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-black text-[#0B241E]">
-              Formulir Pelaporan Jumlah Penumpang & Muatan Kendaraan
-            </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Data akan otomatis dicatat di backend PORTA dan disinkronkan dengan data pos tiket sebelum SPB diterbitkan.
-            </p>
-          </div>
-          <span className="hidden sm:inline-block bg-[#F4F9F6] border border-[#CBD5E1] text-[#0B241E] text-[11px] font-mono px-2.5 py-1 rounded-lg">
-            Perda 4/2023 Pasal 14
-          </span>
-        </div>
-
-        {/* Section A: Penumpang */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
             <Users className="w-4 h-4 text-[#0284C7]" />
-            <span>A. Rincian Jiwa Penumpang & Awak Kapal (Crew)</span>
-          </h4>
-
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] mb-1">
-                Dewasa (Orang) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={paxAdult}
-                onChange={(e) => setPaxAdult(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] mb-1">
-                Anak-anak (Orang)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={paxChild}
-                onChange={(e) => setPaxChild(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] mb-1">
-                Bayi / Balita (Infant)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={paxInfant}
-                onChange={(e) => setPaxInfant(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] mb-1">
-                Pengantar (Greeter)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={greeterCount}
-                onChange={(e) => setGreeterCount(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] mb-1">
-                Awak Kapal (Kru / ABK)
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={crewCount}
-                onChange={(e) => setCrewCount(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
           </div>
+          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">
+            {totalPassengers.toLocaleString("id-ID")} Orang
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            Akumulasi seluruh pelayaran tercatat
+          </p>
         </div>
 
-        {/* Section B: Kendaraan */}
-        <div className="space-y-3 pt-2">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
-              <Car className="w-4 h-4 text-[#D97706]" />
-              <span>B. Rincian Golongan Kendaraan (Muatan Dek)</span>
-            </h4>
-            <span className="text-[11px] text-[#64748B] font-mono font-bold">
-              Total Kendaraan: {totalVehicles} Unit
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
+              Menunggu Terbit UPT
             </span>
+            <Clock className="w-4 h-4 text-amber-600" />
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol I (Sepeda)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol1}
-                onChange={(e) => setVehGol1(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol II (Motor &lt; 500cc)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol2}
-                onChange={(e) => setVehGol2(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol III (Moge)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol3}
-                onChange={(e) => setVehGol3(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol IV A (Mobil)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol4A}
-                onChange={(e) => setVehGol4A(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol IV B (Pick-up)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol4B}
-                onChange={(e) => setVehGol4B(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol V (Bus/Truk)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol5}
-                onChange={(e) => setVehGol5(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-[#475569] mb-1">
-                Gol VI - VII (Tronton)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={vehGol6_7}
-                onChange={(e) => setVehGol6_7(Number(e.target.value))}
-                className="w-full text-xs font-mono font-bold p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              />
-            </div>
-          </div>
+          <p className="text-2xl font-extrabold text-[#0B241E] font-mono mt-1">
+            {pendingManifestVisits.length} Kunjungan
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            Jadwal aktif menunggu rilis manifes UPT
+          </p>
         </div>
+      </div>
 
-        {/* Section C: Muatan Barang Campuran & Lampiran */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <div>
-            <label className="block text-xs font-bold text-[#0B241E] mb-1">
-              Muatan Kargo Barang Campuran (Ton)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={cargoTons}
-              onChange={(e) => setCargoTons(Number(e.target.value))}
-              className="w-full text-xs font-mono font-bold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-              placeholder="0.0"
-            />
+      {/* Antrean Kunjungan Aktif yang Menunggu Penerbitan Manifes dari UPT */}
+      {pendingManifestVisits.length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+            <h3 className="text-xs font-extrabold text-amber-950 uppercase tracking-wide">
+              Kunjungan Aktif Menunggu Penerbitan Manifes oleh Petugas UPT ({pendingManifestVisits.length})
+            </h3>
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[#0B241E] mb-1">
-              Lampiran Dokumen Manifes Resmi (.PDF)
-            </label>
-            {attachedFile ? (
-              <div className="p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#0284C7] shrink-0" />
-                  <div className="truncate">
-                    <p className="font-bold text-[#0B241E] truncate">{attachedFile.name}</p>
-                    <p className="text-[10px] text-[#64748B] font-mono">{attachedFile.size}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAttachedFile(null)}
-                  className="text-red-600 hover:text-red-800 text-[11px] font-bold px-2 py-1 cursor-pointer shrink-0"
-                >
-                  Ganti
-                </button>
-              </div>
-            ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {pendingManifestVisits.map((v) => (
               <div
-                onClick={() =>
-                  setAttachedFile({
-                    name: "MANIFES_UPLOAD_RESMI.pdf",
-                    size: "2.1 MB",
-                    hash: "SHA256: e82b...199a",
-                  })
-                }
-                className="p-2.5 rounded-xl border border-dashed border-[#CBD5E1] hover:border-[#0B241E] text-center cursor-pointer text-xs transition-colors"
+                key={v.id}
+                className="bg-white border border-amber-200/80 rounded-xl p-3.5 flex items-center justify-between gap-3"
               >
-                <p className="font-bold text-[#0B241E]">Unggah Dokumen Manifes PDF</p>
+                <div className="min-w-0">
+                  <p className="text-xs font-extrabold text-[#0B241E] truncate">
+                    {v.vessel?.name || `Kapal #${v.vesselId}`}
+                  </p>
+                  <p className="text-[11px] font-mono text-[#64748B] mt-0.5">
+                    {v.visitNumber} • ETA:{" "}
+                    {new Date(v.eta).toLocaleString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Jayapura",
+                    })}{" "}
+                    WIT
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap shrink-0">
+                  Menunggu Petugas UPT
+                </span>
               </div>
-            )}
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Section D: Deklarasi Tanggung Jawab Nakhoda */}
-        <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 text-xs">
-          <div className="flex items-start gap-2.5">
-            <input
-              type="checkbox"
-              id="captain_check"
-              checked={isCaptainDeclared}
-              onChange={(e) => setIsCaptainDeclared(e.target.checked)}
-              className="mt-0.5 w-4 h-4 text-[#0B241E] rounded cursor-pointer"
-            />
-            <label htmlFor="captain_check" className="cursor-pointer space-y-1">
-              <strong className="text-amber-950 block font-bold">
-                Pernyataan Kelaiklautan & Tanggung Jawab Nakhoda (Master&apos;s Declaration):
-              </strong>
-              <p className="text-amber-900/90 text-[11px] leading-relaxed">
-                Saya menyatakan dengan sebenarnya bahwa muatan kapal telah diperiksa, diikat (*lashing*) sesuai standar keselamatan, stabilitas sarat kapal (draft) dalam batas aman, dan jumlah jiwa di atas kapal tidak melebihi kapasitas sertifikat keselamatan.
-              </p>
-            </label>
-          </div>
-
-          <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-amber-950 gap-2">
-            <div>
-              <span>Nakhoda Bertanggung Jawab: </span>
-              <strong className="font-mono">{captainName}</strong>
-            </div>
-            <span className="font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-bold">
-              Ttd Digital Terverifikasi
-            </span>
-          </div>
-        </div>
-
-        {/* Submit Actions */}
-        <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between border-t border-[#F1F5F9] gap-3">
-          <span className="text-xs text-[#64748B] flex items-center gap-1">
-            <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span>Data terenkripsi dan terhubung langsung ke Syahbandar &amp; UPT Pelabuhan.</span>
-          </span>
-
-          <button
-            type="submit"
-            disabled={isSubmitting || isOverloaded}
-            className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-[#D97706]" />
-                <span>Mengirim Manifes ke Server...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4 text-[#D97706]" />
-                <span>Kirim Manifes &amp; Minta Clearance SPB</span>
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {/* 4. DAFTAR RIWAYAT MANIFES RESMI YANG TERDAFTAR DI BACKEND */}
+      {/* Daftar Manifes Resmi yang Diterbitkan Petugas UPT */}
       <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F1F5F9] pb-4">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-[#0B241E]" />
-            <h3 className="text-sm font-extrabold text-[#0B241E]">
-              Riwayat Manifes Pelayaran Resmi Terverifikasi
-            </h3>
+            <div>
+              <h3 className="text-sm font-extrabold text-[#0B241E]">
+                Daftar Manifes Resmi Diterbitkan Petugas UPT
+              </h3>
+              <p className="text-[11px] text-[#64748B]">
+                Total {filteredManifests.length} dokumen manifes diterima oleh operator kapal
+              </p>
+            </div>
           </div>
-          <span className="text-xs text-[#64748B] font-mono">
-            Total {manifests.length} Manifes Tercatat
-          </span>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari no. manifes, kapal, atau tujuan..."
+              className="w-full pl-8 pr-3 py-2 text-xs bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
+            />
+          </div>
         </div>
 
         {isLoadingManifests && manifests.length === 0 ? (
-          <div className="py-8 text-center text-xs text-[#64748B] flex items-center justify-center gap-2">
+          <div className="py-10 text-center text-xs text-[#64748B] flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-[#0B241E]" />
-            <span>Memuat riwayat manifes dari server backend...</span>
+            <span>Memuat manifes resmi dari server backend...</span>
           </div>
-        ) : manifests.length === 0 ? (
-          <div className="py-8 text-center text-xs text-[#64748B]">
-            <Info className="w-5 h-5 text-[#94A3B8] mx-auto mb-2" />
-            <p className="font-semibold text-[#0B241E]">Belum Ada Manifes Tercatat</p>
-            <p className="text-[11px] mt-0.5">
-              Kirimkan formulir manifes di atas untuk mencatatkan manifes resmi keberangkatan kapal.
+        ) : filteredManifests.length === 0 ? (
+          <div className="py-10 text-center text-xs text-[#64748B]">
+            <Info className="w-6 h-6 text-[#94A3B8] mx-auto mb-2" />
+            <p className="font-semibold text-[#0B241E]">
+              {manifests.length === 0
+                ? "Belum Ada Manifes Diterbitkan oleh Petugas UPT"
+                : "Data Manifes Tidak Ditemukan"}
+            </p>
+            <p className="text-[11px] mt-1 max-w-md mx-auto">
+              {manifests.length === 0
+                ? "Manifes akan muncul secara otomatis di sini setelah Petugas Pelabuhan (UPT) menerbitkan rekap penumpang dan muatan untuk kunjungan kapal Anda."
+                : "Coba ubah kata kunci pencarian Anda."}
             </p>
           </div>
         ) : (
@@ -741,17 +309,18 @@ export default function KapalManifesPage() {
                   <th className="p-3">No. Manifes</th>
                   <th className="p-3">Kapal &amp; Kunjungan</th>
                   <th className="p-3">Trayek Tujuan</th>
-                  <th className="p-3 text-center">Jiwa Penumpang</th>
+                  <th className="p-3 text-center">Penumpang</th>
                   <th className="p-3 text-center">Kendaraan</th>
-                  <th className="p-3">Biaya Pas Terminal</th>
-                  <th className="p-3">Waktu Lapor</th>
+                  <th className="p-3 text-center">Muatan</th>
+                  <th className="p-3">Pas Terminal</th>
                   <th className="p-3 text-center">Status</th>
+                  <th className="p-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9]">
-                {manifests.map((mnf) => (
+                {filteredManifests.map((mnf) => (
                   <tr key={mnf.id} className="hover:bg-[#F8FAFC] transition-colors">
-                    <td className="p-3 font-mono font-bold text-[#0B241E]">
+                    <td className="p-3 font-mono font-bold text-[#0B241E] whitespace-nowrap">
                       {mnf.manifestNumber}
                     </td>
                     <td className="p-3">
@@ -780,21 +349,36 @@ export default function KapalManifesPage() {
                     <td className="p-3 text-center font-mono font-bold text-[#0B241E]">
                       {mnf.vehicleCount} Unit
                     </td>
-                    <td className="p-3 font-mono font-bold text-emerald-800">
+                    <td className="p-3 text-center font-mono font-semibold text-[#334155]">
+                      {mnf.cargoTons} Ton
+                    </td>
+                    <td className="p-3 font-mono font-bold text-emerald-800 whitespace-nowrap">
                       Rp {Number(mnf.terminalFeeIdr || 0).toLocaleString("id-ID")}
                     </td>
-                    <td className="p-3 text-[11px] text-[#64748B]">
-                      {new Date(mnf.createdAt).toLocaleDateString("id-ID", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
                     <td className="p-3 text-center">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 whitespace-nowrap">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>SOLAS Validated</span>
+                        <span>Diterbitkan UPT</span>
                       </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedManifest(mnf)}
+                          className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] text-[11px] font-bold text-[#0B241E] hover:bg-[#F1F5F9] cursor-pointer"
+                        >
+                          Detail
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadSummary(mnf)}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#0B241E] text-white text-[11px] font-bold hover:bg-[#13382F] inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Unduh</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -803,6 +387,147 @@ export default function KapalManifesPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Detail Manifes */}
+      {selectedManifest && (
+        <div className="fixed inset-0 z-50 bg-[#0B241E]/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center">
+                  <Ship className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#0B241E]">
+                    Detail Manifes Resmi
+                  </h4>
+                  <p className="text-[11px] font-mono text-[#64748B]">
+                    {selectedManifest.manifestNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedManifest(null)}
+                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#E2E8F0] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5">
+                <div>
+                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase">
+                    Kapal
+                  </span>
+                  <p className="font-extrabold text-[#0B241E] mt-0.5">
+                    {selectedManifest.visit?.vessel?.name || "-"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase">
+                    No. Kunjungan
+                  </span>
+                  <p className="font-mono font-bold text-[#0B241E] mt-0.5">
+                    {selectedManifest.visit?.visitNumber || `#${selectedManifest.visitId}`}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase">
+                    Trayek Tujuan
+                  </span>
+                  <p className="font-semibold text-[#0B241E] mt-0.5">
+                    {selectedManifest.ferryRoute?.destinationName || "Pelayaran Domestik"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[#94A3B8] uppercase">
+                    Waktu Terbit
+                  </span>
+                  <p className="font-mono font-semibold text-[#0B241E] mt-0.5">
+                    {new Date(selectedManifest.createdAt).toLocaleString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Jayapura",
+                    })}{" "}
+                    WIT
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5 text-center">
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Dewasa</span>
+                  <strong className="text-sm font-mono text-[#0B241E]">
+                    {selectedManifest.adultCount}
+                  </strong>
+                </div>
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Anak</span>
+                  <strong className="text-sm font-mono text-[#0B241E]">
+                    {selectedManifest.childCount}
+                  </strong>
+                </div>
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Bayi</span>
+                  <strong className="text-sm font-mono text-[#0B241E]">
+                    {selectedManifest.infantCount}
+                  </strong>
+                </div>
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Kendaraan</span>
+                  <strong className="text-sm font-mono text-[#0B241E]">
+                    {selectedManifest.vehicleCount} Unit
+                  </strong>
+                </div>
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Muatan</span>
+                  <strong className="text-sm font-mono text-[#0B241E]">
+                    {selectedManifest.cargoTons} Ton
+                  </strong>
+                </div>
+                <div className="border border-[#E2E8F0] rounded-xl p-2.5">
+                  <span className="text-[10px] text-[#64748B] block">Pas Terminal</span>
+                  <strong className="text-xs font-mono text-emerald-700">
+                    Rp {Number(selectedManifest.terminalFeeIdr || 0).toLocaleString("id-ID")}
+                  </strong>
+                </div>
+              </div>
+
+              {selectedManifest.notes && (
+                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-[#64748B] uppercase block mb-1">
+                    Catatan Petugas UPT
+                  </span>
+                  <p className="text-[#334155] leading-relaxed">{selectedManifest.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedManifest(null)}
+                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#334155] hover:bg-white cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadSummary(selectedManifest)}
+                className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold hover:bg-[#13382F] inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Unduh Ringkasan Manifes</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

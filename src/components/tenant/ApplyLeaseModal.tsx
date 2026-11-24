@@ -6,12 +6,12 @@ import {
   Store,
   Calendar,
   Receipt,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Building,
 } from "lucide-react";
 import { useTenantStore } from "@/store/tenant.store";
+import { toast } from "@/store/toast.store";
 
 export function ApplyLeaseModal() {
   const {
@@ -35,12 +35,10 @@ export function ApplyLeaseModal() {
   const [selectedAssetId, setSelectedAssetId] = useState<number>(0);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isApplyModalOpen) {
       clearError();
-      setSuccessMessage(null);
 
       // Default start date: today
       const today = new Date();
@@ -82,13 +80,10 @@ export function ApplyLeaseModal() {
         endDate,
       });
 
-      setSuccessMessage(
+      toast.success(
         `Permohonan sewa untuk ${currentAsset.name} berhasil diajukan! Menunggu verifikasi Petugas Ruangan & Kepala Pelabuhan.`
       );
-
-      setTimeout(() => {
-        closeApplyModal();
-      }, 2500);
+      closeApplyModal();
     } catch {
       // Error is handled in zustand store
     }
@@ -131,14 +126,6 @@ export function ApplyLeaseModal() {
               <strong>{profile?.verificationStatus || "PENDING"}</strong>.
               Permohonan Anda akan diproses setelah kelengkapan berkas NIB/NPWP diverifikasi.
             </p>
-          </div>
-        )}
-
-        {/* Success Alert */}
-        {successMessage && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{successMessage}</span>
           </div>
         )}
 

@@ -21,31 +21,8 @@ import {
   ArrowRight,
   Ticket,
 } from "lucide-react";
-
-interface ScheduleItem {
-  id: string;
-  shipName: string;
-  operator: string;
-  route: string;
-  departureTime: string;
-  arrivalTime: string;
-  duration: string;
-  dockType: "Eksekutif" | "Reguler";
-  dockName: string;
-  status: "Tepat Waktu" | "Boarding" | "Perubahan Waktu";
-  paxQuota: string;
-  vehicleQuota: string;
-  totalPrice: number;
-  retribusiAmount: number;
-}
-
-interface ChatMessage {
-  id: string;
-  sender: "bot" | "user";
-  text: string;
-  timestamp: string;
-  badge?: string;
-}
+import { formatRupiah } from "@/lib/kapal-billing";
+import type { ChatMessage, ScheduleItem } from "@/types/penumpang.types";
 
 export default function PenumpangJadwalPage() {
   // Filter States
@@ -223,13 +200,6 @@ export default function PenumpangJadwalPage() {
     "Berapa batas berat bagasi penumpang pejalan kaki?",
   ];
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">

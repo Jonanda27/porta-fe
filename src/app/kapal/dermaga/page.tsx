@@ -5,12 +5,10 @@ import {
   Anchor,
   Building2,
   ShieldCheck,
-  Scale,
   Search,
   CheckCircle2,
   Layers,
   Ruler,
-  FileText,
   RefreshCw,
   Info,
   Waves,
@@ -19,21 +17,29 @@ import {
   Ship,
   Package,
   Users,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { usePortStore } from "@/store/port.store";
 import {
+  BerthAuthorityFilter as AuthorityFilter,
   BerthAuthorityType,
   BerthOperationalStatus,
+  BerthOperationalStatusFilter as OperationalStatusFilter,
   BerthServiceCategory,
+  BerthServiceCategoryFilter as ServiceCategoryFilter,
   BerthType,
 } from "@/types/port.types";
 
-type AuthorityFilter = "ALL" | "PEMDA_DISHUB" | "UPP_KEMENHUB" | "TUKS_TERSUS";
-type ServiceCategoryFilter = "ALL" | BerthServiceCategory;
-type OperationalStatusFilter = "ALL" | BerthOperationalStatus;
-
 export default function DermagaPage() {
-  const { berths, isLoading, fetchBerths } = usePortStore();
+  const {
+    berths,
+    berthsSchedule,
+    isLoading,
+    isScheduleLoading,
+    fetchBerths,
+    fetchBerthsSchedule,
+  } = usePortStore();
 
   const [authorityFilter, setAuthorityFilter] = useState<AuthorityFilter>("ALL");
   const [serviceCategoryFilter, setServiceCategoryFilter] =
@@ -41,10 +47,25 @@ export default function DermagaPage() {
   const [operationalStatusFilter, setOperationalStatusFilter] =
     useState<OperationalStatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [scheduleDate, setScheduleDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
 
   useEffect(() => {
     fetchBerths(1);
   }, [fetchBerths]);
+
+  useEffect(() => {
+    if (scheduleDate) {
+      fetchBerthsSchedule(1, scheduleDate);
+    }
+  }, [fetchBerthsSchedule, scheduleDate]);
+
+  const formatScheduleTime = (dateStr: string) =>
+    new Date(dateStr).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   // Statistik Ringkas Dermaga Fisik (Real-Time)
   const stats = useMemo(() => {
@@ -376,16 +397,37 @@ export default function DermagaPage() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchBerths(1)}
-            disabled={isLoading}
-            className="px-3 py-2 rounded-xl border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-semibold text-[#475569] hover:text-[#0B241E] transition-colors flex items-center gap-1.5 cursor-pointer self-end sm:self-auto shrink-0 disabled:opacity-50"
-            title="Segarkan data dermaga"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#D97706]" : ""}`} />
-            <span>Segarkan</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto shrink-0">
+            <div className="inline-flex items-center gap-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#D97706]" />
+              <span className="text-[11px] font-semibold text-[#475569]">Jadwal Tgl:</span>
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                aria-label="Pilih tanggal jadwal dermaga"
+                className="text-xs font-mono font-bold text-[#0B241E] bg-transparent focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                fetchBerths(1);
+                fetchBerthsSchedule(1, scheduleDate);
+              }}
+              disabled={isLoading || isScheduleLoading}
+              className="px-3 py-2 rounded-xl border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-semibold text-[#475569] hover:text-[#0B241E] transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+              title="Segarkan data dermaga dan jadwal"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${
+                  isLoading || isScheduleLoading ? "animate-spin text-[#D97706]" : ""
+                }`}
+              />
+              <span>Segarkan</span>
+            </button>
+          </div>
         </div>
 
         {/* Search Bar + Filter Kategori Layanan & Status Operasional */}
@@ -466,6 +508,9 @@ export default function DermagaPage() {
               const serviceMeta = getServiceCategoryMeta(berth.berthServiceCategory);
               const StatusIcon = statusMeta.icon;
               const ServiceIcon = serviceMeta.icon;
+              const berthSchedule = berthsSchedule?.berths.find(
+                (s) => s.berth.id === berth.id
+              );
 
               return (
                 <div
@@ -566,21 +611,82 @@ export default function DermagaPage() {
                       </div>
                     </div>
 
-                    {/* Legal Basis & Management Evidence */}
-                    <div className="space-y-1.5 text-[11px] text-[#64748B] border-t border-[#F1F5F9] pt-2.5">
-                      <div className="flex items-start gap-1.5">
-                        <Scale className="w-3.5 h-3.5 text-[#D97706] shrink-0 mt-0.5" />
-                        <span className="leading-snug">
-                          <span className="font-semibold text-slate-700">Dasar Regulasi:</span> {berth.legalBasis}
+                    {/* Jadwal Okupansi & Slot Kosong Dermaga */}
+                    <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] text-xs space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold text-[#0B241E] uppercase tracking-wider flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#D97706]" />
+                          <span>Jadwal Dermaga ({scheduleDate})</span>
                         </span>
-                      </div>
-                      {berth.managementEvidence && (
-                        <div className="flex items-start gap-1.5">
-                          <FileText className="w-3.5 h-3.5 text-[#85A69B] shrink-0 mt-0.5" />
-                          <span className="leading-snug">
-                            <span className="font-semibold text-slate-700">Legalitas Pengelolaan:</span> {berth.managementEvidence}
+                        {berthSchedule && (
+                          <span className="text-[10px] font-semibold text-[#64748B]">
+                            {berthSchedule.occupiedSlots.length} Terisi
                           </span>
+                        )}
+                      </div>
+
+                      {isScheduleLoading ? (
+                        <p className="text-[11px] text-[#64748B]">Memuat jadwal dermaga...</p>
+                      ) : berthSchedule ? (
+                        <div className="space-y-1.5">
+                          {berthSchedule.occupiedSlots.length > 0 ? (
+                            <div className="space-y-1">
+                              {berthSchedule.occupiedSlots.map((slot) => (
+                                <div
+                                  key={slot.berthingId}
+                                  className="flex items-center justify-between gap-2 bg-amber-50/80 border border-amber-200/80 rounded-lg px-2.5 py-1.5 text-[11px]"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-mono font-bold text-[#0B241E] whitespace-nowrap">
+                                      {formatScheduleTime(slot.startAt)}–
+                                      {formatScheduleTime(slot.endAt)}
+                                    </span>
+                                    <span className="font-semibold text-[#1E293B] truncate">
+                                      {slot.vesselName}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                      slot.status === "ACTIVE"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : slot.status === "COMPLETED"
+                                        ? "bg-slate-200 text-slate-700"
+                                        : "bg-amber-100 text-amber-800"
+                                    }`}
+                                  >
+                                    {slot.status === "ACTIVE"
+                                      ? "Sedang Sandar"
+                                      : slot.status === "COMPLETED"
+                                      ? "Selesai"
+                                      : "Terjadwal"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] font-semibold text-emerald-700">
+                              Belum ada jadwal sandar pada tanggal ini.
+                            </p>
+                          )}
+
+                          {berthSchedule.freeSlots.length > 0 && (
+                            <div className="text-[11px] text-[#475569] pt-0.5">
+                              <span className="font-bold text-emerald-700">Slot Kosong: </span>
+                              <span className="font-mono">
+                                {berthSchedule.freeSlots
+                                  .map(
+                                    (fs) =>
+                                      `${formatScheduleTime(fs.startAt)}–${formatScheduleTime(
+                                        fs.endAt
+                                      )}`
+                                  )
+                                  .join(", ")}
+                              </span>
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <p className="text-[11px] text-[#94A3B8]">Jadwal belum tersedia.</p>
                       )}
                     </div>
                   </div>

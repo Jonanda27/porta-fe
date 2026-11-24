@@ -25,17 +25,8 @@ import {
   Receipt,
   FileCheck2,
 } from "lucide-react";
-
-interface ServiceType {
-  id: string;
-  name: string;
-  category: "pax" | "motor" | "car" | "truck";
-  icon: any;
-  baseFare: number; // Operator kapal
-  retribusiPemda: number; // Retribusi Pemda PP 35/2023
-  insurance: number; // Jasa Raharja
-  description: string;
-}
+import { formatRupiah } from "@/lib/kapal-billing";
+import type { TicketServiceOption } from "@/types/penumpang.types";
 
 export default function PenumpangTiketPage() {
   // Booking Steps: 1: Service Selection, 2: Identity, 3: Payment (QRIS/VA), 4: E-Ticket Issued
@@ -58,10 +49,11 @@ export default function PenumpangTiketPage() {
   // Payment Selection
   const [paymentMethod, setPaymentMethod] = useState<"qris" | "va_bca" | "va_mandiri" | "va_bri">("qris");
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
   // Service Catalog
-  const serviceOptions: ServiceType[] = [
+  const serviceOptions: TicketServiceOption[] = [
     {
       id: "pax_adult",
       name: "Pejalan Kaki (Dewasa)",
@@ -125,13 +117,6 @@ export default function PenumpangTiketPage() {
 
   const bookingCode = "PORTA-PAS-2026-99214";
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   const handleSimulatePayment = () => {
     setIsProcessingPayment(true);
@@ -293,7 +278,9 @@ export default function PenumpangTiketPage() {
               </label>
               <select
                 value={dockService}
-                onChange={(e) => setDockService(e.target.value as any)}
+                onChange={(e) =>
+                  setDockService(e.target.value as "Eksekutif" | "Reguler")
+                }
                 className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0284C7]"
               >
                 <option value="Reguler">Layanan Reguler</option>
@@ -783,6 +770,11 @@ export default function PenumpangTiketPage() {
           </div>
 
           {/* Ticket Action Buttons */}
+          {shareFeedback && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center">
+              {shareFeedback}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={handlePrint}
@@ -792,7 +784,11 @@ export default function PenumpangTiketPage() {
               <span>Cetak Tiket / PDF</span>
             </button>
             <button
-              onClick={() => alert(`Tiket dan QR Code telah dikirim ke nomor WhatsApp: ${phone}`)}
+              onClick={() =>
+                setShareFeedback(
+                  `Tiket dan QR Code telah dikirim ke nomor WhatsApp: ${phone}`
+                )
+              }
               className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <Share2 className="w-4 h-4" />

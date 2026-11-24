@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { RouteTransitionLoader } from "@/components/ui/RouteTransitionLoader";
+import { RouteGuard } from "@/components/auth/RouteGuard";
+import { ToastContainer } from "@/components/ui/ToastContainer";
 
 export const metadata: Metadata = {
   title: "PORTA - Sistem Pengelolaan Pelabuhan dan Penerimaan Daerah",
@@ -27,7 +29,8 @@ export default function RootLayout({
     <html lang="id" className="h-full">
       <body className="antialiased h-full font-sans bg-slate-50 text-slate-900 selection:bg-[#D97706]/20 selection:text-[#0B241E]">
         <RouteTransitionLoader />
-        {children}
+        <ToastContainer />
+        <RouteGuard>{children}</RouteGuard>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
+import { AUTH_COOKIE_KEYS } from "@/lib/route-guard";
 import {
   AuthUser,
   ChangeMyPasswordPayload,
@@ -91,12 +92,29 @@ export class AuthService {
   }
 
   /**
-   * Menyimpan session token & profil ke localStorage
+   * Menyinkronkan token & role ke cookie agar Edge Middleware dapat memvalidasi rute sebelum render
+   */
+  public static syncSessionCookies(token: string, role?: UserRole | string): void {
+    if (typeof document === "undefined") return;
+    const maxAgeSeconds = 60 * 60 * 24 * 7; // 7 hari
+    document.cookie = `${AUTH_COOKIE_KEYS.TOKEN}=${encodeURIComponent(
+      token
+    )}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+    if (role) {
+      document.cookie = `${AUTH_COOKIE_KEYS.ROLE}=${encodeURIComponent(
+        role
+      )}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+    }
+  }
+
+  /**
+   * Menyimpan session token & profil ke localStorage serta cookie
    */
   public static saveSession(session: LoginResponse): void {
     if (typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEYS.TOKEN, session.accessToken);
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(session.user));
+    this.syncSessionCookies(session.accessToken, session.user?.role);
   }
 
   /**
@@ -106,6 +124,10 @@ export class AuthService {
     if (typeof window === "undefined") return;
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
+    if (typeof document !== "undefined") {
+      document.cookie = `${AUTH_COOKIE_KEYS.TOKEN}=; path=/; max-age=0; SameSite=Lax`;
+      document.cookie = `${AUTH_COOKIE_KEYS.ROLE}=; path=/; max-age=0; SameSite=Lax`;
+    }
   }
 
   /**

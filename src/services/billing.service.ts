@@ -1,4 +1,4 @@
-import { API_CONFIG } from "@/config/api.config";
+﻿import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
   BillingAdjustment,
@@ -224,7 +224,7 @@ export class BillingService {
   }
 
   /**
-   * Menerbitkan Surat Teguran / Surat Tagihan Retribusi Daerah (STPD)
+   * Menerbitkan Surat Teguran / Surat Tagihan Retribusi Daerah (STRD)
    */
   public static async issueWarning(dto: CreateWarningDto): Promise<WarningRecord> {
     return apiClient.post<WarningRecord>("/warnings", dto);

@@ -11,11 +11,11 @@ import {
   Filter,
   Edit3,
   Loader2,
-  CheckCircle2,
   AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { TenantService } from "@/services/tenant.service";
 import { UptService } from "@/services/upt.service";
 import { PortAssetCatalogItem } from "@/types/tenant.types";
@@ -37,7 +37,6 @@ export default function MasterAsetPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,16 +46,21 @@ export default function MasterAsetPage() {
   // Create/Edit Modal
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PortAssetCatalogItem | null>(null);
-  const [portId, setPortId] = useState<string>("");
-  const [assetCode, setAssetCode] = useState("");
-  const [name, setName] = useState("");
-  const [assetType, setAssetType] = useState("KIOS");
-  const [areaSqm, setAreaSqm] = useState("");
-  const [annualRatePerSqmIdr, setAnnualRatePerSqmIdr] = useState("");
-  const [billingEligibility, setBillingEligibility] = useState<"BILLABLE" | "NOT_BILLABLE" | "PENDING_VERIFICATION">("BILLABLE");
-  const [status, setStatus] = useState<"AVAILABLE" | "LEASED" | "MAINTENANCE">("AVAILABLE");
-  const [gisCoordinates, setGisCoordinates] = useState("");
-  const [legalBasis, setLegalBasis] = useState("Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI");
+  const [assetForm, setAssetForm] = useState({
+    portId: "",
+    assetCode: "",
+    name: "",
+    assetType: "KIOS",
+    areaSqm: "",
+    annualRatePerSqmIdr: "",
+    billingEligibility: "BILLABLE" as
+      | "BILLABLE"
+      | "NOT_BILLABLE"
+      | "PENDING_VERIFICATION",
+    status: "AVAILABLE" as "AVAILABLE" | "LEASED" | "MAINTENANCE",
+    gisCoordinates: "",
+    legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+  });
 
   const fetchAssets = async () => {
     try {
@@ -79,32 +83,36 @@ export default function MasterAsetPage() {
 
   const openCreateModal = () => {
     setEditingAsset(null);
-    setPortId(ports[0]?.id ? String(ports[0].id) : "1");
-    setAssetCode("");
-    setName("");
-    setAssetType("KIOS");
-    setAreaSqm("");
-    setAnnualRatePerSqmIdr("");
-    setBillingEligibility("BILLABLE");
-    setStatus("AVAILABLE");
-    setGisCoordinates("");
-    setLegalBasis("Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI");
+    setAssetForm({
+      portId: ports[0]?.id ? String(ports[0].id) : "1",
+      assetCode: "",
+      name: "",
+      assetType: "KIOS",
+      areaSqm: "",
+      annualRatePerSqmIdr: "",
+      billingEligibility: "BILLABLE",
+      status: "AVAILABLE",
+      gisCoordinates: "",
+      legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
 
   const openEditModal = (ast: PortAssetCatalogItem) => {
     setEditingAsset(ast);
-    setPortId(String(ast.portId));
-    setAssetCode(ast.assetCode);
-    setName(ast.name);
-    setAssetType(ast.assetType);
-    setAreaSqm(String(ast.areaSqm));
-    setAnnualRatePerSqmIdr(String(ast.annualRatePerSqmIdr));
-    setBillingEligibility(ast.billingEligibility);
-    setStatus(ast.status);
-    setGisCoordinates(ast.gisCoordinates || "");
-    setLegalBasis(ast.legalBasis || "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI");
+    setAssetForm({
+      portId: String(ast.portId),
+      assetCode: ast.assetCode,
+      name: ast.name,
+      assetType: ast.assetType,
+      areaSqm: String(ast.areaSqm),
+      annualRatePerSqmIdr: String(ast.annualRatePerSqmIdr),
+      billingEligibility: ast.billingEligibility,
+      status: ast.status,
+      gisCoordinates: ast.gisCoordinates || "",
+      legalBasis: ast.legalBasis || "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
@@ -113,33 +121,32 @@ export default function MasterAsetPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       if (editingAsset) {
         await UptService.updateAsset(editingAsset.id, {
-          name: name.trim(),
-          assetType,
-          areaSqm: Number(areaSqm),
-          annualRatePerSqmIdr: Number(annualRatePerSqmIdr),
-          billingEligibility,
-          status,
-          gisCoordinates: gisCoordinates.trim() || undefined,
-          legalBasis: legalBasis.trim() || undefined,
+          name: assetForm.name.trim(),
+          assetType: assetForm.assetType,
+          areaSqm: Number(assetForm.areaSqm),
+          annualRatePerSqmIdr: Number(assetForm.annualRatePerSqmIdr),
+          billingEligibility: assetForm.billingEligibility,
+          status: assetForm.status,
+          gisCoordinates: assetForm.gisCoordinates.trim() || undefined,
+          legalBasis: assetForm.legalBasis.trim() || undefined,
         });
-        setFeedback(`Data aset "${name}" berhasil diperbarui.`);
+        toast.success("Aset Diperbarui", `Data aset "${assetForm.name}" berhasil diperbarui.`);
       } else {
         await UptService.createAsset({
-          portId: Number(portId),
-          assetCode: assetCode.trim().toUpperCase(),
-          name: name.trim(),
-          assetType,
-          areaSqm: Number(areaSqm),
-          annualRatePerSqmIdr: Number(annualRatePerSqmIdr),
-          billingEligibility,
-          gisCoordinates: gisCoordinates.trim() || undefined,
-          legalBasis: legalBasis.trim() || undefined,
+          portId: Number(assetForm.portId),
+          assetCode: assetForm.assetCode.trim().toUpperCase(),
+          name: assetForm.name.trim(),
+          assetType: assetForm.assetType,
+          areaSqm: Number(assetForm.areaSqm),
+          annualRatePerSqmIdr: Number(assetForm.annualRatePerSqmIdr),
+          billingEligibility: assetForm.billingEligibility,
+          gisCoordinates: assetForm.gisCoordinates.trim() || undefined,
+          legalBasis: assetForm.legalBasis.trim() || undefined,
         });
-        setFeedback(`Aset baru "${name}" berhasil ditambahkan.`);
+        toast.success("Aset Ditambahkan", `Aset baru "${assetForm.name}" berhasil ditambahkan.`);
       }
       setIsFormModalOpen(false);
       await fetchAssets();
@@ -245,13 +252,6 @@ export default function MasterAsetPage() {
           </div>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -414,8 +414,10 @@ export default function MasterAsetPage() {
                     </label>
                     <select
                       required
-                      value={portId}
-                      onChange={(e) => setPortId(e.target.value)}
+                      value={assetForm.portId}
+                      onChange={(e) =>
+                        setAssetForm((prev) => ({ ...prev, portId: e.target.value }))
+                      }
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                     >
                       {ports.map((p) => (
@@ -433,8 +435,10 @@ export default function MasterAsetPage() {
                     <input
                       type="text"
                       required
-                      value={assetCode}
-                      onChange={(e) => setAssetCode(e.target.value)}
+                      value={assetForm.assetCode}
+                      onChange={(e) =>
+                        setAssetForm((prev) => ({ ...prev, assetCode: e.target.value }))
+                      }
                       placeholder="KIOS-PMK-05"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                     />
@@ -449,8 +453,10 @@ export default function MasterAsetPage() {
                 <input
                   type="text"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={assetForm.name}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   placeholder="Contoh: Kios Terminal Penumpang No. 5"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -461,13 +467,15 @@ export default function MasterAsetPage() {
                   Kategori Aset
                 </label>
                 <select
-                  value={assetType}
-                  onChange={(e) => setAssetType(e.target.value)}
+                  value={assetForm.assetType}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({ ...prev, assetType: e.target.value }))
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
                   <option value="KIOS">Kios Usaha</option>
                   <option value="GUDANG">Gudang Logistik</option>
-                  <option value="LAHAN_GALANGAN">Lahan & Galangan</option>
+                  <option value="LAHAN_GALANGAN">Lahan &amp; Galangan</option>
                   <option value="PERAIRAN_ATAS_AIR">Perairan / Atas Air</option>
                   <option value="RUANG_IKLAN">Ruang Iklan / Reklame</option>
                 </select>
@@ -478,11 +486,15 @@ export default function MasterAsetPage() {
                   Status Retribusi
                 </label>
                 <select
-                  value={billingEligibility}
+                  value={assetForm.billingEligibility}
                   onChange={(e) =>
-                    setBillingEligibility(
-                      e.target.value as "BILLABLE" | "NOT_BILLABLE" | "PENDING_VERIFICATION"
-                    )
+                    setAssetForm((prev) => ({
+                      ...prev,
+                      billingEligibility: e.target.value as
+                        | "BILLABLE"
+                        | "NOT_BILLABLE"
+                        | "PENDING_VERIFICATION",
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
@@ -501,8 +513,10 @@ export default function MasterAsetPage() {
                   required
                   min={1}
                   step="0.5"
-                  value={areaSqm}
-                  onChange={(e) => setAreaSqm(e.target.value)}
+                  value={assetForm.areaSqm}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({ ...prev, areaSqm: e.target.value }))
+                  }
                   placeholder="20"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -516,8 +530,13 @@ export default function MasterAsetPage() {
                   type="number"
                   required
                   min={0}
-                  value={annualRatePerSqmIdr}
-                  onChange={(e) => setAnnualRatePerSqmIdr(e.target.value)}
+                  value={assetForm.annualRatePerSqmIdr}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({
+                      ...prev,
+                      annualRatePerSqmIdr: e.target.value,
+                    }))
+                  }
                   placeholder="50000"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -529,9 +548,12 @@ export default function MasterAsetPage() {
                     Status Ketersediaan
                   </label>
                   <select
-                    value={status}
+                    value={assetForm.status}
                     onChange={(e) =>
-                      setStatus(e.target.value as "AVAILABLE" | "LEASED" | "MAINTENANCE")
+                      setAssetForm((prev) => ({
+                        ...prev,
+                        status: e.target.value as "AVAILABLE" | "LEASED" | "MAINTENANCE",
+                      }))
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                   >
@@ -548,8 +570,10 @@ export default function MasterAsetPage() {
                 </label>
                 <input
                   type="text"
-                  value={gisCoordinates}
-                  onChange={(e) => setGisCoordinates(e.target.value)}
+                  value={assetForm.gisCoordinates}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({ ...prev, gisCoordinates: e.target.value }))
+                  }
                   placeholder="-4.8192, 136.8245"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
@@ -561,8 +585,10 @@ export default function MasterAsetPage() {
                 </label>
                 <input
                   type="text"
-                  value={legalBasis}
-                  onChange={(e) => setLegalBasis(e.target.value)}
+                  value={assetForm.legalBasis}
+                  onChange={(e) =>
+                    setAssetForm((prev) => ({ ...prev, legalBasis: e.target.value }))
+                  }
                   placeholder="Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />

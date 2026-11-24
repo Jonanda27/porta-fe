@@ -5,12 +5,12 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-  CheckCircle2,
   AlertCircle,
   Search,
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useTenantStore } from "@/store/tenant.store";
+import { toast } from "@/store/toast.store";
 import { TenantLeaseItem } from "@/types/tenant.types";
 import { formatLabel } from "@/lib/format-labels";
 
@@ -32,7 +32,6 @@ export default function TenantKontrakPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTenantData();
@@ -69,13 +68,12 @@ export default function TenantKontrakPage() {
   const handleRenewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!renewTarget) return;
-    setFeedback(null);
     await requestLease({
       assetId: renewTarget.assetId,
       startDate,
       endDate,
     });
-    setFeedback(
+    toast.success(
       `Permohonan perpanjangan sewa untuk ${
         renewTarget.asset?.name || `Aset #${renewTarget.assetId}`
       } berhasil diajukan.`
@@ -116,13 +114,6 @@ export default function TenantKontrakPage() {
           </button>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
   Clock,
   FileText,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -12,9 +11,9 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
-
-type TabType = "handovers" | "reports";
+import type { UptShiftTabType as TabType } from "@/types/upt.types";
 
 export default function UptShiftPage() {
   const { user } = useAuthStore();
@@ -46,7 +45,6 @@ export default function UptShiftPage() {
   const activePortId = Number(numericPortId || user?.portId || ports[0]?.id || 1);
 
   const [activeTab, setActiveTab] = useState<TabType>("handovers");
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Open handover form
   const [bookId, setBookId] = useState<string>("");
@@ -71,19 +69,17 @@ export default function UptShiftPage() {
   const handleOpenHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookId) return;
-    setFeedback(null);
     clearError();
     await openHandover(
       { bookId: Number(bookId), wardenName: wardenName.trim() },
       numericPortId
     );
-    setFeedback("Sif jaga gerbang berhasil dibuka.");
+    toast.success("Sif Dibuka", "Sif jaga gerbang berhasil dibuka.");
   };
 
   const handleCloseHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!closingId) return;
-    setFeedback(null);
     clearError();
     await closeHandover(
       closingId,
@@ -93,7 +89,7 @@ export default function UptShiftPage() {
       },
       numericPortId
     );
-    setFeedback(`Sif #${closingId} berhasil ditutup dan direkonsiliasi.`);
+    toast.success("Sif Ditutup", `Sif #${closingId} berhasil ditutup dan direkonsiliasi.`);
     setClosingId(null);
     setLastReturnedSerial("");
     setActualCashSettledIdr("");
@@ -101,7 +97,6 @@ export default function UptShiftPage() {
 
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     const activeItems = visits.slice(0, 10).map((v) => ({
       visitId: v.id,
@@ -120,15 +115,14 @@ export default function UptShiftPage() {
       },
       numericPortId
     );
-    setFeedback("Laporan harian sif berhasil dikirim.");
+    toast.success("Laporan Harian Dikirim", "Laporan harian sif berhasil dikirim.");
     setGeneralNotes("");
   };
 
   const handleAcknowledge = async (id: number, reportNumber: string) => {
-    setFeedback(null);
     clearError();
     await acknowledgeDailyReport(id, numericPortId);
-    setFeedback(`Laporan ${reportNumber} telah disahkan (ACKNOWLEDGED).`);
+    toast.success("Laporan Disahkan", `Laporan ${reportNumber} telah disahkan (ACKNOWLEDGED).`);
   };
 
   return (
@@ -189,13 +183,6 @@ export default function UptShiftPage() {
           </button>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
   ClipboardList,
   ShieldCheck,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -22,6 +21,7 @@ import { API_CONFIG } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { OfficerTaskItem } from "@/types/upt.types";
 
@@ -50,7 +50,6 @@ export default function UptTugasSayaPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Selected Task for Checklist & Submission Modal
   const [selectedTask, setSelectedTask] = useState<OfficerTaskItem | null>(null);
@@ -106,11 +105,10 @@ export default function UptTugasSayaPage() {
   };
 
   const handleStartTask = async (task: OfficerTaskItem) => {
-    setFeedback(null);
     clearError();
     try {
       await startOfficerTask(task.id);
-      setFeedback(`Tugas "${task.title}" dimulai (IN_PROGRESS).`);
+      toast.success("Tugas Dimulai", `Tugas "${task.title}" dimulai (IN_PROGRESS).`);
     } catch {
       // handled in store
     }
@@ -118,7 +116,6 @@ export default function UptTugasSayaPage() {
 
   const handleSaveChecklist = async () => {
     if (!selectedTask) return;
-    setFeedback(null);
     clearError();
     try {
       const items = (selectedTask.checklistItems || []).map((item) => ({
@@ -130,7 +127,7 @@ export default function UptTugasSayaPage() {
         items,
         notes: submissionNotes || undefined,
       });
-      setFeedback("Progres checklist SOP berhasil disimpan.");
+      toast.success("Checklist Disimpan", "Progres checklist SOP berhasil disimpan.");
     } catch {
       // handled in store
     }
@@ -139,7 +136,6 @@ export default function UptTugasSayaPage() {
   const handleUploadAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask || !attachmentFile) return;
-    setFeedback(null);
     clearError();
     try {
       await uploadOfficerTaskAttachment(
@@ -149,7 +145,7 @@ export default function UptTugasSayaPage() {
       );
       setAttachmentFile(null);
       setAttachmentNotes("");
-      setFeedback("Lampiran bukti pemeriksaan berhasil diunggah.");
+      toast.success("Lampiran Diunggah", "Lampiran bukti pemeriksaan berhasil diunggah.");
     } catch {
       // handled in store
     }
@@ -157,7 +153,6 @@ export default function UptTugasSayaPage() {
 
   const handleSubmitTask = async () => {
     if (!selectedTask) return;
-    setFeedback(null);
     clearError();
     try {
       const items = (selectedTask.checklistItems || []).map((item) => ({
@@ -173,7 +168,7 @@ export default function UptTugasSayaPage() {
         checklistItems: items,
       });
       setSelectedTask(null);
-      setFeedback(`Lembar tugas ${selectedTask.taskNumber} berhasil disubmit!`);
+      toast.success("Tugas Disubmit", `Lembar tugas ${selectedTask.taskNumber} berhasil disubmit!`);
     } catch {
       // handled in store
     }
@@ -182,7 +177,6 @@ export default function UptTugasSayaPage() {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-    setFeedback(null);
     clearError();
     try {
       await createOfficerTask({
@@ -198,7 +192,7 @@ export default function UptTugasSayaPage() {
       setIsCreateModalOpen(false);
       setNewTaskTitle("");
       setNewTaskDescription("");
-      setFeedback("Lembar tugas SOP baru berhasil dibuat!");
+      toast.success("Tugas Dibuat", "Lembar tugas SOP baru berhasil dibuat!");
     } catch {
       // handled in store
     }
@@ -207,7 +201,6 @@ export default function UptTugasSayaPage() {
   const handleSubmitDailyReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportNotes.trim()) return;
-    setFeedback(null);
     clearError();
     try {
       await createDailyReport(
@@ -220,7 +213,10 @@ export default function UptTugasSayaPage() {
         activePortId
       );
       setReportNotes("");
-      setFeedback("Laporan Harian Petugas berhasil dikirim ke Admin & Kepala Pelabuhan!");
+      toast.success(
+        "Laporan Terkirim",
+        "Laporan Harian Petugas berhasil dikirim ke Admin & Kepala Pelabuhan!"
+      );
     } catch {
       // handled in store
     }
@@ -237,13 +233,6 @@ export default function UptTugasSayaPage() {
 
   return (
     <div className="space-y-6">
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />

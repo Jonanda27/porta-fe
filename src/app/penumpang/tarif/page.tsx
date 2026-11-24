@@ -21,17 +21,8 @@ import {
   Navigation,
   FileText,
 } from "lucide-react";
-
-interface TariffItem {
-  id: string;
-  category: "pax" | "vehicle" | "dock" | "utility";
-  serviceName: string;
-  rate: number;
-  unit: string;
-  legalBasis: string;
-  effectiveDate: string;
-  notes: string;
-}
+import { formatRupiah } from "@/lib/kapal-billing";
+import type { TariffItem } from "@/types/penumpang.types";
 
 export default function PenumpangTarifPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -168,13 +159,6 @@ export default function PenumpangTarifPage() {
     return true;
   });
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   const facilities = [
     {

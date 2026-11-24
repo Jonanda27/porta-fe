@@ -5,7 +5,6 @@ import {
   Anchor,
   Plus,
   Edit3,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   MapPin,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatLabel } from "@/lib/format-labels";
 import {
@@ -73,34 +73,33 @@ export default function PelabuhanPage() {
   const [berthCategoryFilter, setBerthCategoryFilter] = useState<string>("");
   const [berthPage, setBerthPage] = useState(1);
   const [berthItemsPerPage, setBerthItemsPerPage] = useState(5);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Port modal state
   const [isPortModalOpen, setIsPortModalOpen] = useState(false);
   const [editingPort, setEditingPort] = useState<PortItem | null>(null);
-  const [portCode, setPortCode] = useState("");
-  const [portName, setPortName] = useState("");
-  const [portLocation, setPortLocation] = useState("");
-  const [portCategory, setPortCategory] = useState<PortCategory>("CAMPURAN");
+  const [portForm, setPortForm] = useState({
+    code: "",
+    name: "",
+    location: "",
+    portCategory: "CAMPURAN" as PortCategory,
+  });
 
   // Berth modal state
   const [isBerthModalOpen, setIsBerthModalOpen] = useState(false);
   const [editingBerth, setEditingBerth] = useState<BerthItem | null>(null);
-  const [berthPortId, setBerthPortId] = useState<number>(0);
-  const [berthCode, setBerthCode] = useState("");
-  const [berthName, setBerthName] = useState("");
-  const [berthType, setBerthType] = useState<BerthType>("DERMAGA_BESI_BETON_KAYU");
-  const [berthServiceCategory, setBerthServiceCategory] =
-    useState<BerthServiceCategory>("DERMAGA_CAMPURAN");
-  const [berthStatus, setBerthStatus] = useState<BerthOperationalStatus>("OPEN");
-  const [authorityType, setAuthorityType] = useState<AuthorityType>("PEMDA_DISHUB");
-  const [billingEligibility, setBillingEligibility] =
-    useState<BillingEligibility>("BILLABLE");
-  const [legalBasis, setLegalBasis] = useState(
-    "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI"
-  );
-  const [maxLengthMeters, setMaxLengthMeters] = useState("");
-  const [maxDraftMeters, setMaxDraftMeters] = useState("");
+  const [berthForm, setBerthForm] = useState({
+    portId: 0,
+    code: "",
+    name: "",
+    berthType: "DERMAGA_BESI_BETON_KAYU" as BerthType,
+    berthServiceCategory: "DERMAGA_CAMPURAN" as BerthServiceCategory,
+    operationalStatus: "OPEN" as BerthOperationalStatus,
+    authorityType: "PEMDA_DISHUB" as AuthorityType,
+    billingEligibility: "BILLABLE" as BillingEligibility,
+    legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+    maxLengthMeters: "",
+    maxDraftMeters: "",
+  });
 
   useEffect(() => {
     if (canAccess) {
@@ -128,110 +127,120 @@ export default function PelabuhanPage() {
 
   const openCreatePort = () => {
     setEditingPort(null);
-    setPortCode("");
-    setPortName("");
-    setPortLocation("");
-    setPortCategory("CAMPURAN");
+    setPortForm({
+      code: "",
+      name: "",
+      location: "",
+      portCategory: "CAMPURAN",
+    });
     clearError();
     setIsPortModalOpen(true);
   };
 
   const openEditPort = (port: PortItem) => {
     setEditingPort(port);
-    setPortCode(port.code);
-    setPortName(port.name);
-    setPortLocation(port.location || "");
-    setPortCategory(port.portCategory);
+    setPortForm({
+      code: port.code,
+      name: port.name,
+      location: port.location || "",
+      portCategory: port.portCategory,
+    });
     clearError();
     setIsPortModalOpen(true);
   };
 
   const handleSavePort = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     if (editingPort) {
       await updatePort(editingPort.id, {
-        name: portName.trim(),
-        location: portLocation.trim() || undefined,
-        portCategory,
+        name: portForm.name.trim(),
+        location: portForm.location.trim() || undefined,
+        portCategory: portForm.portCategory,
       });
-      setFeedback(`Data pelabuhan "${portName}" berhasil diperbarui.`);
+      toast.success("Pelabuhan Diperbarui", `Data pelabuhan "${portForm.name}" berhasil diperbarui.`);
     } else {
       await createPort({
-        code: portCode.trim().toUpperCase(),
-        name: portName.trim(),
-        location: portLocation.trim() || undefined,
-        portCategory,
+        code: portForm.code.trim().toUpperCase(),
+        name: portForm.name.trim(),
+        location: portForm.location.trim() || undefined,
+        portCategory: portForm.portCategory,
       });
-      setFeedback(`Pelabuhan baru "${portName}" berhasil ditambahkan.`);
+      toast.success("Pelabuhan Ditambahkan", `Pelabuhan baru "${portForm.name}" berhasil ditambahkan.`);
     }
     setIsPortModalOpen(false);
   };
 
   const openCreateBerth = (portId: number) => {
     setEditingBerth(null);
-    setBerthPortId(portId);
-    setBerthCode("");
-    setBerthName("");
-    setBerthType("DERMAGA_BESI_BETON_KAYU");
-    setBerthServiceCategory("DERMAGA_CAMPURAN");
-    setBerthStatus("OPEN");
-    setAuthorityType("PEMDA_DISHUB");
-    setBillingEligibility("BILLABLE");
-    setLegalBasis("Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI");
-    setMaxLengthMeters("100");
-    setMaxDraftMeters("6.5");
+    setBerthForm({
+      portId,
+      code: "",
+      name: "",
+      berthType: "DERMAGA_BESI_BETON_KAYU",
+      berthServiceCategory: "DERMAGA_CAMPURAN",
+      operationalStatus: "OPEN",
+      authorityType: "PEMDA_DISHUB",
+      billingEligibility: "BILLABLE",
+      legalBasis: "Perda Kab. Mimika No. 4 Tahun 2023 Lampiran XI",
+      maxLengthMeters: "100",
+      maxDraftMeters: "6.5",
+    });
     clearError();
     setIsBerthModalOpen(true);
   };
 
   const openEditBerth = (berth: BerthItem) => {
     setEditingBerth(berth);
-    setBerthPortId(berth.portId);
-    setBerthCode(berth.code);
-    setBerthName(berth.name);
-    setBerthType(berth.berthType);
-    setBerthServiceCategory(berth.berthServiceCategory);
-    setBerthStatus(berth.operationalStatus);
-    setAuthorityType(berth.authorityType);
-    setBillingEligibility(berth.billingEligibility);
-    setLegalBasis(berth.legalBasis || "");
-    setMaxLengthMeters(berth.maxLengthMeters ? String(berth.maxLengthMeters) : "");
-    setMaxDraftMeters(berth.maxDraftMeters ? String(berth.maxDraftMeters) : "");
+    setBerthForm({
+      portId: berth.portId,
+      code: berth.code,
+      name: berth.name,
+      berthType: berth.berthType,
+      berthServiceCategory: berth.berthServiceCategory,
+      operationalStatus: berth.operationalStatus,
+      authorityType: berth.authorityType,
+      billingEligibility: berth.billingEligibility,
+      legalBasis: berth.legalBasis || "",
+      maxLengthMeters: berth.maxLengthMeters ? String(berth.maxLengthMeters) : "",
+      maxDraftMeters: berth.maxDraftMeters ? String(berth.maxDraftMeters) : "",
+    });
     clearError();
     setIsBerthModalOpen(true);
   };
 
   const handleSaveBerth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
-    const parsedLength = maxLengthMeters ? Number(maxLengthMeters) : undefined;
-    const parsedDraft = maxDraftMeters ? Number(maxDraftMeters) : undefined;
+    const parsedLength = berthForm.maxLengthMeters
+      ? Number(berthForm.maxLengthMeters)
+      : undefined;
+    const parsedDraft = berthForm.maxDraftMeters
+      ? Number(berthForm.maxDraftMeters)
+      : undefined;
 
     if (editingBerth) {
       await updateBerth(editingBerth.id, {
-        name: berthName.trim(),
-        berthServiceCategory,
-        operationalStatus: berthStatus,
+        name: berthForm.name.trim(),
+        berthServiceCategory: berthForm.berthServiceCategory,
+        operationalStatus: berthForm.operationalStatus,
         maxLengthMeters: parsedLength,
         maxDraftMeters: parsedDraft,
       });
-      setFeedback(`Dermaga "${berthName}" berhasil diperbarui.`);
+      toast.success("Dermaga Diperbarui", `Dermaga "${berthForm.name}" berhasil diperbarui.`);
     } else {
       await createBerth({
-        portId: berthPortId,
-        code: berthCode.trim().toUpperCase(),
-        name: berthName.trim(),
-        berthType,
-        berthServiceCategory,
-        operationalStatus: berthStatus,
-        authorityType,
-        billingEligibility,
-        legalBasis: legalBasis.trim() || undefined,
+        portId: berthForm.portId,
+        code: berthForm.code.trim().toUpperCase(),
+        name: berthForm.name.trim(),
+        berthType: berthForm.berthType,
+        berthServiceCategory: berthForm.berthServiceCategory,
+        operationalStatus: berthForm.operationalStatus,
+        authorityType: berthForm.authorityType,
+        billingEligibility: berthForm.billingEligibility,
+        legalBasis: berthForm.legalBasis.trim() || undefined,
         maxLengthMeters: parsedLength,
         maxDraftMeters: parsedDraft,
       });
-      setFeedback(`Dermaga baru "${berthName}" berhasil ditambahkan.`);
+      toast.success("Dermaga Ditambahkan", `Dermaga baru "${berthForm.name}" berhasil ditambahkan.`);
     }
     setIsBerthModalOpen(false);
   };
@@ -309,13 +318,6 @@ export default function PelabuhanPage() {
           </button>
         )}
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -577,8 +579,10 @@ export default function PelabuhanPage() {
                   required
                   disabled={Boolean(editingPort)}
                   maxLength={20}
-                  value={portCode}
-                  onChange={(e) => setPortCode(e.target.value)}
+                  value={portForm.code}
+                  onChange={(e) =>
+                    setPortForm((prev) => ({ ...prev, code: e.target.value }))
+                  }
                   placeholder="Contoh: PMK"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs disabled:bg-slate-100"
                 />
@@ -588,11 +592,16 @@ export default function PelabuhanPage() {
                   Kategori Layanan Pelabuhan
                 </label>
                 <select
-                  value={portCategory}
-                  onChange={(e) => setPortCategory(e.target.value as PortCategory)}
+                  value={portForm.portCategory}
+                  onChange={(e) =>
+                    setPortForm((prev) => ({
+                      ...prev,
+                      portCategory: e.target.value as PortCategory,
+                    }))
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
-                  <option value="CAMPURAN">Campuran (Penumpang & Barang)</option>
+                  <option value="CAMPURAN">Campuran (Penumpang &amp; Barang)</option>
                   <option value="BARANG">Khusus Barang / Kargo</option>
                   <option value="PENUMPANG">Khusus Penumpang</option>
                 </select>
@@ -607,8 +616,10 @@ export default function PelabuhanPage() {
                 type="text"
                 required
                 maxLength={150}
-                value={portName}
-                onChange={(e) => setPortName(e.target.value)}
+                value={portForm.name}
+                onChange={(e) =>
+                  setPortForm((prev) => ({ ...prev, name: e.target.value }))
+                }
                 placeholder="Contoh: Pelabuhan Poumako"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
               />
@@ -620,8 +631,10 @@ export default function PelabuhanPage() {
               </label>
               <input
                 type="text"
-                value={portLocation}
-                onChange={(e) => setPortLocation(e.target.value)}
+                value={portForm.location}
+                onChange={(e) =>
+                  setPortForm((prev) => ({ ...prev, location: e.target.value }))
+                }
                 placeholder="Distrik Mimika Timur, Kabupaten Mimika, Papua Tengah"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
               />
@@ -688,8 +701,10 @@ export default function PelabuhanPage() {
                   required
                   disabled={Boolean(editingBerth)}
                   maxLength={30}
-                  value={berthCode}
-                  onChange={(e) => setBerthCode(e.target.value)}
+                  value={berthForm.code}
+                  onChange={(e) =>
+                    setBerthForm((prev) => ({ ...prev, code: e.target.value }))
+                  }
                   placeholder="DRM-PEMDA-02"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono disabled:bg-slate-100"
                 />
@@ -702,8 +717,10 @@ export default function PelabuhanPage() {
                   type="text"
                   required
                   maxLength={150}
-                  value={berthName}
-                  onChange={(e) => setBerthName(e.target.value)}
+                  value={berthForm.name}
+                  onChange={(e) =>
+                    setBerthForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   placeholder="Contoh: Dermaga Beton Nusantara Pemda"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -716,14 +733,17 @@ export default function PelabuhanPage() {
                   Peruntukan Layanan Dermaga
                 </label>
                 <select
-                  value={berthServiceCategory}
+                  value={berthForm.berthServiceCategory}
                   onChange={(e) =>
-                    setBerthServiceCategory(e.target.value as BerthServiceCategory)
+                    setBerthForm((prev) => ({
+                      ...prev,
+                      berthServiceCategory: e.target.value as BerthServiceCategory,
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
                   <option value="DERMAGA_BARANG">Dermaga Barang / Kargo</option>
-                  <option value="DERMAGA_PENUMPANG">Dermaga Penumpang & Ro-Ro</option>
+                  <option value="DERMAGA_PENUMPANG">Dermaga Penumpang &amp; Ro-Ro</option>
                   <option value="DERMAGA_CAMPURAN">Dermaga Serbaguna (Campuran)</option>
                 </select>
               </div>
@@ -732,9 +752,12 @@ export default function PelabuhanPage() {
                   Kondisi Operasional Saat Ini
                 </label>
                 <select
-                  value={berthStatus}
+                  value={berthForm.operationalStatus}
                   onChange={(e) =>
-                    setBerthStatus(e.target.value as BerthOperationalStatus)
+                    setBerthForm((prev) => ({
+                      ...prev,
+                      operationalStatus: e.target.value as BerthOperationalStatus,
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
@@ -752,8 +775,13 @@ export default function PelabuhanPage() {
                     Tipe Konstruksi
                   </label>
                   <select
-                    value={berthType}
-                    onChange={(e) => setBerthType(e.target.value as BerthType)}
+                    value={berthForm.berthType}
+                    onChange={(e) =>
+                      setBerthForm((prev) => ({
+                        ...prev,
+                        berthType: e.target.value as BerthType,
+                      }))
+                    }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                   >
                     <option value="DERMAGA_BESI_BETON_KAYU">
@@ -770,9 +798,12 @@ export default function PelabuhanPage() {
                     Otoritas Pengelola
                   </label>
                   <select
-                    value={authorityType}
+                    value={berthForm.authorityType}
                     onChange={(e) =>
-                      setAuthorityType(e.target.value as AuthorityType)
+                      setBerthForm((prev) => ({
+                        ...prev,
+                        authorityType: e.target.value as AuthorityType,
+                      }))
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                   >
@@ -786,9 +817,12 @@ export default function PelabuhanPage() {
                     Status Retribusi Pemda
                   </label>
                   <select
-                    value={billingEligibility}
+                    value={berthForm.billingEligibility}
                     onChange={(e) =>
-                      setBillingEligibility(e.target.value as BillingEligibility)
+                      setBerthForm((prev) => ({
+                        ...prev,
+                        billingEligibility: e.target.value as BillingEligibility,
+                      }))
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                   >
@@ -811,8 +845,13 @@ export default function PelabuhanPage() {
                   type="number"
                   min={1}
                   step="0.1"
-                  value={maxLengthMeters}
-                  onChange={(e) => setMaxLengthMeters(e.target.value)}
+                  value={berthForm.maxLengthMeters}
+                  onChange={(e) =>
+                    setBerthForm((prev) => ({
+                      ...prev,
+                      maxLengthMeters: e.target.value,
+                    }))
+                  }
                   placeholder="Contoh: 120"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -825,8 +864,13 @@ export default function PelabuhanPage() {
                   type="number"
                   min={0.5}
                   step="0.1"
-                  value={maxDraftMeters}
-                  onChange={(e) => setMaxDraftMeters(e.target.value)}
+                  value={berthForm.maxDraftMeters}
+                  onChange={(e) =>
+                    setBerthForm((prev) => ({
+                      ...prev,
+                      maxDraftMeters: e.target.value,
+                    }))
+                  }
                   placeholder="Contoh: 8.5"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />

@@ -6,7 +6,6 @@ import {
   FileCheck2,
   MapPin,
   Plus,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -14,10 +13,10 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { TerminalClass } from "@/types/field-ops.types";
-
-type TabType = "books" | "manifests" | "routes";
+import type { UptTiketTabType as TabType } from "@/types/upt.types";
 
 export default function UptTiketPage() {
   const { user } = useAuthStore();
@@ -43,7 +42,6 @@ export default function UptTiketPage() {
   const activePortId = Number(numericPortId || user?.portId || ports[0]?.id || 1);
 
   const [activeTab, setActiveTab] = useState<TabType>("books");
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Create book modal
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -69,7 +67,6 @@ export default function UptTiketPage() {
 
   const handleCreateBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     await createTicketBook(
       {
@@ -82,7 +79,10 @@ export default function UptTiketPage() {
       },
       numericPortId
     );
-    setFeedback(`Buku karcis ${bookCode.toUpperCase()} berhasil didaftarkan.`);
+    toast.success(
+      "Buku Karcis Terdaftar",
+      `Buku karcis ${bookCode.toUpperCase()} berhasil didaftarkan.`
+    );
     setIsBookModalOpen(false);
     setBookCode("");
   };
@@ -90,7 +90,6 @@ export default function UptTiketPage() {
   const handleCreateManifest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manifestVisitId) return;
-    setFeedback(null);
     clearError();
     await createManifest(
       {
@@ -105,7 +104,10 @@ export default function UptTiketPage() {
       },
       numericPortId
     );
-    setFeedback("Manifes kapal berhasil dicatat.");
+    toast.success(
+      "Manifes Resmi Diterbitkan",
+      "Manifes resmi kapal berhasil diterbitkan dan diserahkan ke operator kapal."
+    );
     setAdultCount("0");
     setChildCount("0");
     setVehicleCount("0");
@@ -192,13 +194,6 @@ export default function UptTiketPage() {
         </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -262,9 +257,14 @@ export default function UptTiketPage() {
             onSubmit={handleCreateManifest}
             className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4 shadow-2xs"
           >
-            <h3 className="text-sm font-extrabold text-[#0B241E]">
-              Catat Manifes Keberangkatan Kapal
-            </h3>
+            <div>
+              <h3 className="text-sm font-extrabold text-[#0B241E]">
+                Terbitkan Manifes Resmi ke Operator Kapal
+              </h3>
+              <p className="text-[11px] text-[#64748B] mt-0.5">
+                Rekapitulasi penumpang, kendaraan, dan muatan dari gerbang/terminal pelabuhan yang diterbitkan oleh Petugas UPT untuk diserahkan kepada Operator Kapal.
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <select
                 required
@@ -357,7 +357,7 @@ export default function UptTiketPage() {
               disabled={isSubmitting}
               className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold cursor-pointer"
             >
-              Simpan Manifes
+              Terbitkan Manifes ke Operator
             </button>
           </form>
 

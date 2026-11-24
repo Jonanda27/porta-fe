@@ -19,14 +19,23 @@ import {
   MapPin,
   Lock,
   Users,
+  Download,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { useBillingStore } from "@/store/billing.store";
+import { formatRupiah } from "@/lib/kapal-billing";
+import { toast } from "@/store/toast.store";
+import { buildPasal95MonthlyReportCsv } from "@/lib/perbup-25-2024";
 import {
   CloseGateHandoverPayload,
   CreateGateTicketBookPayload,
   GateHandoverItem,
 } from "@/types/field-ops.types";
+import {
+  CreateTicketBookModal,
+  HandoverCloseFormState,
+  HandoverCloseModal,
+} from "@/components/bendahara/rekonsiliasi/RekonsiliasiModals";
 
 export default function BendaharaRekonsiliasiPage() {
   const { user } = useAuthStore();
@@ -54,7 +63,6 @@ export default function BendaharaRekonsiliasiPage() {
   );
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isClosingBook, setIsClosingBook] = useState<boolean>(false);
-  const [closedToast, setClosedToast] = useState<string | null>(null);
 
   // Modal State for Creating New Ticket Book (POST /gate-ticketing/books)
   const [isCreateBookOpen, setIsCreateBookOpen] = useState<boolean>(false);
@@ -75,11 +83,7 @@ export default function BendaharaRekonsiliasiPage() {
   // Modal State for Settling/Closing Handover
   const [selectedHandoverForClose, setSelectedHandoverForClose] =
     useState<GateHandoverItem | null>(null);
-  const [closeForm, setCloseForm] = useState<{
-    lastReturnedSerial: number;
-    actualCashSettledIdr: number;
-    notes: string;
-  }>({
+  const [closeForm, setCloseForm] = useState<HandoverCloseFormState>({
     lastReturnedSerial: 0,
     actualCashSettledIdr: 0,
     notes: "",
@@ -118,7 +122,10 @@ export default function BendaharaRekonsiliasiPage() {
         porporasiNumber: newBookForm.porporasiNumber?.trim() || undefined,
       });
       setIsCreateBookOpen(false);
-      setClosedToast(`Buku karcis ${newBookForm.bookCode} berhasil diterbitkan ke inventaris!`);
+      toast.success(
+        "Buku Karcis Diterbitkan",
+        `Buku karcis ${newBookForm.bookCode} berhasil diterbitkan ke inventaris!`
+      );
     } catch (err: unknown) {
       setBookFormError(
         err instanceof Error ? err.message : "Gagal menerbitkan buku karcis baru."
@@ -128,14 +135,6 @@ export default function BendaharaRekonsiliasiPage() {
     }
   };
 
-  const formatRupiah = (val: number | string) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
 
   const totalVerifiedPAD = revenueSummary?.totalVerifiedRevenueIdr ?? 0;
   const vesselTotal = revenueSummary?.vesselRevenueIdr ?? 0;
@@ -180,7 +179,8 @@ export default function BendaharaRekonsiliasiPage() {
     setIsClosingBook(true);
     setTimeout(() => {
       setIsClosingBook(false);
-      setClosedToast(
+      toast.success(
+        "BKU Ditutup & Disahkan",
         `Buku Kas Umum (BKU) Penerimaan Tanggal ${selectedDate} berhasil ditutup dan disahkan ke Kasda!`
       );
     }, 1000);
@@ -257,22 +257,6 @@ export default function BendaharaRekonsiliasiPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Feedback */}
-      {closedToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between border border-emerald-500 text-xs font-semibold animate-fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-white" />
-            <span>{closedToast}</span>
-          </div>
-          <button
-            onClick={() => setClosedToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            &times;
-          </button>
-        </div>
-      )}
-
       {/* 1. Header Rekonsiliasi & Tab Switcher */}
       <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -344,6 +328,38 @@ export default function BendaharaRekonsiliasiPage() {
           >
             <Ship className="w-3.5 h-3.5 text-blue-500" />
             Manifes Ferry ({manifests.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const monthLabel = new Date(selectedDate).toLocaleDateString("id-ID", {
+                month: "long",
+                year: "numeric",
+              });
+              const csv = buildPasal95MonthlyReportCsv({
+                monthLabel,
+                invoices,
+                ticketBooks,
+              });
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `Laporan-Pasal95-Retribusi-${selectedDate.slice(0, 7)}.csv`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              toast.success(
+                "Laporan Pasal 95 Diunduh",
+                `Laporan realisasi bulanan (${monthLabel}) siap disampaikan ke Bupati via Bapenda & Inspektorat (maks. tgl 5 bulan berikutnya).`
+              );
+            }}
+            title="Unduh Laporan Realisasi Bulanan sesuai Pasal 95 Perbup Mimika 25/2024 (batas lapor tanggal 5 bulan berikutnya)"
+            className="px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <Download className="w-3.5 h-3.5 text-[#D97706]" />
+            Laporan Pasal 95 (CSV)
           </button>
         </div>
       </div>
@@ -933,347 +949,29 @@ export default function BendaharaRekonsiliasiPage() {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 7. MODAL: VALIDASI & TUTUP SERAH TERIMA KASIR LOKET       */}
-      {/* ========================================================= */}
-      {selectedHandoverForClose && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-white flex items-center justify-center">
-                  <Coins className="w-4 h-4 text-[#D97706]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-[#0B241E] text-base">
-                    Validasi Setoran Kasir Loket Gerbang
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Penerimaan fisik uang kas dan pengesahan buku kasda
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedHandoverForClose(null)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4 text-xs">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium">
-                  {actionSuccessMsg}
-                </div>
-              )}
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-medium">
-                  {actionErrorMsg}
-                </div>
-              )}
-
-              {/* Data Ringkas Handover */}
-              <div className="p-3.5 bg-gray-50 rounded-xl space-y-2 border border-gray-100">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Petugas Juru Gerbang:</span>
-                  <span className="font-bold text-[#0B241E]">
-                    {selectedHandoverForClose.wardenName}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Buku Karcis:</span>
-                  <span className="font-mono font-semibold text-gray-800">
-                    {selectedHandoverForClose.book?.bookCode} (
-                    {selectedHandoverForClose.book?.ticketCategory.replace(/_/g, " ")})
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Seri Karcis Diberikan:</span>
-                  <span className="font-mono text-gray-700">
-                    No. {selectedHandoverForClose.dispatchedSerialStart} s.d. No.{" "}
-                    {selectedHandoverForClose.dispatchedSerialEnd}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200">
-                  <span className="text-gray-500">Tarif per Lembar:</span>
-                  <span className="font-mono font-bold text-gray-900">
-                    Rp {Number(selectedHandoverForClose.book?.nominalPerTicket || 0).toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-
-              {/* Form Input Rekonsiliasi */}
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    Nomor Seri Terkecil yang Dikembalikan (Sisa Tiket):
-                  </label>
-                  <input
-                    type="number"
-                    min={selectedHandoverForClose.dispatchedSerialStart}
-                    max={selectedHandoverForClose.dispatchedSerialEnd + 1}
-                    value={closeForm.lastReturnedSerial}
-                    onChange={(e) =>
-                      setCloseForm({
-                        ...closeForm,
-                        lastReturnedSerial: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-bold text-[#0B241E] focus:outline-none focus:border-[#0B241E]"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    *Masukkan {selectedHandoverForClose.dispatchedSerialEnd + 1} jika buku karcis habis terjual seluruhnya.
-                  </p>
-                </div>
-
-                {/* Perhitungan Otomatis */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1.5 font-mono text-blue-900">
-                  <div className="flex justify-between">
-                    <span>Estimasi Karcis Terjual:</span>
-                    <span className="font-bold">{modalCalculations.soldQty} Lembar</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Target Setoran Kasda:</span>
-                    <span className="font-black text-sm">
-                      Rp {modalCalculations.expectedAmount.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-gray-600 font-semibold">
-                      Uang Fisik Kasda Diterima (Rp):
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCloseForm({
-                          ...closeForm,
-                          actualCashSettledIdr: modalCalculations.expectedAmount,
-                        })
-                      }
-                      className="text-[10px] font-bold text-emerald-700 hover:underline cursor-pointer"
-                    >
-                      Samakan Target (Nihil Selisih)
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    min={0}
-                    value={closeForm.actualCashSettledIdr}
-                    onChange={(e) =>
-                      setCloseForm({
-                        ...closeForm,
-                        actualCashSettledIdr: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-black text-emerald-800 text-sm focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-
-                {/* Status Selisih (Zero Discrepancy) */}
-                <div className="flex items-center justify-between p-2 rounded-lg bg-gray-100 font-mono text-xs">
-                  <span>Status Selisih (Discrepancy):</span>
-                  {modalCalculations.diff === 0 ? (
-                    <span className="font-bold text-emerald-700">Nihil (Rp 0) — Sah</span>
-                  ) : (
-                    <span className="font-bold text-rose-600">
-                      Selisih: Rp {modalCalculations.diff.toLocaleString("id-ID")}
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    Catatan Rekonsiliasi Bendahara:
-                  </label>
-                  <input
-                    type="text"
-                    value={closeForm.notes}
-                    onChange={(e) =>
-                      setCloseForm({ ...closeForm, notes: e.target.value })
-                    }
-                    placeholder="Contoh: Shift 1 selesai, uang fisik sesuai lembar karcis"
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedHandoverForClose(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveCloseHandover}
-                disabled={isSubmittingClose || modalCalculations.diff !== 0}
-                className="px-5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#D97706]" />
-                {isSubmittingClose ? "Memproses..." : "Sahkan & Tutup Handover"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 7. MODAL: VALIDASI & TUTUP SERAH TERIMA KASIR LOKET */}
+      <HandoverCloseModal
+        handover={selectedHandoverForClose}
+        closeForm={closeForm}
+        onChangeCloseForm={setCloseForm}
+        modalCalculations={modalCalculations}
+        actionSuccessMsg={actionSuccessMsg}
+        actionErrorMsg={actionErrorMsg}
+        isSubmitting={isSubmittingClose}
+        onSave={handleSaveCloseHandover}
+        onClose={() => setSelectedHandoverForClose(null)}
+      />
 
       {/* MODAL TERBITKAN BUKU KARCIS BARU (POST /gate-ticketing/books) */}
-      {isCreateBookOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-[#D97706]" />
-                <h3 className="text-base font-extrabold text-[#0B241E]">
-                  Terbitkan Buku Bendel Karcis Baru
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateBookOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {bookFormError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-                {bookFormError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateBook} className="space-y-3 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Kode Buku Karcis</label>
-                  <input
-                    type="text"
-                    required
-                    value={newBookForm.bookCode}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, bookCode: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Kategori Pas Masuk</label>
-                  <select
-                    value={newBookForm.ticketCategory}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, ticketCategory: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                  >
-                    <option value="PAS_ORANG_DEWASA">Pas Orang Dewasa</option>
-                    <option value="PAS_KENDARAAN_RODA_2">Pas Kendaraan Roda 2</option>
-                    <option value="PAS_KENDARAAN_RODA_4">Pas Kendaraan Roda 4</option>
-                    <option value="MB_TRUCK_BUS_BESAR">Truk / Bus Besar</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Seri Awal</label>
-                  <input
-                    type="number"
-                    min={1}
-                    required
-                    value={newBookForm.serialStart}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, serialStart: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Seri Akhir</label>
-                  <input
-                    type="number"
-                    min={1}
-                    required
-                    value={newBookForm.serialEnd}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, serialEnd: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Tarif / Lembar (Rp)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    required
-                    value={newBookForm.nominalPerTicket}
-                    onChange={(e) =>
-                      setNewBookForm({
-                        ...newBookForm,
-                        nominalPerTicket: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">
-                    No. Porporasi Bapenda (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="PRP-BAPENDA-2026-..."
-                    value={newBookForm.porporasiNumber || ""}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, porporasiNumber: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-[#334155] mb-1">Dasar Hukum</label>
-                  <input
-                    type="text"
-                    value={newBookForm.legalBasis || ""}
-                    onChange={(e) =>
-                      setNewBookForm({ ...newBookForm, legalBasis: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1]"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateBookOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingBook}
-                  className="px-5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingBook ? "Menyimpan..." : "Terbitkan Buku Karcis"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateTicketBookModal
+        isOpen={isCreateBookOpen}
+        isSaving={isSavingBook}
+        formError={bookFormError}
+        newBookForm={newBookForm}
+        onChangeBookForm={setNewBookForm}
+        onSubmit={handleCreateBook}
+        onClose={() => setIsCreateBookOpen(false)}
+      />
     </div>
   );
 }

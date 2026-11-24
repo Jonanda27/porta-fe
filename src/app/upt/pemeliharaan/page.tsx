@@ -5,7 +5,6 @@ import {
   Wrench,
   Building2,
   Plus,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -13,6 +12,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import {
   MaintenanceSeverity,
@@ -46,7 +46,6 @@ export default function UptPemeliharaanPage() {
   const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
   const activePortId = Number(numericPortId || user?.portId || ports[0]?.id || 1);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [severity, setSeverity] = useState<MaintenanceSeverity>("MEDIUM");
   const [title, setTitle] = useState("");
@@ -66,7 +65,6 @@ export default function UptPemeliharaanPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     await createMaintenance(
       {
@@ -80,7 +78,7 @@ export default function UptPemeliharaanPage() {
       },
       numericPortId
     );
-    setFeedback("Laporan kerusakan fasilitas berhasil dibuat.");
+    toast.success("Laporan Kerusakan Dibuat", "Laporan kerusakan fasilitas berhasil dibuat.");
     setIsModalOpen(false);
     setTitle("");
     setDescription("");
@@ -88,10 +86,9 @@ export default function UptPemeliharaanPage() {
   };
 
   const handleStatusChange = async (id: number, status: MaintenanceStatus) => {
-    setFeedback(null);
     clearError();
     await updateMaintenanceStatus(id, { status }, numericPortId);
-    setFeedback(`Status tiket pemeliharaan #${id} diperbarui menjadi ${status}.`);
+    toast.success("Status Tiket Diperbarui", `Status tiket pemeliharaan #${id} diperbarui menjadi ${status}.`);
   };
 
   return (
@@ -136,13 +133,6 @@ export default function UptPemeliharaanPage() {
           Laporkan Kerusakan
         </button>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">

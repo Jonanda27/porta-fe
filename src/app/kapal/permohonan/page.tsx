@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -17,6 +17,7 @@ import {
   DollarSign,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   ShieldCheck,
   Building2,
   X,
@@ -33,59 +34,31 @@ import {
   Filter,
   Loader2,
   Anchor,
+  ClipboardList,
+  Compass,
+  Route,
   Info,
   AlertCircle,
   FileSignature,
+  ExternalLink,
+  Paperclip,
 } from "lucide-react";
+import { API_CONFIG } from "@/config/api.config";
+import { formatDocCategory } from "@/lib/kapal-profil";
+import { formatRupiah } from "@/lib/kapal-billing";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
 import { useTariffStore } from "@/store/tariff.store";
 import { useBillingStore } from "@/store/billing.store";
+import { toast } from "@/store/toast.store";
 import { BillingInvoice } from "@/types/billing.types";
+import { CustomSelectField } from "@/components/ui/CustomSelectField";
+import { DockRequest } from "@/types/kapal.types";
 import { BerthType } from "@/types/port.types";
 import { ShipType, ShippingCategory } from "@/types/tariff.types";
 import { estimateVisitCosts } from "@/lib/tariff-estimator";
-
-// Types
-interface DockRequest {
-  id: string;
-  visitId?: number;
-  backendStatus?: string;
-  vesselName: string;
-  callSign: string;
-  gt: number;
-  port: string;
-  route: string;
-  activityType: string;
-  dockType: "Reguler" | "Eksekutif";
-  eta: string;
-  etd: string;
-  durationHours: number;
-  utilities: {
-    freshWater: boolean;
-    waterVolume?: number;
-    shorePower: boolean;
-    powerKwh?: number;
-    wasteDisposal: boolean;
-  };
-  costBreakdown: {
-    mooring: number;
-    anchorage: number;
-    water: number;
-    power: number;
-    waste: number;
-    total: number;
-    labuhFormula?: string;
-    tambatFormula?: string;
-  };
-  officialInvoice?: BillingInvoice | null;
-  status: "submitted" | "verified" | "approved" | "rejected";
-  statusLabel: string;
-  allocatedDock?: string;
-  officerNotes?: string;
-  submittedAt: string;
-}
+import { DockRequestDetailModal } from "@/components/kapal/permohonan/DockRequestDetailModal";
 
 export default function KapalPermohonanPage() {
   const { user, initialize: initAuth } = useAuthStore();
@@ -227,26 +200,27 @@ export default function KapalPermohonanPage() {
 
   const [activeTab, setActiveTab] = useState<"tracking" | "wizard">("tracking");
   const [wizardStep, setWizardStep] = useState<number>(1);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [selectedDetailReq, setSelectedDetailReq] = useState<DockRequest | null>(null);
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Master fleet for selection dari real backend vessels
+  // Master fleet for selection dari real backend vessels (hanya kapal berstatus VERIFIED)
   const fleetOptions = useMemo(() => {
-    return vessels.map((v) => ({
-      id: String(v.id),
-      numericId: v.id,
-      name: v.name,
-      callSign: v.registrationNumber,
-      gt: Number(v.grossTonnage) || 500,
-      loa: v.lengthMeters || 65.0,
-      draft: v.draftMeters || 3.5,
-      shippingCategory: (v.shippingCategory || "DALAM_NEGERI") as ShippingCategory,
-      shipType: (v.shipType || "NIAGA") as ShipType,
-      defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
-    }));
+    return vessels
+      .filter((v) => v.verificationStatus === "VERIFIED")
+      .map((v) => ({
+        id: String(v.id),
+        numericId: v.id,
+        name: v.name,
+        callSign: v.registrationNumber,
+        gt: Number(v.grossTonnage) || 500,
+        loa: v.lengthMeters || 65.0,
+        draft: v.draftMeters || 3.5,
+        shippingCategory: (v.shippingCategory || "DALAM_NEGERI") as ShippingCategory,
+        shipType: (v.shipType || "NIAGA") as ShipType,
+        defaultRoute: "Pelabuhan Dobo ➔ Pelabuhan Poumako",
+      }));
   }, [vessels]);
 
   // ==========================================
@@ -254,7 +228,26 @@ export default function KapalPermohonanPage() {
   // ==========================================
   // Langkah 1: Pilih Layanan & Fasilitas
   const [selectedVesselId, setSelectedVesselId] = useState<string>("");
+  const [isVesselDropdownOpen, setIsVesselDropdownOpen] = useState<boolean>(false);
+  const vesselDropdownRef = useRef<HTMLDivElement>(null);
   const [originPort, setOriginPort] = useState<string>("Pelabuhan Dobo");
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        vesselDropdownRef.current &&
+        !vesselDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsVesselDropdownOpen(false);
+      }
+    }
+    if (isVesselDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isVesselDropdownOpen]);
 
   // Master Pelabuhan Tujuan Pelayanan (sinkron dari API backend via usePortStore dengan fallback)
   const destinationPortOptions = useMemo(() => {
@@ -290,21 +283,37 @@ export default function KapalPermohonanPage() {
     return p?.id || 1;
   }, [destinationPortOptions, destinationPort]);
 
-  const activeBerthingContract = useMemo(() => {
-    if (!contracts || contracts.length === 0) return null;
+  const activeContracts = useMemo(() => {
+    if (!contracts || contracts.length === 0) return [];
     const now = new Date();
-    return (
-      contracts.find(
-        (c) =>
-          c.portId === targetPortId &&
-          c.status === "ACTIVE" &&
-          new Date(c.startDate) <= now &&
-          new Date(c.endDate) >= now
-      ) || null
+    return contracts.filter(
+      (c) =>
+        c.status === "ACTIVE" &&
+        new Date(c.startDate) <= now &&
+        new Date(c.endDate) >= now
     );
-  }, [contracts, targetPortId]);
+  }, [contracts]);
+
+  const activeBerthingContract = useMemo(() => {
+    return activeContracts.find((c) => c.portId === targetPortId) || null;
+  }, [activeContracts, targetPortId]);
 
   const hasActiveBerthingContract = Boolean(activeBerthingContract);
+  const hasAnyActiveContract = activeContracts.length > 0;
+
+  // Otomatis arahkan pelabuhan tujuan ke pelabuhan pertama yang memiliki PKS aktif
+  useEffect(() => {
+    if (activeContracts.length === 0 || destinationPortOptions.length === 0) return;
+    const currentHasActive = activeContracts.some((c) => c.portId === targetPortId);
+    if (!currentHasActive) {
+      const firstActivePort = destinationPortOptions.find((opt) =>
+        activeContracts.some((c) => c.portId === opt.id)
+      );
+      if (firstActivePort) {
+        setDestinationPort(firstActivePort.name);
+      }
+    }
+  }, [activeContracts, destinationPortOptions, targetPortId]);
 
   useEffect(() => {
     if (fleetOptions.length > 0 && (!selectedVesselId || !fleetOptions.some((f) => f.id === selectedVesselId))) {
@@ -333,18 +342,113 @@ export default function KapalPermohonanPage() {
   const [powerKwh, setPowerKwh] = useState<number>(120); // kWh
   const [needWasteDisposal, setNeedWasteDisposal] = useState<boolean>(true);
 
-  // Langkah 2: Tentukan Waktu
-  const [etaDate, setEtaDate] = useState<string>("2026-11-17");
-  const [etaTime, setEtaTime] = useState<string>("10:00");
-  const [etdDate, setEtdDate] = useState<string>("2026-11-17");
-  const [etdTime, setEtdTime] = useState<string>("11:45");
-  const [serviceDurationHours, setServiceDurationHours] = useState<number>(2); // 1.75 rounded up
+  // Helper format tanggal & jam lokal (YYYY-MM-DD & HH:mm)
+  const formatLocalDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const formatLocalTime = (d: Date) => {
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${h}:${min}`;
+  };
+
+  // Waktu real-time saat ini (diperbarui tiap 30 detik agar batas min tetap akurat)
+  const [currentNow, setCurrentNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayDateStr = formatLocalDate(currentNow);
+  const currentTimeStr = formatLocalTime(currentNow);
+
+  // Langkah 2: Tentukan Waktu (Default real-time: hari ini & jam saat ini)
+  const [etaDate, setEtaDate] = useState<string>(() => formatLocalDate(new Date()));
+  const [etaTime, setEtaTime] = useState<string>(() => formatLocalTime(new Date()));
+  const [etdDate, setEtdDate] = useState<string>(() =>
+    formatLocalDate(new Date(Date.now() + 2 * 60 * 60 * 1000))
+  );
+  const [etdTime, setEtdTime] = useState<string>(() =>
+    formatLocalTime(new Date(Date.now() + 2 * 60 * 60 * 1000))
+  );
+  const [serviceDurationHours, setServiceDurationHours] = useState<number>(2);
+
+  const handleEtaDateChange = (val: string) => {
+    const safeDate = val && val < todayDateStr ? todayDateStr : val;
+    const nextEtaTime =
+      safeDate === todayDateStr && etaTime < currentTimeStr ? currentTimeStr : etaTime;
+    setEtaDate(safeDate);
+    if (nextEtaTime !== etaTime) {
+      setEtaTime(nextEtaTime);
+    }
+
+    const etaDt = new Date(`${safeDate}T${nextEtaTime}:00`);
+    const etdDt = new Date(`${etdDate}T${etdTime}:00`);
+    if (etdDate < safeDate || etdDt <= etaDt) {
+      const shiftedEtd = new Date(
+        etaDt.getTime() + Math.round(serviceDurationHours * 60) * 60_000
+      );
+      setEtdDate(formatLocalDate(shiftedEtd));
+      setEtdTime(formatLocalTime(shiftedEtd));
+    }
+  };
+
+  const handleEtaTimeChange = (val: string) => {
+    const safeTime = etaDate === todayDateStr && val < currentTimeStr ? currentTimeStr : val;
+    setEtaTime(safeTime);
+    const etaDt = new Date(`${etaDate}T${safeTime}:00`);
+    const etdDt = new Date(`${etdDate}T${etdTime}:00`);
+    if (etdDt <= etaDt) {
+      const shiftedEtd = new Date(
+        etaDt.getTime() + Math.round(serviceDurationHours * 60) * 60_000
+      );
+      setEtdDate(formatLocalDate(shiftedEtd));
+      setEtdTime(formatLocalTime(shiftedEtd));
+    }
+  };
+
+  const handleEtdDateChange = (val: string) => {
+    const minDate = etaDate > todayDateStr ? etaDate : todayDateStr;
+    const safeDate = val && val < minDate ? minDate : val;
+    setEtdDate(safeDate);
+    const minTimeForEtd =
+      safeDate === etaDate ? etaTime : safeDate === todayDateStr ? currentTimeStr : "";
+    if (minTimeForEtd && etdTime < minTimeForEtd) {
+      setEtdTime(minTimeForEtd);
+    }
+  };
+
+  const handleEtdTimeChange = (val: string) => {
+    const minTimeForEtd =
+      etdDate === etaDate ? etaTime : etdDate === todayDateStr ? currentTimeStr : "";
+    const safeTime = minTimeForEtd && val < minTimeForEtd ? minTimeForEtd : val;
+    setEtdTime(safeTime);
+  };
+
+  const scheduleError = useMemo(() => {
+    if (!etaDate || !etaTime || !etdDate || !etdTime) {
+      return "Harap lengkapi tanggal dan jam kedatangan serta keberangkatan.";
+    }
+    const etaDt = new Date(`${etaDate}T${etaTime}:00`);
+    const etdDt = new Date(`${etdDate}T${etdTime}:00`);
+    const minNow = new Date(`${todayDateStr}T${currentTimeStr}:00`);
+    if (etaDt < minNow) {
+      return "Waktu kedatangan tidak boleh berada di masa lalu.";
+    }
+    if (etdDt <= etaDt) {
+      return "Waktu keberangkatan harus lebih akhir dari waktu kedatangan.";
+    }
+    return null;
+  }, [etaDate, etaTime, etdDate, etdTime, todayDateStr, currentTimeStr]);
+
+  const isScheduleValid = scheduleError === null;
 
   // Langkah 3: Dokumen & Kelaiklautan
-  const [docSeaworthy, setDocSeaworthy] = useState<boolean>(true);
-  const [docTonnageCert, setDocTonnageCert] = useState<boolean>(true);
   const [docManifestDraft, setDocManifestDraft] = useState<boolean>(true);
-  const [docSPIT, setDocSPIT] = useState<boolean>(true);
+  const [tripDocumentFile, setTripDocumentFile] = useState<File | null>(null);
   const [additionalNote, setAdditionalNote] = useState<string>("");
 
   // Langkah 4: Tinjau & Pakta Integritas
@@ -556,12 +660,12 @@ export default function KapalPermohonanPage() {
     setEstimateErrorToast(null);
     try {
       const estimate = await generateVisitEstimate(visitId, {});
-      setSuccessToast(
+      toast.success(
+        "Estimasi Tarif Dihitung",
         `Estimasi resmi ${estimate.invoiceNumber} berhasil dihitung server (${formatRupiah(
           Number(estimate.totalAmountIdr)
-        )})!`
+        )}).`
       );
-      setTimeout(() => setSuccessToast(null), 6000);
       if (selectedDetailReq?.visitId === visitId) {
         setSelectedDetailReq((prev) =>
           prev
@@ -588,18 +692,14 @@ export default function KapalPermohonanPage() {
     }
   };
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   // Submit Handler for Step 4 (Menyimpan data langsung ke REST API Backend)
   const handleFinalSubmit = async () => {
     if (!agreementChecked) {
-      alert("Harap setujui pakta integritas dan ketentuan estimasi retribusi sebelum mengirim.");
+      setEstimateErrorToast(
+        "Harap setujui pakta integritas dan ketentuan estimasi retribusi sebelum mengirim."
+      );
+      setTimeout(() => setEstimateErrorToast(null), 5000);
       return;
     }
 
@@ -669,11 +769,15 @@ export default function KapalPermohonanPage() {
       setLocalRequests((prev) => [newReq, ...prev]);
       setCreatedTicketId(newVisit.visitNumber);
       setWizardStep(5); // Pindah ke Langkah 5: Kirim & Pantau
-      setSuccessToast(`Permohonan ${newVisit.visitNumber} berhasil diajukan ke server backend!`);
+      toast.success(
+        "Permohonan Jadwal Diajukan",
+        `Permohonan ${newVisit.visitNumber} berhasil diajukan ke server backend.`
+      );
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Gagal mengirim permohonan ke server backend.";
-      alert(msg);
+      setEstimateErrorToast(msg);
+      setTimeout(() => setEstimateErrorToast(null), 6000);
     } finally {
       setIsSubmitting(false);
     }
@@ -698,22 +802,6 @@ export default function KapalPermohonanPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-fade-in border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {estimateErrorToast && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
@@ -781,7 +869,102 @@ export default function KapalPermohonanPage() {
       {/* ========================================================================= */}
       {/* VIEW A: WIZARD 5 LANGKAH "AJUKAN PENGGUNAAN DERMAGA" (PORTA.pdf Halaman 9) */}
       {/* ========================================================================= */}
-      {activeTab === "wizard" && (
+      {activeTab === "wizard" && !hasAnyActiveContract && (
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl shadow-xs p-6 sm:p-10">
+          {(() => {
+            const pendingContract = contracts?.find(
+              (c) =>
+                c.status === "PENDING_VERIFICATION" ||
+                c.status === "PENDING_HEAD_OF_PORT"
+            );
+
+            return (
+              <div className="max-w-xl mx-auto text-center space-y-5">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-[#D97706] flex items-center justify-center mx-auto shadow-xs">
+                  <FileSignature className="w-7 h-7" />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    <Clock className="w-3.5 h-3.5 text-[#D97706]" />
+                    <span>
+                      {pendingContract
+                        ? "Menunggu Pengesahan Kepala Pelabuhan"
+                        : "PKS Sandar Belum Aktif"}
+                    </span>
+                  </span>
+
+                  <h3 className="text-lg sm:text-xl font-black text-[#0B241E]">
+                    Pengajuan Jadwal Sandar Memerlukan PKS Sandar Aktif
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-[#64748B] leading-relaxed">
+                    Sesuai prosedur operasional pelabuhan, operator kapal wajib memiliki{" "}
+                    <strong className="text-[#0B241E]">
+                      Perjanjian Kerja Sama (PKS Sandar)
+                    </strong>{" "}
+                    yang berstatus <strong className="text-emerald-700">AKTIF</strong> dan
+                    disahkan Kepala Pelabuhan sebelum dapat mengisi permohonan jadwal &amp;
+                    alokasi dermaga.
+                  </p>
+                </div>
+
+                {/* Alur Singkat 2 Langkah */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left text-xs pt-1">
+                  <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 flex items-start gap-2.5">
+                    <span className="w-6 h-6 rounded-lg bg-[#0B241E] text-[#D97706] font-mono font-black flex items-center justify-center shrink-0">
+                      1
+                    </span>
+                    <div>
+                      <p className="font-bold text-[#0B241E]">Ajukan &amp; Sahkan PKS Sandar</p>
+                      <p className="text-[11px] text-[#64748B] mt-0.5">
+                        Lengkapi kontrak payung layanan sandar di menu PKS Sandar.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                    <span className="w-6 h-6 rounded-lg bg-slate-200 text-slate-700 font-mono font-black flex items-center justify-center shrink-0">
+                      2
+                    </span>
+                    <div>
+                      <p className="font-bold text-[#0B241E]">Ajukan Jadwal Dermaga</p>
+                      <p className="text-[11px] text-[#64748B] mt-0.5">
+                        Formulir permohonan sandar otomatis terbuka setelah PKS aktif.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <Link
+                    href="/kapal/pks-sandar"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white font-extrabold rounded-xl text-xs inline-flex items-center justify-center gap-2 transition-colors shadow-xs"
+                  >
+                    <FileSignature className="w-4 h-4 text-[#D97706]" />
+                    <span>
+                      {pendingContract
+                        ? "Cek Status Pengajuan PKS Sandar"
+                        : "Ajukan Kontrak PKS Sandar"}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("tracking")}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0B241E] border border-[#CBD5E1] font-bold rounded-xl text-xs inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-[#64748B]" />
+                    <span>Lihat Riwayat Permohonan</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {activeTab === "wizard" && hasAnyActiveContract && (
         <div className="bg-white border border-[#CBD5E1] rounded-2xl shadow-xs overflow-hidden">
           {/* Stepper Header (5 Langkah) */}
           <div className="bg-[#0B241E] p-4 sm:p-6 border-b border-[#143E33] text-white">
@@ -832,31 +1015,6 @@ export default function KapalPermohonanPage() {
           </div>
 
           <div className="p-6 sm:p-8">
-            {/* PKS SANDAR GATEKEEPER WARNING BANNER */}
-            {!hasActiveBerthingContract && (
-              <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs shadow-xs">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-[#0B241E] text-sm">
-                      PKS Sandar Kapal (Kontrak Payung) Belum Aktif
-                    </h4>
-                    <p className="text-[#475569] text-xs mt-0.5 max-w-2xl">
-                      Operator wajib memiliki <strong>Perjanjian Kerja Sama (PKS Sandar)</strong> yang <strong>AKTIF</strong> dan telah disahkan <strong>Kepala Pelabuhan</strong> sebelum mengajukan warta sandar. Pengiriman permohonan dinonaktifkan sampai PKS Sandar disetujui.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/kapal/pks-sandar"
-                  className="px-4 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold rounded-xl text-xs shrink-0 inline-flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <FileSignature className="w-4 h-4 text-[#D97706]" />
-                  <span>Ajukan PKS Sandar</span>
-                </Link>
-              </div>
-            )}
             {/* ------------------------------------------------------------- */}
             {/* STEP 1: PILIH LAYANAN & FASILITAS (PDF Hal. 9 Baris 1)         */}
             {/* ------------------------------------------------------------- */}
@@ -878,117 +1036,221 @@ export default function KapalPermohonanPage() {
                     <div className="col-span-full p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
                       <div className="flex items-center gap-2 font-bold text-xs text-amber-950">
                         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>Belum Ada Armada Kapal Terdaftar</span>
+                        <span>
+                          {vessels.length > 0
+                            ? "Belum Ada Armada Kapal Terverifikasi"
+                            : "Belum Ada Armada Kapal Terdaftar"}
+                        </span>
                       </div>
                       <p className="text-xs text-amber-800 leading-relaxed">
-                        Anda belum memiliki armada kapal yang terdaftar di akun ini. Silakan daftarkan master kapal Anda di menu <strong>Profil &amp; Master Kapal</strong> terlebih dahulu agar izin sandar dan estimasi tarif PP No. 35/2023 dapat diproses dengan benar.
+                        {vessels.length > 0 ? (
+                          <>
+                            Armada kapal Anda saat ini masih menunggu verifikasi petugas UPT. Hanya kapal dengan status <strong>Terverifikasi</strong> yang dapat dipilih untuk pengajuan permohonan sandar dermaga.
+                          </>
+                        ) : (
+                          <>
+                            Anda belum memiliki armada kapal yang terdaftar di akun ini. Silakan daftarkan master kapal Anda di menu <strong>Profil &amp; Master Kapal</strong> terlebih dahulu agar izin sandar dan estimasi tarif PP No. 35/2023 dapat diproses dengan benar.
+                          </>
+                        )}
                       </p>
                       <Link
                         href="/kapal/profil"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B241E] text-white rounded-lg font-bold text-xs hover:bg-[#143E33] transition-colors"
                       >
-                        <span>Daftarkan Armada Kapal Sekarang</span>
+                        <span>
+                          {vessels.length > 0
+                            ? "Cek Status Verifikasi Armada"
+                            : "Daftarkan Armada Kapal Sekarang"}
+                        </span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
                   ) : (
-                    <div>
+                    <div className="relative" ref={vesselDropdownRef}>
                       <label className="block text-xs font-bold text-[#0B241E] mb-1.5">
                         Pilih Armada Kapal Pemohon <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={selectedVesselId}
-                        onChange={(e) => {
-                          setSelectedVesselId(e.target.value);
-                        }}
-                        className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
+
+                      <button
+                        type="button"
+                        onClick={() => setIsVesselDropdownOpen((prev) => !prev)}
+                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2.5 bg-[#F8FAFC] border rounded-xl text-left transition-all cursor-pointer ${
+                          isVesselDropdownOpen
+                            ? "border-[#0B241E] ring-2 ring-[#0B241E]/10 bg-white"
+                            : "border-[#CBD5E1] hover:border-[#94A3B8]"
+                        }`}
                       >
-                        {fleetOptions.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name} ({v.gt.toLocaleString()} GT • Call Sign: {v.callSign})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[11px] text-[#64748B] mt-1">
-                        Dimensi: LOA {activeVessel.loa} m • Sarat Draft {activeVessel.draft} m
-                      </p>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0">
+                            <Ship className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-extrabold text-[#0B241E] truncate">
+                                {activeVessel.name}
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9.5px] font-bold">
+                                <ShieldCheck className="w-2.5 h-2.5" />
+                                Terverifikasi
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[10.5px] font-mono text-[#64748B]">
+                              <span>{activeVessel.gt.toLocaleString()} GT</span>
+                              <span className="text-[#CBD5E1]">|</span>
+                              <span>Call Sign: {activeVessel.callSign}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <ChevronDown
+                          className={`w-4 h-4 text-[#64748B] shrink-0 transition-transform duration-150 ${
+                            isVesselDropdownOpen ? "rotate-180 text-[#0B241E]" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {isVesselDropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-[#CBD5E1] rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-100">
+                          {fleetOptions.map((v) => {
+                            const isSelected = v.id === activeVessel.id;
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedVesselId(v.id);
+                                  setIsVesselDropdownOpen(false);
+                                }}
+                                className={`w-full px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? "bg-emerald-50/70"
+                                    : "hover:bg-slate-50"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                      isSelected
+                                        ? "bg-[#0B241E] text-[#D97706]"
+                                        : "bg-slate-100 text-slate-600"
+                                    }`}
+                                  >
+                                    <Ship className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-[#0B241E] truncate">
+                                        {v.name}
+                                      </span>
+                                      <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                        Terverifikasi
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10.5px] font-mono text-[#64748B]">
+                                      <span>{v.gt.toLocaleString()} GT</span>
+                                      <span className="text-[#CBD5E1]">|</span>
+                                      <span>{v.callSign}</span>
+                                      <span className="text-[#CBD5E1]">|</span>
+                                      <span>LOA {v.loa} m</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Jenis Kegiatan */}
-                  <div>
-                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5">
-                      Jenis Kegiatan Pelayanan Kapal <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={activityType}
-                      onChange={(e) => setActivityType(e.target.value)}
-                      className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-                    >
-                      <option value="Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)">
-                        Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)
-                      </option>
-                      <option value="Labuh Jangkar & Pengisian Perbekalan (Bunkering)">
-                        Labuh Jangkar & Pengisian Perbekalan (Bunkering)
-                      </option>
-                      <option value="Perbaikan Teknis / Emergency Docking">
-                        Perbaikan Teknis / Emergency Docking
-                      </option>
-                    </select>
-                  </div>
+                  <CustomSelectField
+                    label="Jenis Kegiatan Pelayanan Kapal"
+                    required
+                    value={activityType}
+                    onChange={setActivityType}
+                    icon={<ClipboardList className="w-4 h-4" />}
+                    minHeightClass="min-h-[58px]"
+                    options={[
+                      {
+                        value: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
+                        label: "Bongkar & Muat Penumpang / Kendaraan (Ferry Ro-Ro)",
+                        subtitle: "Pelayanan sandar komersial reguler",
+                      },
+                      {
+                        value: "Labuh Jangkar & Pengisian Perbekalan (Bunkering)",
+                        label: "Labuh Jangkar & Pengisian Perbekalan (Bunkering)",
+                        subtitle: "Pengisian air bersih, BBM & logistik",
+                      },
+                      {
+                        value: "Perbaikan Teknis / Emergency Docking",
+                        label: "Perbaikan Teknis / Emergency Docking",
+                        subtitle: "Sandar khusus pemeliharaan atau darurat",
+                      },
+                    ]}
+                  />
 
                   {/* Pelabuhan Asal Keberangkatan */}
-                  <div>
-                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5 flex items-center justify-between">
-                      <span>Pelabuhan Asal Keberangkatan (Origin) <span className="text-red-500">*</span></span>
-                      <span className="text-[10px] text-[#64748B] font-mono">Keberangkatan</span>
-                    </label>
-                    <select
-                      value={originPort}
-                      onChange={(e) => setOriginPort(e.target.value)}
-                      className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-                    >
-                      <option value="Pelabuhan Dobo">Pelabuhan Dobo (Kepulauan Aru)</option>
-                      <option value="Pelabuhan Agats">Pelabuhan Agats (Kabupaten Asmat)</option>
-                      <option value="Pelabuhan Merauke">Pelabuhan Merauke (Papua Selatan)</option>
-                      <option value="Wilayah Kerja Pomako">Wilayah Kerja Pomako (Lokal)</option>
-                      <option value="Pelabuhan Timika Barat">Pelabuhan Timika Barat</option>
-                    </select>
-                  </div>
+                  <CustomSelectField
+                    label="Pelabuhan Asal Keberangkatan (Origin)"
+                    required
+                    value={originPort}
+                    onChange={setOriginPort}
+                    icon={<Compass className="w-4 h-4" />}
+                    options={[
+                      { value: "Pelabuhan Dobo", label: "Pelabuhan Dobo", subtitle: "Kepulauan Aru" },
+                      { value: "Pelabuhan Agats", label: "Pelabuhan Agats", subtitle: "Kabupaten Asmat" },
+                      { value: "Pelabuhan Merauke", label: "Pelabuhan Merauke", subtitle: "Papua Selatan" },
+                      { value: "Wilayah Kerja Pomako", label: "Wilayah Kerja Pomako", subtitle: "Rute Lokal Mimika" },
+                      { value: "Pelabuhan Timika Barat", label: "Pelabuhan Timika Barat", subtitle: "Kabupaten Mimika" },
+                    ]}
+                  />
 
                   {/* Pelabuhan Tujuan Pelayanan */}
-                  <div>
-                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5 flex items-center justify-between">
-                      <span>Pelabuhan Tujuan Pelayanan (Destination) <span className="text-red-500">*</span></span>
-                      <span className="text-[10px] text-[#0284C7] font-mono">Lokasi Sandar</span>
-                    </label>
-                    <select
-                      value={destinationPort}
-                      onChange={(e) => setDestinationPort(e.target.value)}
-                      className="w-full text-xs font-semibold p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:outline-none focus:border-[#0B241E]"
-                    >
-                      {destinationPortOptions.map((port) => (
-                        <option key={port.id} value={port.name}>
-                          {port.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CustomSelectField
+                    label="Pelabuhan Tujuan Pelayanan (Destination)"
+                    required
+                    value={destinationPort}
+                    onChange={setDestinationPort}
+                    icon={<Anchor className="w-4 h-4 text-[#D97706]" />}
+                    options={destinationPortOptions.map((port) => {
+                      const isActive = activeContracts.some((c) => c.portId === port.id);
+                      const isPending =
+                        !isActive &&
+                        contracts?.some(
+                          (c) =>
+                            c.portId === port.id &&
+                            (c.status === "PENDING_VERIFICATION" ||
+                              c.status === "PENDING_HEAD_OF_PORT")
+                        );
+                      return {
+                        value: port.name,
+                        label: port.name,
+                        subtitle: port.code ? `Kode UPT: ${port.code}` : undefined,
+                        disabled: !isActive,
+                        badgeText: isActive
+                          ? "PKS Aktif"
+                          : isPending
+                          ? "Menunggu Verifikasi PKS"
+                          : "Belum Ada PKS",
+                        badgeVariant: isActive ? "emerald" : isPending ? "amber" : "slate",
+                      };
+                    })}
+                  />
 
-                  {/* LINTASAN TRAYEK TERJADWAL (OTOMATIS SESUAI OPSI 2) */}
+                  {/* LINTASAN PELAYARAN TERJADWAL */}
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5 flex items-center justify-between">
-                      <span>Lintasan Trayek Terjadwal (Otomatis Terkunci Sesuai SPIT)</span>
-                      <span className="text-[10px] text-emerald-700 font-mono font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Sistem Auto-Derived</span>
-                      </span>
+                    <label className="block text-xs font-bold text-[#0B241E] mb-1.5">
+                      Lintasan Pelayaran Terjadwal
                     </label>
 
-                    <div className="p-3.5 bg-[#F8FAFC] border-2 border-[#CBD5E1] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="p-3.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs shrink-0">
-                          <MapPin className="w-4 h-4" />
+                          <Route className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -997,12 +1259,12 @@ export default function KapalPermohonanPage() {
                             </span>
                             {originPort === destinationPort && (
                               <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded">
-                                Asal & Tujuan Sama
+                                Asal &amp; Tujuan Sama
                               </span>
                             )}
                           </div>
                           <p className="text-[11px] text-[#64748B] mt-0.5">
-                            Lintasan otomatis dikunci berdasarkan koordinat pelabuhan asal ➔ pelabuhan tujuan resmi.
+                            Lintasan otomatis dikunci berdasarkan pelabuhan asal dan pelabuhan tujuan.
                           </p>
                         </div>
                       </div>
@@ -1010,7 +1272,7 @@ export default function KapalPermohonanPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-300">
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Izin SPIT No. KP-812/DJPL/2024</span>
+                          <span>Lintasan Resmi Pelabuhan</span>
                         </span>
                       </div>
                     </div>
@@ -1024,185 +1286,117 @@ export default function KapalPermohonanPage() {
                   </div>
                 </div>
 
-                {/* INFORMASI SOP: PENETAPAN DERMAGA OLEH PETUGAS UPT DERMAGA */}
+                {/* Kebutuhan Utilitas Dermaga */}
                 <div className="space-y-3 pt-2">
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#F8FAFC] border border-[#CBD5E1] space-y-3 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0 shadow-xs">
-                          <Anchor className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h4 className="text-xs sm:text-sm font-extrabold text-[#0B241E]">
-                            Penetapan Dermaga Sandar Dikelola oleh Petugas UPT
-                          </h4>
-                          <p className="text-[11px] text-[#64748B]">
-                            SOP Alokasi Tambat Pelabuhan Poumako • Wewenang Petugas Dermaga
-                          </p>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-300 self-start sm:self-auto">
-                        <Clock className="w-3.5 h-3.5 text-[#D97706]" />
-                        <span>Alokasi Pasca-Verifikasi</span>
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-[#334155] leading-relaxed">
-                      Sesuai Standar Operasional Prosedur (SOP) Pelabuhan Poumako dan tata kelola maritim daerah, operator kapal <strong>tidak memilih dermaga secara mandiri</strong>. Setelah permohonan ini diajukan, <strong>Petugas Dermaga UPT</strong> akan memverifikasi kelaikan kapal serta ketersediaan slot dermaga yang kosong (berth availability) untuk menetapkan alokasi dermaga resmi.
-                    </p>
-
-                    {/* Parameter Teknis Kapal yang Dievaluasi Petugas */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
-                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Panjang Kapal (LOA)</span>
-                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.loa} Meter</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Draft Kedalaman</span>
-                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.draft} Meter</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Bobot Kapal (GT)</span>
-                        <strong className="text-xs font-mono text-[#0B241E]">{activeVessel.gt} GT</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-white border border-[#E2E8F0]">
-                        <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Status Alokasi Awal</span>
-                        <span className="text-[10.5px] font-bold text-amber-700 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          <span>Menunggu Petugas</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Notice Penjelasan */}
-                    <div className="p-3 bg-amber-50/70 border border-amber-200/90 rounded-xl flex items-start gap-2 text-xs text-amber-900">
-                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <p className="leading-snug text-[11.5px]">
-                        Status permohonan yang baru diajukan adalah <strong>&ldquo;Menunggu Verifikasi &amp; Alokasi Dermaga&rdquo;</strong>. Petugas Dermaga akan memilih dermaga yang kosong dan hasil penetapan tambat akan otomatis tertera di tiket permohonan Anda.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Kebutuhan Utilitas Dermaga (PDF Hal. 3 & 9) */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-[#0B241E]">
-                      Kebutuhan Layanan Utilitas Pelabuhan (Meter / Konsumsi Terukur)
-                    </label>
-                    <span className="text-[10px] text-[#64748B] font-mono">PP 35/2023 Pasal 14</span>
-                  </div>
+                  <label className="block text-xs font-bold text-[#0B241E]">
+                    Kebutuhan Layanan Utilitas Pelabuhan (Meter / Konsumsi Terukur)
+                  </label>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                    {/* Utilitas 1: Air Bersih */}
-                    <div
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        needFreshWater ? "bg-blue-50/70 border-blue-300" : "bg-[#F8FAFC] border-[#E2E8F0]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 font-bold text-[#0B241E] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={needFreshWater}
-                            onChange={(e) => setNeedFreshWater(e.target.checked)}
-                            className="rounded text-[#0B241E]"
-                          />
-                          <Droplets className="w-4 h-4 text-blue-600" />
-                          <span>Air Bersih (Bunkering)</span>
-                        </label>
-                      </div>
-                      <p className="text-[10px] text-[#64748B] mb-2">
-                        Tarif resmi: Rp 28.000 / m³ (Pipa Hydrant Dermaga)
-                      </p>
-                      {needFreshWater && (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="5"
-                            max="200"
-                            step="5"
-                            value={waterVolume}
-                            onChange={(e) => setWaterVolume(Number(e.target.value))}
-                            className="w-20 p-1.5 text-xs font-bold bg-white border border-blue-300 rounded-lg text-center"
-                          />
-                          <span className="font-bold text-[#0B241E]">m³ (Ton)</span>
-                          <span className="text-[11px] font-mono text-blue-800 ml-auto font-bold">
-                            {formatRupiah(waterVolume * 28000)}
-                          </span>
+                    {[
+                      {
+                        key: "water",
+                        checked: needFreshWater,
+                        onToggle: setNeedFreshWater,
+                        activeBox: "bg-blue-50/70 border-blue-300",
+                        icon: <Droplets className="w-4 h-4 text-blue-600 shrink-0" />,
+                        title: "Air Bersih (Bunkering)",
+                        rateDesc: "Tarif resmi: Rp 28.000 / m³ (Pipa Hydrant Dermaga)",
+                        inputVal: waterVolume,
+                        onInputChange: setWaterVolume,
+                        min: 5,
+                        max: 200,
+                        step: 5,
+                        unit: "m³",
+                        inputBorder: "border-blue-300",
+                        amountTextClass: "text-blue-800",
+                        subtotal: waterVolume * 28000,
+                      },
+                      {
+                        key: "power",
+                        checked: needShorePower,
+                        onToggle: setNeedShorePower,
+                        activeBox: "bg-amber-50/70 border-amber-300",
+                        icon: <Zap className="w-4 h-4 text-amber-600 shrink-0" />,
+                        title: "Shore Power Listrik",
+                        rateDesc: "Tarif resmi: Rp 3.200 / kWh (Cold Ironing Connection)",
+                        inputVal: powerKwh,
+                        onInputChange: setPowerKwh,
+                        min: 20,
+                        max: 500,
+                        step: 10,
+                        unit: "kWh",
+                        inputBorder: "border-amber-300",
+                        amountTextClass: "text-amber-900",
+                        subtotal: powerKwh * 3200,
+                      },
+                      {
+                        key: "waste",
+                        checked: needWasteDisposal,
+                        onToggle: setNeedWasteDisposal,
+                        activeBox: "bg-emerald-50/70 border-emerald-300",
+                        icon: <Trash2 className="w-4 h-4 text-emerald-600 shrink-0" />,
+                        title: "Pengelolaan Limbah",
+                        rateDesc: "Tarif tetap per call sandar: Rp 150.000 (Standar MARPOL)",
+                        amountTextClass: "text-emerald-900",
+                        subtotal: 150000,
+                      },
+                    ].map((util) => (
+                      <div
+                        key={util.key}
+                        className={`p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[124px] ${
+                          util.checked ? util.activeBox : "bg-[#F8FAFC] border-[#E2E8F0]"
+                        }`}
+                      >
+                        <div>
+                          <label className="flex items-center gap-2 font-bold text-[#0B241E] cursor-pointer mb-1.5">
+                            <input
+                              type="checkbox"
+                              checked={util.checked}
+                              onChange={(e) => util.onToggle(e.target.checked)}
+                              className="rounded text-[#0B241E]"
+                            />
+                            {util.icon}
+                            <span>{util.title}</span>
+                          </label>
+                          <p className="text-[10.5px] text-[#64748B]">{util.rateDesc}</p>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Utilitas 2: Listrik Darat Shore Power */}
-                    <div
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        needShorePower ? "bg-amber-50/70 border-amber-300" : "bg-[#F8FAFC] border-[#E2E8F0]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 font-bold text-[#0B241E] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={needShorePower}
-                            onChange={(e) => setNeedShorePower(e.target.checked)}
-                            className="rounded text-[#0B241E]"
-                          />
-                          <Zap className="w-4 h-4 text-amber-600" />
-                          <span>Shore Power Listrik</span>
-                        </label>
-                      </div>
-                      <p className="text-[10px] text-[#64748B] mb-2">
-                        Tarif resmi: Rp 3.200 / kWh (Cold Ironing Connection)
-                      </p>
-                      {needShorePower && (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="20"
-                            max="500"
-                            step="10"
-                            value={powerKwh}
-                            onChange={(e) => setPowerKwh(Number(e.target.value))}
-                            className="w-20 p-1.5 text-xs font-bold bg-white border border-amber-300 rounded-lg text-center"
-                          />
-                          <span className="font-bold text-[#0B241E]">kWh</span>
-                          <span className="text-[11px] font-mono text-amber-900 ml-auto font-bold">
-                            {formatRupiah(powerKwh * 3200)}
-                          </span>
+                        <div className="pt-2.5 mt-3 border-t border-slate-200/70 flex items-center justify-between gap-2">
+                          {util.checked ? (
+                            <>
+                              {util.unit && util.onInputChange ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min={util.min}
+                                    max={util.max}
+                                    step={util.step}
+                                    value={util.inputVal}
+                                    onChange={(e) => util.onInputChange?.(Number(e.target.value))}
+                                    className={`w-16 p-1.5 text-xs font-bold bg-white border ${util.inputBorder} rounded-lg text-center`}
+                                  />
+                                  <span className="font-bold text-[#0B241E] text-[11px]">
+                                    {util.unit}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[10.5px] font-semibold text-emerald-800">
+                                  Paket Tetap / Call
+                                </span>
+                              )}
+                              <span className={`text-xs font-mono font-extrabold ${util.amountTextClass}`}>
+                                {formatRupiah(util.subtotal)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[10.5px] text-slate-400">
+                              Centang untuk memesan layanan
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Utilitas 3: Pengelolaan Sampah & Limbah */}
-                    <div
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        needWasteDisposal ? "bg-emerald-50/70 border-emerald-300" : "bg-[#F8FAFC] border-[#E2E8F0]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-2 font-bold text-[#0B241E] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={needWasteDisposal}
-                            onChange={(e) => setNeedWasteDisposal(e.target.checked)}
-                            className="rounded text-[#0B241E]"
-                          />
-                          <Trash2 className="w-4 h-4 text-emerald-600" />
-                          <span>Pengelolaan Limbah</span>
-                        </label>
                       </div>
-                      <p className="text-[10px] text-[#64748B] mb-2">
-                        Tarif tetap per call sandar: Rp 150.000 (Standar MARPOL)
-                      </p>
-                      {needWasteDisposal && (
-                        <div className="text-right">
-                          <span className="text-[11px] font-mono text-emerald-900 font-bold">
-                            {formatRupiah(150000)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    ))}
                   </div>
                 </div>
 
@@ -1260,20 +1454,22 @@ export default function KapalPermohonanPage() {
                         </label>
                         <input
                           type="date"
+                          min={todayDateStr}
                           value={etaDate}
-                          onChange={(e) => setEtaDate(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg"
+                          onChange={(e) => handleEtaDateChange(e.target.value)}
+                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg focus:outline-none focus:border-[#0B241E]"
                         />
                       </div>
                       <div>
                         <label className="block text-[11px] text-[#64748B] mb-1 font-semibold">
-                          Jam Kedatangan (WIB)
+                          Jam Kedatangan (WIT)
                         </label>
                         <input
                           type="time"
+                          min={etaDate === todayDateStr ? currentTimeStr : undefined}
                           value={etaTime}
-                          onChange={(e) => setEtaTime(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg"
+                          onChange={(e) => handleEtaTimeChange(e.target.value)}
+                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg focus:outline-none focus:border-[#0B241E]"
                         />
                       </div>
                     </div>
@@ -1293,20 +1489,28 @@ export default function KapalPermohonanPage() {
                         </label>
                         <input
                           type="date"
+                          min={etaDate > todayDateStr ? etaDate : todayDateStr}
                           value={etdDate}
-                          onChange={(e) => setEtdDate(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg"
+                          onChange={(e) => handleEtdDateChange(e.target.value)}
+                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg focus:outline-none focus:border-[#0B241E]"
                         />
                       </div>
                       <div>
                         <label className="block text-[11px] text-[#64748B] mb-1 font-semibold">
-                          Jam Keberangkatan (WIB)
+                          Jam Keberangkatan (WIT)
                         </label>
                         <input
                           type="time"
+                          min={
+                            etdDate === etaDate
+                              ? etaTime
+                              : etdDate === todayDateStr
+                              ? currentTimeStr
+                              : undefined
+                          }
                           value={etdTime}
-                          onChange={(e) => setEtdTime(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg"
+                          onChange={(e) => handleEtdTimeChange(e.target.value)}
+                          className="w-full text-xs font-semibold p-2.5 bg-white border border-[#CBD5E1] rounded-lg focus:outline-none focus:border-[#0B241E]"
                         />
                       </div>
                     </div>
@@ -1357,6 +1561,13 @@ export default function KapalPermohonanPage() {
                   </div>
                 </div>
 
+                {scheduleError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-semibold">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{scheduleError}</span>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="pt-4 flex items-center justify-between border-t border-[#F1F5F9]">
                   <button
@@ -1369,123 +1580,256 @@ export default function KapalPermohonanPage() {
                   </button>
                   <button
                     type="button"
+                    disabled={!isScheduleValid}
                     onClick={() => setWizardStep(3)}
-                    className="px-6 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                    className={`px-6 py-2.5 text-xs font-extrabold rounded-xl shadow-xs transition-colors flex items-center gap-2 ${
+                      isScheduleValid
+                        ? "bg-[#0B241E] hover:bg-[#143E33] text-white cursor-pointer"
+                        : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    }`}
                   >
                     <span>Lanjut ke Langkah 3: Lengkapi Dokumen</span>
-                    <ChevronRight className="w-4 h-4 text-[#D97706]" />
+                    <ChevronRight className={`w-4 h-4 ${isScheduleValid ? "text-[#D97706]" : "text-slate-400"}`} />
                   </button>
                 </div>
               </div>
             )}
 
             {/* ------------------------------------------------------------- */}
-            {/* STEP 3: LENGKAPI DOKUMEN & SYARAT (PDF Hal. 9 Baris 3)         */}
+            {/* STEP 3: DOKUMEN MASTER OTOMATIS & KELENGKAPAN PER-KUNJUNGAN   */}
             {/* ------------------------------------------------------------- */}
             {wizardStep === 3 && (
               <div className="space-y-6">
                 <div>
                   <h3 className="text-sm font-black text-[#0B241E] uppercase tracking-wide flex items-center gap-2">
                     <FileCheck2 className="w-4 h-4 text-[#D97706]" />
-                    <span>Langkah 3: Lengkapi Dokumen & Kelaiklautan Kapal</span>
+                    <span>Langkah 3: Berkas Legalitas Armada &amp; Kelengkapan Pelayaran</span>
                   </h3>
                   <p className="text-xs text-[#64748B] mt-0.5">
-                    Sistem secara otomatis menautkan sertifikat aktif armada {activeVessel.name}. Periksa kelengkapan berkas sebelum verifikasi petugas.
+                    Berkas master kapal {activeVessel.name} dan PKS Sandar ditautkan otomatis dari profil. Anda tidak perlu mengunggah ulang berkas yang sudah terdaftar.
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  {/* Doc 1 */}
-                  <label className="p-4 bg-[#F8FAFC] rounded-xl border border-[#CBD5E1] flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={docSeaworthy}
-                        onChange={(e) => setDocSeaworthy(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#0B241E]"
-                      />
-                      <div>
-                        <span className="font-bold text-[#0B241E] text-xs block">
-                          Sertifikat Keselamatan Konstruksi & Kelaiklautan (Safety Certificate)
-                        </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          Terdaftar di database Ditjen Perhubungan Laut • Status: Valid hingga 12 Okt 2027
+                {/* BLOK 1: Berkas Terverifikasi Otomatis (100% Data Riil API) */}
+                {(() => {
+                  const selectedVesselEntity = vessels.find(
+                    (v) => String(v.id) === activeVessel.id
+                  );
+                  const vesselDocs = (selectedVesselEntity?.documents || []).filter(
+                    (d) =>
+                      !d.mimeType?.startsWith("image/") ||
+                      d.category === "SURAT_UKUR" ||
+                      d.category === "PAS_BESAR_KECIL"
+                  );
+
+                  const getFileUrl = (filePath?: string | null) => {
+                    if (!filePath) return null;
+                    if (filePath.startsWith("http")) return filePath;
+                    const normalized = filePath.replace(/\\/g, "/");
+                    const base = API_CONFIG.BASE_URL.replace(/\/api\/?$/, "");
+                    return `${base}/${normalized.replace(/^\/+/, "")}`;
+                  };
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#CBD5E1] space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#E2E8F0]">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          <span className="text-xs font-extrabold text-[#0B241E]">
+                            Berkas Legalitas Otomatis (Dari Profil Armada &amp; PKS)
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                          Auto-Linked
                         </span>
                       </div>
-                    </div>
-                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
-                      Terverifikasi
-                    </span>
-                  </label>
 
-                  {/* Doc 2 */}
-                  <label className="p-4 bg-[#F8FAFC] rounded-xl border border-[#CBD5E1] flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={docTonnageCert}
-                        onChange={(e) => setDocTonnageCert(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#0B241E]"
-                      />
-                      <div>
-                        <span className="font-bold text-[#0B241E] text-xs block">
-                          Surat Ukur Kapal Internasional (Tonnage Certificate - {activeVessel.gt} GT)
-                        </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          Dasar penetapan tarif retribusi tambat & labuh PP 35/2023
-                        </span>
+                      <div className="space-y-2.5">
+                        {/* Kontrak PKS Sandar Aktif */}
+                        {activeBerthingContract && (
+                          <div className="p-3 bg-white rounded-xl border border-emerald-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-[#0B241E]">
+                                  Kontrak PKS Sandar ({destinationPort})
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                  {activeBerthingContract.contractNumber}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#64748B] mt-0.5">
+                                Berlaku s/d{" "}
+                                {new Date(activeBerthingContract.endDate).toLocaleDateString("id-ID", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded shrink-0">
+                              Aktif &amp; Disahkan
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Dokumen Riil Armada dari Backend */}
+                        {vesselDocs.length === 0 ? (
+                          <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                            <span className="text-amber-900 font-medium">
+                              Belum ada dokumen legalitas terlampir pada profil kapal ini.
+                            </span>
+                            <Link
+                              href="/kapal/profil"
+                              className="text-xs font-bold text-[#0B241E] hover:underline inline-flex items-center gap-1 shrink-0"
+                            >
+                              <span>Lengkapi di Profil Kapal</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </div>
+                        ) : (
+                          vesselDocs.map((doc) => {
+                            const fileUrl = getFileUrl(doc.filePath);
+                            const effectiveStatus =
+                              doc.verificationStatus === "REJECTED"
+                                ? "REJECTED"
+                                : doc.verificationStatus === "VERIFIED" ||
+                                  selectedVesselEntity?.verificationStatus === "VERIFIED"
+                                ? "VERIFIED"
+                                : "PENDING";
+                            const statusLabel =
+                              effectiveStatus === "VERIFIED"
+                                ? "Terverifikasi"
+                                : effectiveStatus === "REJECTED"
+                                ? "Ditolak"
+                                : "Menunggu Verifikasi";
+                            const statusClass =
+                              effectiveStatus === "VERIFIED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : effectiveStatus === "REJECTED"
+                                ? "bg-rose-100 text-rose-800"
+                                : "bg-amber-100 text-amber-800";
+
+                            return (
+                              <div
+                                key={doc.id}
+                                className="p-3 bg-white rounded-xl border border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 text-xs"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-[#0B241E]">
+                                      {formatDocCategory(doc.category)}
+                                    </span>
+                                    {doc.documentNumber && (
+                                      <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                        No. {doc.documentNumber}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-[#64748B] truncate mt-0.5">
+                                    Berkas: {doc.fileName}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {fileUrl && (
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[11px] font-bold text-[#0284C7] hover:underline inline-flex items-center gap-1"
+                                    >
+                                      <span>Lihat</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                  <span
+                                    className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded ${statusClass}`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
-                      Terverifikasi
-                    </span>
-                  </label>
+                  );
+                })()}
 
-                  {/* Doc 3 */}
-                  <label className="p-4 bg-[#F8FAFC] rounded-xl border border-[#CBD5E1] flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={docSPIT}
-                        onChange={(e) => setDocSPIT(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#0B241E]"
-                      />
-                      <div>
-                        <span className="font-bold text-[#0B241E] text-xs block">
-                          Surat Persetujuan Izin Trayek (SPIT) Lintas Merak-Bakauheni
-                        </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          Nomor: KP-812/DJPL/2024 • Berlaku s/d 31 Des 2026
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
-                      Terverifikasi
+                {/* BLOK 2: Kelengkapan Khusus Pelayaran Ini (Per-Kunjungan) */}
+                <div className="p-4 rounded-2xl bg-white border border-[#CBD5E1] space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-xs font-extrabold text-[#0B241E] flex items-center gap-2">
+                      <Paperclip className="w-4 h-4 text-[#D97706]" />
+                      <span>Kelengkapan Khusus Pelayaran Ini (Per-Kunjungan)</span>
                     </span>
-                  </label>
+                    <span className="text-[10px] font-mono bg-blue-50 text-blue-800 border border-blue-200 font-bold px-2.5 py-0.5 rounded-full">
+                      Trip {derivedRoute}
+                    </span>
+                  </div>
 
-                  {/* Doc 4 */}
-                  <label className="p-4 bg-[#F8FAFC] rounded-xl border border-[#CBD5E1] flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
+                  {/* Konfirmasi Kesiapan Manifes Awal */}
+                  <label className="p-3.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
                       <input
                         type="checkbox"
                         checked={docManifestDraft}
                         onChange={(e) => setDocManifestDraft(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#0B241E]"
+                        className="w-4 h-4 rounded text-[#0B241E] shrink-0"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <span className="font-bold text-[#0B241E] text-xs block">
-                          Draft Rencana Muatan & Manifes Awal (SOLAS Compliant)
+                          Konfirmasi Draft Rencana Muatan &amp; Manifes Awal (SOLAS Compliant)
                         </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          Kapasitas maksimum kapal tidak melebihi ambang batas keselamatan
+                        <span className="text-[11px] text-[#64748B] block mt-0.5">
+                          Muatan dan penumpang pelayaran ini mematuhi ambang batas keselamatan kapal
                         </span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono bg-blue-100 text-blue-800 font-bold px-2.5 py-0.5 rounded shrink-0">
                       Wajib Lapor
                     </span>
                   </label>
+
+                  {/* Upload Opsional Dokumen Pendukung Perjalanan */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#0B241E]">
+                        Unggah Dokumen Pendukung Perjalanan (Opsional)
+                      </label>
+                      <span className="text-[10px] font-mono text-[#64748B]">
+                        PDF / JPG / PNG
+                      </span>
+                    </div>
+                    {tripDocumentFile ? (
+                      <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-emerald-700 shrink-0" />
+                          <span className="font-semibold text-[#0B241E] truncate">
+                            {tripDocumentFile.name}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                            ({(tripDocumentFile.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTripDocumentFile(null)}
+                          className="text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer shrink-0"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => setTripDocumentFile(e.target.files?.[0] || null)}
+                        className="w-full text-[11px] text-[#64748B] bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-1.5 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#0B241E] file:text-white file:text-[11px] file:font-bold hover:file:bg-[#143E33] cursor-pointer"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* Catatan Tambahan Operator */}
@@ -1542,24 +1886,24 @@ export default function KapalPermohonanPage() {
                 {/* Summary Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#CBD5E1] text-xs">
                   <div>
-                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Kapal & Dimensi</span>
+                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Kapal &amp; Dimensi</span>
                     <p className="font-extrabold text-[#0B241E] text-sm mt-0.5">{activeVessel.name}</p>
-                    <p className="font-mono text-[#64748B] text-[11px]">{activeVessel.gt.toLocaleString()} GT • {activeVessel.callSign}</p>
+                    <p className="font-mono text-[#64748B] text-[11px]">
+                      {activeVessel.gt.toLocaleString()} GT | {activeVessel.callSign}
+                    </p>
                   </div>
                   <div>
                     <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Rencana Pelayanan</span>
                     <p className="font-bold text-[#0B241E] mt-0.5">{destinationPort}</p>
                     <p className="text-[11px] text-[#64748B]">
-                      {etaDate} ({etaTime} - {etdTime} WIB • {serviceDurationHours} Jam)
+                      {etaDate} ({etaTime} - {etdTime} WIB | {serviceDurationHours} Jam)
                     </p>
                   </div>
                   <div>
-                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Dermaga & Trayek</span>
-                    <p className="font-bold text-[#0B241E] mt-0.5">
-                      {activeBerth?.name || "Ditetapkan Petugas UPT"}
-                    </p>
+                    <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Dermaga &amp; Trayek</span>
+                    <p className="font-bold text-[#0B241E] mt-0.5">Ditetapkan Petugas UPT</p>
                     <p className="text-[11px] text-[#64748B]">
-                      {derivedRoute} • Menunggu Alokasi Resmi
+                      {derivedRoute} | Menunggu Alokasi Resmi
                     </p>
                   </div>
                 </div>
@@ -1569,31 +1913,8 @@ export default function KapalPermohonanPage() {
                   <div className="bg-[#0B241E] px-4 py-2.5 text-white flex flex-wrap items-center justify-between gap-2">
                     <span className="font-bold text-xs flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-[#D97706]" />
-                      <span>Rincian Estimasi Retribusi Kepelabuhanan (Perda 4/2023 &amp; PP 35/2023)</span>
+                      <span>Rincian Estimasi Retribusi Kepelabuhanan</span>
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                          costs.isLiveTariff
-                            ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/30"
-                            : "bg-amber-500/20 text-amber-200 border border-amber-400/30"
-                        }`}
-                      >
-                        {costs.isLiveTariff ? "TARIF LIVE SERVER" : "TARIF REFERENSI"}
-                      </span>
-                      {usdRate && (
-                        <button
-                          type="button"
-                          onClick={() => fetchUsdRate(true)}
-                          disabled={isRateLoading}
-                          className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[#A0C4B8] cursor-pointer disabled:opacity-50"
-                          title={`Kurs USD Live (${usdRate.source}) — klik untuk perbarui`}
-                        >
-                          <RefreshCw className={`w-3 h-3 ${isRateLoading ? "animate-spin" : ""}`} />
-                          <span>1 USD = Rp {usdRate.rate.toLocaleString("id-ID")}</span>
-                        </button>
-                      )}
-                    </div>
                   </div>
 
                   <table className="w-full text-left">
@@ -1843,9 +2164,7 @@ export default function KapalPermohonanPage() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      alert("Mencetak bukti pengajuan permohonan sandar (PDF)...");
-                    }}
+                    onClick={() => window.print()}
                     className="w-full sm:w-auto px-4 py-2.5 bg-white border border-[#CBD5E1] text-[#0B241E] text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Printer className="w-4 h-4 text-[#64748B]" />
@@ -2130,204 +2449,12 @@ export default function KapalPermohonanPage() {
       {/* ========================================================================= */}
       {/* MODAL DETAIL PERMOHONAN                                                   */}
       {/* ========================================================================= */}
-      {selectedDetailReq && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-[#0B241E]">
-                    Rincian Lengkap Permohonan Dermaga
-                  </h3>
-                  <span className="font-mono text-xs text-[#64748B]">{selectedDetailReq.id}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedDetailReq(null)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0B241E] hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
-              <div>
-                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Armada Kapal</span>
-                <p className="font-bold text-[#0B241E] text-sm mt-0.5">{selectedDetailReq.vesselName}</p>
-                <p className="font-mono text-[#64748B]">{selectedDetailReq.gt.toLocaleString()} GT • {selectedDetailReq.callSign}</p>
-              </div>
-              <div>
-                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Status Permohonan</span>
-                <span className="inline-block mt-1 font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  {selectedDetailReq.statusLabel}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Pelabuhan & Rute</span>
-                <p className="font-bold text-[#0B241E] mt-0.5">{selectedDetailReq.port}</p>
-                <p className="text-[#64748B]">{selectedDetailReq.route}</p>
-              </div>
-              <div>
-                <span className="text-[#94A3B8] text-[10px] uppercase font-bold block">Alokasi Penetapan Dermaga</span>
-                {selectedDetailReq.allocatedDock?.includes("Menunggu") || selectedDetailReq.status === "submitted" ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 mt-1">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Menunggu verifikasi &amp; alokasi oleh Petugas UPT</span>
-                  </span>
-                ) : (
-                  <p className="font-bold text-emerald-800 flex items-center gap-1.5 mt-1 text-xs">
-                    <Anchor className="w-4 h-4 text-[#D97706]" />
-                    <span>{selectedDetailReq.allocatedDock}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Rincian Biaya */}
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-[#0B241E]">
-                  {selectedDetailReq.officialInvoice
-                    ? `Rincian Tagihan Resmi Server (${selectedDetailReq.officialInvoice.invoiceNumber}):`
-                    : "Rincian Estimasi Tarif Retribusi (Perda 4/2023):"}
-                </span>
-                {selectedDetailReq.officialInvoice ? (
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    {selectedDetailReq.officialInvoice.billingStage}
-                  </span>
-                ) : (
-                  selectedDetailReq.visitId &&
-                  selectedDetailReq.backendStatus &&
-                  selectedDetailReq.backendStatus !== "REQUESTED" &&
-                  selectedDetailReq.backendStatus !== "CANCELLED" && (
-                    <button
-                      type="button"
-                      disabled={estimatingVisitId === selectedDetailReq.visitId}
-                      onClick={() => handleGenerateOfficialEstimate(selectedDetailReq.visitId!)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
-                    >
-                      {estimatingVisitId === selectedDetailReq.visitId ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <DollarSign className="w-3 h-3 text-[#D97706]" />
-                      )}
-                      <span>Hitung Estimasi Resmi Server</span>
-                    </button>
-                  )
-                )}
-              </div>
-
-              <div className="border border-[#CBD5E1] rounded-xl p-3 space-y-1.5 bg-slate-50">
-                {selectedDetailReq.officialInvoice?.items &&
-                selectedDetailReq.officialInvoice.items.length > 0 ? (
-                  selectedDetailReq.officialInvoice.items.map((item) => (
-                    <div key={item.id} className="flex items-start justify-between gap-3">
-                      <div>
-                        <span className="text-[#0B241E] font-semibold block">
-                          {item.description}
-                        </span>
-                        {item.formulaNote && (
-                          <span className="text-[10px] font-mono text-[#64748B]">
-                            {item.formulaNote}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
-                        {formatRupiah(Number(item.subtotalIdr))}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <span className="text-[#64748B] block">Jasa Tambat / Sandar Dermaga:</span>
-                        {selectedDetailReq.costBreakdown.tambatFormula && (
-                          <span className="text-[10px] font-mono text-[#94A3B8]">
-                            {selectedDetailReq.costBreakdown.tambatFormula}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
-                        {formatRupiah(selectedDetailReq.costBreakdown.mooring)}
-                      </span>
-                    </div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <span className="text-[#64748B] block">Jasa Labuh Perairan:</span>
-                        {selectedDetailReq.costBreakdown.labuhFormula && (
-                          <span className="text-[10px] font-mono text-[#94A3B8]">
-                            {selectedDetailReq.costBreakdown.labuhFormula}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-mono font-bold text-[#0B241E] shrink-0">
-                        {formatRupiah(selectedDetailReq.costBreakdown.anchorage)}
-                      </span>
-                    </div>
-                    {selectedDetailReq.utilities.freshWater && (
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">
-                          Air Bersih ({selectedDetailReq.utilities.waterVolume} m³):
-                        </span>
-                        <span className="font-mono font-bold text-[#0B241E]">
-                          {formatRupiah(selectedDetailReq.costBreakdown.water)}
-                        </span>
-                      </div>
-                    )}
-                    {selectedDetailReq.utilities.shorePower && (
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">
-                          Listrik Darat Shore Power ({selectedDetailReq.utilities.powerKwh} kWh):
-                        </span>
-                        <span className="font-mono font-bold text-[#0B241E]">
-                          {formatRupiah(selectedDetailReq.costBreakdown.power)}
-                        </span>
-                      </div>
-                    )}
-                    {selectedDetailReq.utilities.wasteDisposal && (
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Jasa Pengelolaan Limbah Kapal:</span>
-                        <span className="font-mono font-bold text-[#0B241E]">
-                          {formatRupiah(selectedDetailReq.costBreakdown.waste)}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="flex justify-between border-t border-[#CBD5E1] pt-2 font-bold text-sm">
-                  <span className="text-[#0B241E]">
-                    {selectedDetailReq.officialInvoice ? "Total Resmi Server:" : "Total Estimasi:"}
-                  </span>
-                  <span className="font-mono text-[#0B241E]">
-                    {formatRupiah(selectedDetailReq.costBreakdown.total)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {selectedDetailReq.officerNotes && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-950">
-                <span className="font-bold block">Catatan Verifikator UPT:</span>
-                <p className="mt-0.5 text-[#334155]">{selectedDetailReq.officerNotes}</p>
-              </div>
-            )}
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedDetailReq(null)}
-                className="px-5 py-2 bg-[#0B241E] text-white text-xs font-bold rounded-xl"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DockRequestDetailModal
+        request={selectedDetailReq}
+        estimatingVisitId={estimatingVisitId}
+        onGenerateOfficialEstimate={handleGenerateOfficialEstimate}
+        onClose={() => setSelectedDetailReq(null)}
+      />
     </div>
   );
 }

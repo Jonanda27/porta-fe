@@ -221,7 +221,6 @@ export interface RecordPaymentDto {
 export interface GenerateBillingDto {
   currency?: string;
   exchangeRateUsd?: number;
-  dueDate?: string;
   notes?: string;
   collectionInstrument?: string;
 }
@@ -296,6 +295,8 @@ export interface CheckoutPaymentDto {
   targetId: number;
 }
 
+import type { AssetLease, AssetLeasePayment } from "./asset.types";
+
 export interface CheckoutPaymentResponse {
   orderId: string;
   provider: string;
@@ -303,3 +304,14 @@ export interface CheckoutPaymentResponse {
   snapToken?: string;
   redirectUrl?: string;
 }
+
+export interface UnpaidLeaseSummary {
+  lease: AssetLease;
+  totalDue: number;
+  totalPaid: number;
+  remaining: number;
+}
+
+export type UnifiedPaidRecord =
+  | { kind: "DERMAGA"; sortDate: number; invoice: BillingInvoice }
+  | { kind: "RUANGAN"; sortDate: number; lease: AssetLease; payment: AssetLeasePayment };

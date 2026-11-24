@@ -22,6 +22,7 @@ import {
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useKapalStore } from "@/store/kapal.store";
 import { formatLabel } from "@/lib/format-labels";
+import { formatRupiah } from "@/lib/kapal-billing";
 import { PortAsset, PortAssetType } from "@/types/asset.types";
 
 const ASSET_TYPE_OPTIONS: { value: "" | PortAssetType; label: string }[] = [
@@ -155,12 +156,6 @@ export default function KapalSewaRuanganPage() {
     }
   };
 
-  const formatRupiah = (amount: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(amount);
 
   return (
     <div className="space-y-6">

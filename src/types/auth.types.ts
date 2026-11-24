@@ -58,6 +58,15 @@ export interface RegisterOperatorDto {
   operatorProfile?: OperatorProfile;
 }
 
+export interface RegisteredUserSummary {
+  id: number | string;
+  email: string;
+  fullName: string;
+  role?: string;
+  operatorId?: number | string | null;
+  operatorVerificationStatus?: string | null;
+}
+
 export interface RegisterOperatorResponse {
   accessToken: string;
   user: {
@@ -85,4 +94,24 @@ export interface ChangeMyPasswordPayload {
 export interface ChangeMyPasswordResponse {
   message: string;
   accessToken: string;
+}
+
+export type LandingUserRoleType = "dinas" | "upt" | "kapal" | "penumpang" | "tenant";
+
+export type PartnerRoleType = "OPERATOR" | "TENANT";
+
+export interface RoleCardItem {
+  id: LandingUserRoleType;
+  code: string;
+  title: string;
+  targetRole: string;
+  scope: string;
+  description: string;
+  route: string;
+  icon: import("react").ComponentType<{ className?: string }>;
+  tag: string;
+  badgeColor: string;
+  accentBg: string;
+  borderHover: string;
+  features: string[];
 }

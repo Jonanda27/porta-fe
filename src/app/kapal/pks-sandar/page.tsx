@@ -22,9 +22,11 @@ import { API_CONFIG } from "@/config/api.config";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
-import { OperatorBerthingContract } from "@/types/kapal.types";
-
-type ContractFilter = "ALL" | "ACTIVE" | "PENDING_VERIFICATION" | "INACTIVE";
+import { toast } from "@/store/toast.store";
+import {
+  BerthingContractFilter as ContractFilter,
+  OperatorBerthingContract,
+} from "@/types/kapal.types";
 
 export default function KapalPksSandarPage() {
   const { user } = useAuthStore();
@@ -42,7 +44,6 @@ export default function KapalPksSandarPage() {
   const [statusFilter, setStatusFilter] = useState<ContractFilter>("ALL");
   const [isAddContractModalOpen, setIsAddContractModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [contractFormData, setContractFormData] = useState({
@@ -162,10 +163,10 @@ export default function KapalPksSandarPage() {
       );
 
       setIsAddContractModalOpen(false);
-      setSuccessToast(
-        "Permohonan PKS Sandar Kapal berhasil diajukan dan sedang menunggu verifikasi Kepala Pelabuhan!"
+      toast.success(
+        "Permohonan PKS Sandar Diajukan",
+        "Permohonan PKS Sandar Kapal berhasil diajukan dan sedang menunggu verifikasi Kepala Pelabuhan."
       );
-      setTimeout(() => setSuccessToast(null), 6000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal mengajukan PKS Sandar Kapal.";
       setErrorMessage(msg);
@@ -176,23 +177,6 @@ export default function KapalPksSandarPage() {
 
   return (
     <div className="space-y-5">
-      {/* Success Toast */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Global Error Banner */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">

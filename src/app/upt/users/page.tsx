@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
   Users,
   UserPlus,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   ShieldAlert,
@@ -20,6 +19,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useUserStore } from "@/store/user.store";
 import { usePortStore } from "@/store/port.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { UserRole } from "@/types/auth.types";
 
@@ -104,20 +104,18 @@ export default function UsersPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditItemsPerPage, setAuditItemsPerPage] = useState(10);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
-
   // Create / Edit User modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccountItem | null>(null);
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>(
-    isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA"
-  );
-  const [portId, setPortId] = useState<string>("");
-  const [mustChangePassword, setMustChangePassword] = useState<boolean>(true);
+  const [userForm, setUserForm] = useState({
+    email: "",
+    username: "",
+    password: "",
+    fullName: "",
+    role: (isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA") as UserRole,
+    portId: "",
+    mustChangePassword: true,
+  });
 
   // Reset Password modal state
   const [resetTarget, setResetTarget] = useState<UserAccountItem | null>(null);
@@ -147,9 +145,9 @@ export default function UsersPage() {
 
   const creatableRoles = isSuperadmin ? ALL_ROLES : ADMIN_ALLOWED_ROLES;
   const requiresPortId =
-    role === "ADMIN_PELABUHAN" ||
-    role === "PETUGAS_DERMAGA" ||
-    role === "BENDAHARA";
+    userForm.role === "ADMIN_PELABUHAN" ||
+    userForm.role === "PETUGAS_DERMAGA" ||
+    userForm.role === "BENDAHARA";
 
   const filteredUsers = users.filter((u) => {
     const matchRole = roleFilter ? u.role === roleFilter : true;
@@ -190,66 +188,78 @@ export default function UsersPage() {
 
   const openCreateModal = () => {
     setEditingUser(null);
-    setEmail("");
-    setUsername("");
-    setPassword("");
-    setFullName("");
-    setRole(isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA");
-    setPortId(
-      currentUser?.portId
+    setUserForm({
+      email: "",
+      username: "",
+      password: "",
+      fullName: "",
+      role: isSuperadmin ? "ADMIN_PELABUHAN" : "PETUGAS_DERMAGA",
+      portId: currentUser?.portId
         ? String(currentUser.portId)
         : ports[0]?.id
         ? String(ports[0].id)
-        : ""
-    );
-    setMustChangePassword(true);
+        : "",
+      mustChangePassword: true,
+    });
     clearError();
     setIsModalOpen(true);
   };
 
   const openEditModal = (u: UserAccountItem) => {
     setEditingUser(u);
-    setEmail(u.email);
-    setUsername(u.username || "");
-    setPassword("");
-    setFullName(u.fullName);
-    setRole(u.role);
-    setPortId(u.portId ? String(u.portId) : "");
+    setUserForm({
+      email: u.email,
+      username: u.username || "",
+      password: "",
+      fullName: u.fullName,
+      role: u.role,
+      portId: u.portId ? String(u.portId) : "",
+      mustChangePassword: true,
+    });
     clearError();
     setIsModalOpen(true);
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     const activeFilter = portFilter ? Number(portFilter) : undefined;
 
     if (editingUser) {
       await updateUser(
         editingUser.id,
         {
-          fullName: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          username: username.trim() ? username.trim().toLowerCase() : null,
-          ...(isSuperadmin ? { role, portId: requiresPortId && portId ? Number(portId) : null } : {}),
+          fullName: userForm.fullName.trim(),
+          email: userForm.email.trim().toLowerCase(),
+          username: userForm.username.trim()
+            ? userForm.username.trim().toLowerCase()
+            : null,
+          ...(isSuperadmin
+            ? {
+                role: userForm.role,
+                portId:
+                  requiresPortId && userForm.portId ? Number(userForm.portId) : null,
+              }
+            : {}),
         },
         activeFilter
       );
-      setFeedback(`Data akun ${email} berhasil diperbarui.`);
+      toast.success("Akun Diperbarui", `Data akun ${userForm.email} berhasil diperbarui.`);
     } else {
       await createUser(
         {
-          email: email.trim().toLowerCase(),
-          username: username.trim() ? username.trim().toLowerCase() : undefined,
-          password,
-          fullName: fullName.trim(),
-          role,
-          portId: requiresPortId && portId ? Number(portId) : undefined,
-          mustChangePassword,
+          email: userForm.email.trim().toLowerCase(),
+          username: userForm.username.trim()
+            ? userForm.username.trim().toLowerCase()
+            : undefined,
+          password: userForm.password,
+          fullName: userForm.fullName.trim(),
+          role: userForm.role,
+          portId: requiresPortId && userForm.portId ? Number(userForm.portId) : undefined,
+          mustChangePassword: userForm.mustChangePassword,
         },
         activeFilter
       );
-      setFeedback(`Akun ${email} berhasil dibuat.`);
+      toast.success("Akun Dibuat", `Akun ${userForm.email} berhasil dibuat.`);
     }
     setIsModalOpen(false);
   };
@@ -264,19 +274,18 @@ export default function UsersPage() {
   const handleConfirmResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetTarget) return;
-    setFeedback(null);
     await resetUserPassword(resetTarget.id, {
       newPassword: resetNewPassword,
       mustChangePassword: resetMustChange,
     });
-    setFeedback(`Kata sandi akun ${resetTarget.email} berhasil direset.`);
+    toast.success("Kata Sandi Direset", `Kata sandi akun ${resetTarget.email} berhasil direset.`);
     setResetTarget(null);
   };
 
   const handleToggleStatus = async (userId: number, currentActive: boolean) => {
-    setFeedback(null);
     await toggleUserStatus(userId, !currentActive);
-    setFeedback(
+    toast.success(
+      "Status Diperbarui",
       `Status pengguna #${userId} berhasil diubah menjadi ${
         !currentActive ? "Aktif" : "Nonaktif"
       }.`
@@ -336,13 +345,6 @@ export default function UsersPage() {
           Tambah Akun Pengguna
         </button>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -616,8 +618,10 @@ export default function UsersPage() {
                 <input
                   type="text"
                   required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={userForm.fullName}
+                  onChange={(e) =>
+                    setUserForm((prev) => ({ ...prev, fullName: e.target.value }))
+                  }
                   placeholder="Andi Petugas Dermaga"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -630,8 +634,10 @@ export default function UsersPage() {
                 <input
                   type="email"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={userForm.email}
+                  onChange={(e) =>
+                    setUserForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
                   placeholder="petugas.baru@porta.mimikakab.go.id"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -643,8 +649,10 @@ export default function UsersPage() {
                 </label>
                 <input
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={userForm.username}
+                  onChange={(e) =>
+                    setUserForm((prev) => ({ ...prev, username: e.target.value }))
+                  }
                   placeholder="andi.dermaga (tanpa @)"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
@@ -659,8 +667,10 @@ export default function UsersPage() {
                     type="password"
                     required
                     minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={userForm.password}
+                    onChange={(e) =>
+                      setUserForm((prev) => ({ ...prev, password: e.target.value }))
+                    }
                     placeholder="Minimal 6 karakter"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                   />
@@ -669,12 +679,17 @@ export default function UsersPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Peran & Wewenang (Role)
+                  Peran &amp; Wewenang (Role)
                 </label>
                 <select
                   disabled={Boolean(editingUser && !isSuperadmin)}
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  value={userForm.role}
+                  onChange={(e) =>
+                    setUserForm((prev) => ({
+                      ...prev,
+                      role: e.target.value as UserRole,
+                    }))
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold disabled:bg-slate-100"
                 >
                   {creatableRoles.map((r) => (
@@ -693,8 +708,10 @@ export default function UsersPage() {
                   <select
                     required
                     disabled={!isSuperadmin && Boolean(currentUser?.portId)}
-                    value={portId}
-                    onChange={(e) => setPortId(e.target.value)}
+                    value={userForm.portId}
+                    onChange={(e) =>
+                      setUserForm((prev) => ({ ...prev, portId: e.target.value }))
+                    }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs disabled:bg-slate-100"
                   >
                     <option value="">-- Pilih Pelabuhan --</option>
@@ -712,8 +729,13 @@ export default function UsersPage() {
               <label className="flex items-center gap-2 text-xs text-[#334155] font-medium cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={mustChangePassword}
-                  onChange={(e) => setMustChangePassword(e.target.checked)}
+                  checked={userForm.mustChangePassword}
+                  onChange={(e) =>
+                    setUserForm((prev) => ({
+                      ...prev,
+                      mustChangePassword: e.target.checked,
+                    }))
+                  }
                   className="rounded border-[#CBD5E1]"
                 />
                 Wajibkan pengguna mengganti kata sandi saat login pertama kali

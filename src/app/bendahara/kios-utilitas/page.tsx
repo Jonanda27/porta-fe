@@ -42,6 +42,16 @@ import {
   UtilityMeterReading,
   UtilityReceiptPayload,
 } from "@/types/cargo-utility.types";
+import {
+  LeasePaymentFormState,
+  LeasePaymentRecordModal,
+} from "@/components/bendahara/kios-utilitas/LeasePaymentRecordModal";
+import {
+  OperationalPaymentModal,
+  OperationalPayModalState,
+} from "@/components/bendahara/kios-utilitas/OperationalPaymentModal";
+import { UtilityReceiptModal } from "@/components/bendahara/kios-utilitas/UtilityReceiptModal";
+import { LeaseReceiptModal } from "@/components/bendahara/kios-utilitas/LeaseReceiptModal";
 
 export default function KiosDanUtilitasPage() {
   // Billing Store for Leases & Assets
@@ -88,12 +98,7 @@ export default function KiosDanUtilitasPage() {
 
   // Modal State for Lease Payment Recording
   const [selectedLeaseForPayment, setSelectedLeaseForPayment] = useState<AssetLease | null>(null);
-  const [paymentForm, setPaymentForm] = useState<{
-    periodYear: number;
-    amountIdr: number;
-    paidAt: string;
-    referenceNo: string;
-  }>({
+  const [paymentForm, setPaymentForm] = useState<LeasePaymentFormState>({
     periodYear: new Date().getFullYear(),
     amountIdr: 0,
     paidAt: new Date().toISOString().split("T")[0],
@@ -101,15 +106,8 @@ export default function KiosDanUtilitasPage() {
   });
 
   // Modal State for Paying Utility / Cargo / Equipment
-  const [payOperationalModal, setPayOperationalModal] = useState<{
-    isOpen: boolean;
-    type: "UTILITY" | "CARGO" | "EQUIPMENT";
-    id: number;
-    title: string;
-    identifierNumber: string;
-    amountIdr: number;
-    payerLabel: string;
-  } | null>(null);
+  const [payOperationalModal, setPayOperationalModal] =
+    useState<OperationalPayModalState | null>(null);
 
   const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -1415,625 +1413,49 @@ export default function KiosDanUtilitasPage() {
       )}
 
       {/* ========================================================= */}
-      {/* 8. MODAL: CATAT PEMBAYARAN KASDA SEWA TENANT              */}
-      {/* ========================================================= */}
-      {selectedLeaseForPayment && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-white flex items-center justify-center">
-                  <Coins className="w-4 h-4 text-[#D97706]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-[#0B241E] text-base">
-                    Catat Pembayaran Sewa Kasda
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Pencatatan penerimaan kasda pemanfaatan aset daerah
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedLeaseForPayment(null)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* 8. MODAL: CATAT PEMBAYARAN KASDA SEWA TENANT */}
+      <LeasePaymentRecordModal
+        selectedLease={selectedLeaseForPayment}
+        paymentForm={paymentForm}
+        onChangePaymentForm={setPaymentForm}
+        actionSuccessMsg={actionSuccessMsg}
+        actionErrorMsg={actionErrorMsg}
+        isSubmitting={isSubmittingPayment}
+        onSave={handleSaveLeasePayment}
+        onClose={() => setSelectedLeaseForPayment(null)}
+      />
 
-            <div className="py-4 space-y-4 text-xs">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium">
-                  {actionSuccessMsg}
-                </div>
-              )}
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-medium">
-                  {actionErrorMsg}
-                </div>
-              )}
-
-              <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Nomor PKS:</span>
-                  <span className="font-bold text-[#0B241E]">
-                    {selectedLeaseForPayment.contractNumber}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Nama Tenant:</span>
-                  <span className="font-semibold text-gray-800">
-                    {selectedLeaseForPayment.tenantName}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Objek Fasilitas:</span>
-                  <span className="text-gray-700">
-                    {selectedLeaseForPayment.asset?.name} (
-                    {Number(selectedLeaseForPayment.asset?.areaSqm || 0)} m²)
-                  </span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-gray-200">
-                  <span className="text-gray-500 font-semibold">Total Nilai Sewa:</span>
-                  <span className="font-mono font-bold text-gray-900">
-                    Rp{" "}
-                    {Number(
-                      selectedLeaseForPayment.totalAnnualAmountIdr || 0
-                    ).toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    Tahun Periode Sewa
-                  </label>
-                  <input
-                    type="number"
-                    min={2024}
-                    max={2030}
-                    value={paymentForm.periodYear}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, periodYear: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    Nominal Disetor ke Kasda (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={paymentForm.amountIdr}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, amountIdr: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-bold text-[#0B241E] focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    Tanggal Setor / Penerimaan Kasda
-                  </label>
-                  <input
-                    type="date"
-                    value={paymentForm.paidAt}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, paidAt: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-600 font-semibold mb-1">
-                    No. Bukti Transaksi Kasda / Bank RKUD
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentForm.referenceNo}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, referenceNo: e.target.value })
-                    }
-                    placeholder="Contoh: BKU-TENANT-004 / TRF-BP-9921"
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#0B241E]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedLeaseForPayment(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveLeasePayment}
-                disabled={isSubmittingPayment}
-                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#D97706]" />
-                {isSubmittingPayment ? "Menyimpan..." : "Simpan & Bukukan Kasda"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
       {/* 9. MODAL: KONFIRMASI BAYAR OPERASIONAL (UTILITAS/CARGO/EQ) */}
-      {/* ========================================================= */}
-      {payOperationalModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-white flex items-center justify-center">
-                  <Coins className="w-4 h-4 text-[#D97706]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-[#0B241E] text-sm">
-                    Konfirmasi Setoran Kasda
-                  </h3>
-                  <p className="text-[11px] text-gray-400">
-                    Pengesahan penerimaan retribusi ke RKUD
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setPayOperationalModal(null)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <OperationalPaymentModal
+        modal={payOperationalModal}
+        actionSuccessMsg={actionSuccessMsg}
+        actionErrorMsg={actionErrorMsg}
+        isSubmitting={isSubmittingPayment}
+        onConfirm={handleConfirmOperationalPayment}
+        onClose={() => setPayOperationalModal(null)}
+      />
 
-            <div className="py-4 space-y-3 text-xs">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium">
-                  {actionSuccessMsg}
-                </div>
-              )}
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-medium">
-                  {actionErrorMsg}
-                </div>
-              )}
+      {/* 10. MODAL: DOKUMEN CETAK KUITANSI e-SSRD UTILITAS */}
+      <UtilityReceiptModal
+        isOpen={showReceiptModal}
+        isLoading={receiptLoading}
+        activeReceipt={activeReceipt}
+        onClose={() => {
+          setShowReceiptModal(false);
+          clearActiveReceipt();
+        }}
+      />
 
-              <div className="p-3.5 bg-gray-50 rounded-xl space-y-2 border border-gray-100">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Jenis Layanan:</span>
-                  <span className="font-semibold text-gray-800">
-                    {payOperationalModal.title}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Nomor Registrasi:</span>
-                  <span className="font-mono font-bold text-[#0B241E]">
-                    {payOperationalModal.identifierNumber}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Objek / Pemohon:</span>
-                  <span className="font-medium text-gray-700">
-                    {payOperationalModal.payerLabel}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200">
-                  <span className="text-gray-700 font-bold">Total Retribusi:</span>
-                  <span className="font-mono font-black text-base text-[#0B241E]">
-                    Rp {payOperationalModal.amountIdr.toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
-                <ShieldCheck className="w-3.5 h-3.5 inline mr-1 text-amber-700" />
-                Tindakan ini akan mengesahkan pembayaran dan menerbitkan nomor transaksi idempotency resmi ke rekening kas daerah (RKUD).
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPayOperationalModal(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmOperationalPayment}
-                disabled={isSubmittingPayment}
-                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#D97706]" />
-                {isSubmittingPayment ? "Memproses..." : "Sahkan Penerimaan Kasda"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 10. MODAL: DOKUMEN CETAK KUITANSI e-SSRD UTILITAS          */}
-      {/* ========================================================= */}
-      {showReceiptModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-[#D97706]" />
-                <h3 className="font-bold text-[#0B241E] text-base">
-                  Surat Setoran Retribusi Daerah (e-SSRD)
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  clearActiveReceipt();
-                }}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {receiptLoading || !activeReceipt ? (
-              <div className="py-12 text-center text-gray-400">
-                Memuat dokumen resmi e-SSRD...
-              </div>
-            ) : (
-              <div className="py-5 space-y-4 text-xs font-sans">
-                {/* Header SSRD */}
-                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 text-center space-y-1">
-                  <h4 className="font-bold text-sm text-[#0B241E] uppercase">
-                    {activeReceipt.documentTitle}
-                  </h4>
-                  <p className="text-[11px] text-gray-500 font-medium">
-                    {activeReceipt.subTitle}
-                  </p>
-                  <div className="font-mono font-bold text-xs text-[#D97706] pt-1">
-                    No. Bukti: {activeReceipt.ssrdNumber}
-                  </div>
-                </div>
-
-                {/* Info Pelabuhan & Tanggal */}
-                <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-200 rounded-xl">
-                  <div>
-                    <span className="text-gray-400 block text-[10px] uppercase font-bold">
-                      Pelabuhan & Lokasi
-                    </span>
-                    <span className="font-semibold text-gray-800">
-                      {activeReceipt.portName} ({activeReceipt.portLocation})
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block text-[10px] uppercase font-bold">
-                      Tanggal Pembayaran
-                    </span>
-                    <span className="font-mono font-semibold text-gray-800">
-                      {new Date(activeReceipt.paymentDate).toLocaleDateString("id-ID", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Objek Retribusi & Volume */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="bg-[#FAFBFB] px-4 py-2 font-bold text-gray-700 border-b border-gray-200">
-                    Rincian Objek Retribusi Jasa Usaha
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Jenis Utilitas:</span>
-                      <span className="font-semibold text-gray-900">
-                        {activeReceipt.retributionObject.utilityType.replace("_", " ")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Fasilitas Pelabuhan:</span>
-                      <span className="font-medium text-gray-800">
-                        {activeReceipt.retributionObject.assetName} (
-                        {activeReceipt.retributionObject.assetCode})
-                      </span>
-                    </div>
-                    <div className="flex justify-between font-mono">
-                      <span className="text-gray-500">Angka Meteran:</span>
-                      <span>
-                        Awal: {activeReceipt.retributionObject.meterStart} s.d. Akhir:{" "}
-                        {activeReceipt.retributionObject.meterEnd}
-                      </span>
-                    </div>
-                    <div className="flex justify-between font-mono">
-                      <span className="text-gray-500">Volume Terpakai:</span>
-                      <span className="font-bold">
-                        {activeReceipt.retributionObject.volumeConsumed}{" "}
-                        {activeReceipt.retributionObject.unitLabel}
-                      </span>
-                    </div>
-                    <div className="flex justify-between font-mono">
-                      <span className="text-gray-500">Tarif Satuan Perda:</span>
-                      <span>
-                        Rp{" "}
-                        {activeReceipt.retributionObject.ratePerUnitIdr.toLocaleString("id-ID")}{" "}
-                        / {activeReceipt.retributionObject.unitLabel}
-                      </span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-gray-200">
-                      <span className="text-gray-500">Kode Rekening Pendapatan:</span>
-                      <span className="font-mono text-gray-700 text-[11px]">
-                        {activeReceipt.retributionObject.revenueAccountCode}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total & Status */}
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="text-emerald-800 block text-xs font-semibold">
-                      Total Setoran Kas Daerah
-                    </span>
-                    <span className="font-mono font-black text-xl text-emerald-950">
-                      Rp {activeReceipt.paymentDetails.totalAmountIdr.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  <span className="px-3 py-1 bg-emerald-200 text-emerald-900 font-bold rounded-full text-xs">
-                    LUNAS TERVERIFIKASI
-                  </span>
-                </div>
-
-                {/* QR Code Validation Tag */}
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[10px] text-gray-500 flex items-center justify-between">
-                  <span>Kode Validasi Digital: {activeReceipt.qrValidationCode}</span>
-                  <span className="text-gray-400">Kasir: {activeReceipt.paymentDetails.recordedByName}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  clearActiveReceipt();
-                }}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-              >
-                Tutup
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#D97706]" />
-                Cetak Dokumen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 9. MODAL BUKTI PEMBAYARAN e-SSRD SEWA ASET/KIOS DAERAH     */}
-      {/* ========================================================= */}
-      {showLeaseReceiptModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-[#D97706]" />
-                <h3 className="font-bold text-sm text-[#0B241E]">
-                  Kuitansi Resmi e-SSRD Sewa Aset Daerah
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLeaseReceiptModal(false);
-                  clearActiveLeaseReceipt();
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {leaseReceiptLoading && (
-              <div className="py-12 text-center text-xs text-gray-500 space-y-2">
-                <div className="w-6 h-6 border-2 border-[#0B241E] border-t-transparent rounded-full animate-spin mx-auto" />
-                <p>Memuat kuitansi e-SSRD Kas Daerah...</p>
-              </div>
-            )}
-
-            {!leaseReceiptLoading && activeLeaseReceipt && (
-              <div className="space-y-4 text-xs">
-                {/* Header Dokumen Pemkab Mimika */}
-                <div className="text-center border-b border-dashed border-gray-200 pb-3 space-y-1">
-                  <span className="font-mono text-[10px] text-gray-400 tracking-widest uppercase block">
-                    PEMERINTAH KABUPATEN MIMIKA • BADAN PENDAPATAN DAERAH
-                  </span>
-                  <h4 className="font-black text-sm text-[#0B241E] tracking-tight">
-                    {activeLeaseReceipt.documentTitle || "SURAT SETORAN RETRIBUSI DAERAH (e-SSRD)"}
-                  </h4>
-                  <p className="text-[11px] text-gray-500">
-                    {activeLeaseReceipt.subTitle ||
-                      "BUKTI PEMBAYARAN RETRIBUSI KEKAYAAN DAERAH (SEWA TANAH/BANGUNAN) SAH"}
-                  </p>
-                  <p className="text-[10px] text-gray-400">
-                    {activeLeaseReceipt.portName} • {activeLeaseReceipt.portLocation}
-                  </p>
-                </div>
-
-                {/* Nomor Ketetapan SSRD & PKS */}
-                <div className="bg-[#FAFBFB] border border-gray-100 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-gray-400 text-[10px] block font-medium">Nomor e-SSRD</span>
-                    <span className="font-mono font-bold text-[#0B241E]">
-                      {activeLeaseReceipt.ssrdNumber}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 text-[10px] block font-medium">Nomor Kontrak PKS</span>
-                    <span className="font-mono font-bold text-gray-800">
-                      {activeLeaseReceipt.contractNumber}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 text-[10px] block font-medium">Tanggal Pembayaran</span>
-                    <span className="font-semibold text-gray-800">
-                      {new Date(activeLeaseReceipt.paymentDate).toLocaleDateString("id-ID", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 text-[10px] block font-medium">Tahun Anggaran Retribusi</span>
-                    <span className="font-semibold text-gray-800">
-                      {activeLeaseReceipt.taxPeriod}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Identitas Wajib Retribusi (Penyewa) */}
-                <div className="border border-gray-100 rounded-xl p-3 space-y-2">
-                  <h5 className="font-bold text-[11px] text-gray-600 uppercase tracking-wider">
-                    Wajib Retribusi Daerah (Penyewa/Tenant)
-                  </h5>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-gray-400 text-[10px] block">Nama Penyewa / Pemohon</span>
-                      <span className="font-bold text-gray-900">
-                        {activeLeaseReceipt.taxPayer.tenantName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 text-[10px] block">Nama Usaha / Tenant</span>
-                      <span className="font-medium text-gray-800">
-                        {activeLeaseReceipt.taxPayer.businessName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 text-[10px] block">NPWP / Identitas Pajak</span>
-                      <span className="font-mono text-gray-700">
-                        {activeLeaseReceipt.taxPayer.tenantNpwp || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 text-[10px] block">Kontak / Telepon</span>
-                      <span className="text-gray-700">
-                        {activeLeaseReceipt.taxPayer.tenantPhone || "-"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rincian Objek Retribusi Aset BMD */}
-                <div className="border border-gray-100 rounded-xl p-3 space-y-2">
-                  <h5 className="font-bold text-[11px] text-gray-600 uppercase tracking-wider">
-                    Objek Retribusi Pemanfaatan Kekayaan Daerah
-                  </h5>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Nama Aset / Lokasi Ruangan:</span>
-                      <span className="font-bold text-gray-900">
-                        {activeLeaseReceipt.retributionObject.assetName}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Kode Barang / Tipe:</span>
-                      <span className="font-mono text-gray-800">
-                        {activeLeaseReceipt.retributionObject.assetCode} ({activeLeaseReceipt.retributionObject.assetType})
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Luas Bangunan / Lahan:</span>
-                      <span className="font-semibold text-gray-800">
-                        {Number(activeLeaseReceipt.retributionObject.areaSqm)} m²
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Dasar Hukum Ketetapan Tarif:</span>
-                      <span className="text-gray-700 text-right">
-                        {activeLeaseReceipt.retributionObject.legalBasis}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t border-gray-100 pt-1">
-                      <span className="text-gray-500">Kode Rekening Penerimaan PAD:</span>
-                      <span className="font-mono text-gray-700 text-[11px]">
-                        {activeLeaseReceipt.retributionObject.revenueAccountCode}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total & Status Setoran Kasda */}
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="text-emerald-800 block text-xs font-semibold">
-                      Total Setoran Kas Daerah
-                    </span>
-                    <span className="font-mono font-black text-xl text-emerald-950">
-                      Rp {Number(activeLeaseReceipt.paymentDetails.amountPaidIdr).toLocaleString("id-ID")}
-                    </span>
-                    <span className="text-[10px] text-emerald-700 block mt-0.5">
-                      Nilai Kontrak Tahunan: Rp {Number(activeLeaseReceipt.paymentDetails.totalAnnualContractIdr).toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  <span className="px-3 py-1 bg-emerald-200 text-emerald-900 font-bold rounded-full text-xs">
-                    LUNAS TERVERIFIKASI
-                  </span>
-                </div>
-
-                {/* Idempotency / Audit Trail */}
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-[10px] text-gray-500 flex items-center justify-between">
-                  <span>ID Transaksi Kasda: {activeLeaseReceipt.paymentDetails.idempotencyKey}</span>
-                  <span className="text-gray-400">Status: {activeLeaseReceipt.paymentDetails.paymentStatus}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLeaseReceiptModal(false);
-                  clearActiveLeaseReceipt();
-                }}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
-              >
-                Tutup
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-[#0B241E] hover:bg-[#133D31] text-white font-semibold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#D97706]" />
-                Cetak Dokumen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 11. MODAL BUKTI PEMBAYARAN e-SSRD SEWA ASET/KIOS DAERAH */}
+      <LeaseReceiptModal
+        isOpen={showLeaseReceiptModal}
+        isLoading={leaseReceiptLoading}
+        activeLeaseReceipt={activeLeaseReceipt}
+        onClose={() => {
+          setShowLeaseReceiptModal(false);
+          clearActiveLeaseReceipt();
+        }}
+      />
     </div>
   );
 }

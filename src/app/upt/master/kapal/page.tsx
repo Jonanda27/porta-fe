@@ -13,7 +13,6 @@ import {
   Edit3,
   Trash2,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Upload,
   ExternalLink,
@@ -21,6 +20,7 @@ import {
 import { API_CONFIG } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { UptService } from "@/services/upt.service";
 import { formatLabel } from "@/lib/format-labels";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -61,7 +61,6 @@ export default function MasterKapalPage() {
     if (!selectedVessel || !vesselDocFile) return;
     setIsUploadingVesselDoc(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       await uploadVesselDocumentByOfficer(
         selectedVessel.id,
@@ -78,7 +77,8 @@ export default function MasterKapalPage() {
       if (updated) setSelectedVessel(updated);
       setVesselDocNumber("");
       setVesselDocFile(null);
-      setFeedback(
+      toast.success(
+        "Berkas Diunggah",
         `Berkas ${formatLabel(vesselDocCategory)} untuk kapal ${selectedVessel.name} berhasil diunggah!`
       );
     } catch (err: unknown) {
@@ -94,7 +94,6 @@ export default function MasterKapalPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -104,17 +103,22 @@ export default function MasterKapalPage() {
   // Create/Edit Modal
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingVessel, setEditingVessel] = useState<VesselItem | null>(null);
-  const [operatorId, setOperatorId] = useState<string>("");
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [imoNumber, setImoNumber] = useState("");
-  const [name, setName] = useState("");
-  const [flag, setFlag] = useState("Indonesia");
-  const [grossTonnage, setGrossTonnage] = useState("");
-  const [shipType, setShipType] = useState<"NIAGA" | "NON_NIAGA">("NIAGA");
-  const [vesselCategory, setVesselCategory] = useState<"BARANG" | "PENUMPANG" | "CAMPURAN">("CAMPURAN");
-  const [shippingCategory, setShippingCategory] = useState<"DALAM_NEGERI" | "LUAR_NEGERI" | "PELRA_PERINTIS">("DALAM_NEGERI");
-  const [lengthMeters, setLengthMeters] = useState("");
-  const [draftMeters, setDraftMeters] = useState("");
+  const [vesselForm, setVesselForm] = useState({
+    operatorId: "",
+    registrationNumber: "",
+    imoNumber: "",
+    name: "",
+    flag: "Indonesia",
+    grossTonnage: "",
+    shipType: "NIAGA" as "NIAGA" | "NON_NIAGA",
+    vesselCategory: "CAMPURAN" as "BARANG" | "PENUMPANG" | "CAMPURAN",
+    shippingCategory: "DALAM_NEGERI" as
+      | "DALAM_NEGERI"
+      | "LUAR_NEGERI"
+      | "PELRA_PERINTIS",
+    lengthMeters: "",
+    draftMeters: "",
+  });
 
   useEffect(() => {
     if (canAccess) {
@@ -124,34 +128,38 @@ export default function MasterKapalPage() {
 
   const openCreateModal = () => {
     setEditingVessel(null);
-    setOperatorId(operators[0]?.id ? String(operators[0].id) : "");
-    setRegistrationNumber("");
-    setImoNumber("");
-    setName("");
-    setFlag("Indonesia");
-    setGrossTonnage("");
-    setShipType("NIAGA");
-    setVesselCategory("CAMPURAN");
-    setShippingCategory("DALAM_NEGERI");
-    setLengthMeters("");
-    setDraftMeters("");
+    setVesselForm({
+      operatorId: operators[0]?.id ? String(operators[0].id) : "",
+      registrationNumber: "",
+      imoNumber: "",
+      name: "",
+      flag: "Indonesia",
+      grossTonnage: "",
+      shipType: "NIAGA",
+      vesselCategory: "CAMPURAN",
+      shippingCategory: "DALAM_NEGERI",
+      lengthMeters: "",
+      draftMeters: "",
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
 
   const openEditModal = (v: VesselItem) => {
     setEditingVessel(v);
-    setOperatorId(String(v.operatorId));
-    setRegistrationNumber(v.registrationNumber);
-    setImoNumber(v.imoNumber || "");
-    setName(v.name);
-    setFlag(v.flag || "Indonesia");
-    setGrossTonnage(String(v.grossTonnage));
-    setShipType(v.shipType);
-    setVesselCategory(v.vesselCategory);
-    setShippingCategory(v.shippingCategory);
-    setLengthMeters(v.lengthMeters ? String(v.lengthMeters) : "");
-    setDraftMeters(v.draftMeters ? String(v.draftMeters) : "");
+    setVesselForm({
+      operatorId: String(v.operatorId),
+      registrationNumber: v.registrationNumber,
+      imoNumber: v.imoNumber || "",
+      name: v.name,
+      flag: v.flag || "Indonesia",
+      grossTonnage: String(v.grossTonnage),
+      shipType: v.shipType,
+      vesselCategory: v.vesselCategory,
+      shippingCategory: v.shippingCategory,
+      lengthMeters: v.lengthMeters ? String(v.lengthMeters) : "",
+      draftMeters: v.draftMeters ? String(v.draftMeters) : "",
+    });
     setErrorMsg(null);
     setIsFormModalOpen(true);
   };
@@ -160,27 +168,30 @@ export default function MasterKapalPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       const payload = {
-        operatorId: Number(operatorId),
-        registrationNumber: registrationNumber.trim(),
-        imoNumber: imoNumber.trim() || undefined,
-        name: name.trim(),
-        flag: flag.trim() || "Indonesia",
-        grossTonnage: Number(grossTonnage),
-        shipType,
-        vesselCategory,
-        shippingCategory,
-        lengthMeters: lengthMeters ? Number(lengthMeters) : undefined,
-        draftMeters: draftMeters ? Number(draftMeters) : undefined,
+        operatorId: Number(vesselForm.operatorId),
+        registrationNumber: vesselForm.registrationNumber.trim(),
+        imoNumber: vesselForm.imoNumber.trim() || undefined,
+        name: vesselForm.name.trim(),
+        flag: vesselForm.flag.trim() || "Indonesia",
+        grossTonnage: Number(vesselForm.grossTonnage),
+        shipType: vesselForm.shipType,
+        vesselCategory: vesselForm.vesselCategory,
+        shippingCategory: vesselForm.shippingCategory,
+        lengthMeters: vesselForm.lengthMeters
+          ? Number(vesselForm.lengthMeters)
+          : undefined,
+        draftMeters: vesselForm.draftMeters
+          ? Number(vesselForm.draftMeters)
+          : undefined,
       };
       if (editingVessel) {
         await UptService.updateVessel(editingVessel.id, payload);
-        setFeedback(`Data kapal "${payload.name}" berhasil diperbarui.`);
+        toast.success("Kapal Diperbarui", `Data kapal "${payload.name}" berhasil diperbarui.`);
       } else {
         await UptService.createVessel(payload);
-        setFeedback(`Kapal baru "${payload.name}" berhasil ditambahkan.`);
+        toast.success("Kapal Ditambahkan", `Kapal baru "${payload.name}" berhasil ditambahkan.`);
       }
       setIsFormModalOpen(false);
       await fetchVerificationData();
@@ -195,10 +206,9 @@ export default function MasterKapalPage() {
     if (!confirm(`Nonaktifkan kapal "${v.name}" dari daftar aktif?`)) return;
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       await UptService.updateVessel(v.id, { isActive: false });
-      setFeedback(`Kapal "${v.name}" telah dinonaktifkan.`);
+      toast.success("Kapal Dinonaktifkan", `Kapal "${v.name}" telah dinonaktifkan.`);
       await fetchVerificationData();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal menonaktifkan kapal.");
@@ -303,13 +313,6 @@ export default function MasterKapalPage() {
           </div>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
@@ -464,8 +467,10 @@ export default function MasterKapalPage() {
                 </label>
                 <select
                   required
-                  value={operatorId}
-                  onChange={(e) => setOperatorId(e.target.value)}
+                  value={vesselForm.operatorId}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, operatorId: e.target.value }))
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
                   <option value="">-- Pilih Perusahaan Operator --</option>
@@ -484,8 +489,10 @@ export default function MasterKapalPage() {
                 <input
                   type="text"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={vesselForm.name}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   placeholder="Contoh: KM Poumako Jaya"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -498,8 +505,13 @@ export default function MasterKapalPage() {
                 <input
                   type="text"
                   required
-                  value={registrationNumber}
-                  onChange={(e) => setRegistrationNumber(e.target.value)}
+                  value={vesselForm.registrationNumber}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({
+                      ...prev,
+                      registrationNumber: e.target.value,
+                    }))
+                  }
                   placeholder="Contoh: REG-PMK-021"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
@@ -511,8 +523,10 @@ export default function MasterKapalPage() {
                 </label>
                 <input
                   type="text"
-                  value={imoNumber}
-                  onChange={(e) => setImoNumber(e.target.value)}
+                  value={vesselForm.imoNumber}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, imoNumber: e.target.value }))
+                  }
                   placeholder="IMO9123456"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono"
                 />
@@ -524,8 +538,10 @@ export default function MasterKapalPage() {
                 </label>
                 <input
                   type="text"
-                  value={flag}
-                  onChange={(e) => setFlag(e.target.value)}
+                  value={vesselForm.flag}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, flag: e.target.value }))
+                  }
                   placeholder="Indonesia"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -536,9 +552,15 @@ export default function MasterKapalPage() {
                   Kategori Kapal
                 </label>
                 <select
-                  value={vesselCategory}
+                  value={vesselForm.vesselCategory}
                   onChange={(e) =>
-                    setVesselCategory(e.target.value as "BARANG" | "PENUMPANG" | "CAMPURAN")
+                    setVesselForm((prev) => ({
+                      ...prev,
+                      vesselCategory: e.target.value as
+                        | "BARANG"
+                        | "PENUMPANG"
+                        | "CAMPURAN",
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
@@ -553,11 +575,15 @@ export default function MasterKapalPage() {
                   Trayek Pelayaran
                 </label>
                 <select
-                  value={shippingCategory}
+                  value={vesselForm.shippingCategory}
                   onChange={(e) =>
-                    setShippingCategory(
-                      e.target.value as "DALAM_NEGERI" | "LUAR_NEGERI" | "PELRA_PERINTIS"
-                    )
+                    setVesselForm((prev) => ({
+                      ...prev,
+                      shippingCategory: e.target.value as
+                        | "DALAM_NEGERI"
+                        | "LUAR_NEGERI"
+                        | "PELRA_PERINTIS",
+                    }))
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
@@ -572,8 +598,13 @@ export default function MasterKapalPage() {
                   Jenis Kapal
                 </label>
                 <select
-                  value={shipType}
-                  onChange={(e) => setShipType(e.target.value as "NIAGA" | "NON_NIAGA")}
+                  value={vesselForm.shipType}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({
+                      ...prev,
+                      shipType: e.target.value as "NIAGA" | "NON_NIAGA",
+                    }))
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
                 >
                   <option value="NIAGA">Kapal Niaga</option>
@@ -589,8 +620,10 @@ export default function MasterKapalPage() {
                   type="number"
                   required
                   min={1}
-                  value={grossTonnage}
-                  onChange={(e) => setGrossTonnage(e.target.value)}
+                  value={vesselForm.grossTonnage}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, grossTonnage: e.target.value }))
+                  }
                   placeholder="500"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -604,8 +637,10 @@ export default function MasterKapalPage() {
                   type="number"
                   step="0.1"
                   min={1}
-                  value={lengthMeters}
-                  onChange={(e) => setLengthMeters(e.target.value)}
+                  value={vesselForm.lengthMeters}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, lengthMeters: e.target.value }))
+                  }
                   placeholder="65"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
@@ -619,8 +654,10 @@ export default function MasterKapalPage() {
                   type="number"
                   step="0.1"
                   min={0.5}
-                  value={draftMeters}
-                  onChange={(e) => setDraftMeters(e.target.value)}
+                  value={vesselForm.draftMeters}
+                  onChange={(e) =>
+                    setVesselForm((prev) => ({ ...prev, draftMeters: e.target.value }))
+                  }
                   placeholder="4.5"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />

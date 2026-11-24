@@ -29,11 +29,20 @@ import {
 import { API_CONFIG } from "@/config/api.config";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
+import { toast } from "@/store/toast.store";
 import {
-  Vessel,
+  LegalDocSlotSpec,
   OperatorDocument,
+  Vessel,
+  VesselFormState,
   VesselRegistrationAttachment,
 } from "@/types/kapal.types";
+import {
+  COMPANY_LEGAL_DOC_SLOTS,
+  formatDocCategory,
+  formatVesselType,
+} from "@/lib/kapal-profil";
+import { VesselFormModal } from "@/components/kapal/profil/VesselFormModal";
 
 const formatShippingCategory = (category?: string | null): string => {
   switch (category) {
@@ -46,108 +55,6 @@ const formatShippingCategory = (category?: string | null): string => {
       return "Dalam Negeri";
   }
 };
-
-const formatVesselType = (
-  shipType?: string | null,
-  vesselCategory?: string | null
-): string => {
-  const typeLabel = shipType === "NON_NIAGA" ? "Non-Niaga" : "Niaga";
-  const categoryLabel =
-    vesselCategory === "PENUMPANG"
-      ? "Penumpang"
-      : vesselCategory === "CAMPURAN"
-      ? "Campuran"
-      : "Barang / Kargo";
-  return `${typeLabel} • ${categoryLabel}`;
-};
-
-const formatDocCategory = (category?: string | null): string => {
-  switch (category) {
-    case "SURAT_UKUR":
-      return "Surat Ukur";
-    case "PAS_BESAR_KECIL":
-      return "Pas Besar/Kecil";
-    case "SIUPAL_NIB":
-      return "SIUPAL / NIB";
-    case "NPWP":
-      return "NPWP";
-    default:
-      return "Sertifikat";
-  }
-};
-
-interface LegalDocSlotSpec {
-  slotKey: string;
-  title: string;
-  shortBadge: string;
-  required: boolean;
-  category: "SIUPAL_NIB" | "NPWP" | "LAINNYA";
-  description: string;
-  placeholderNumber: string;
-}
-
-const COMPANY_LEGAL_DOC_SLOTS: LegalDocSlotSpec[] = [
-  {
-    slotKey: "SIUPAL",
-    title: "SIUPAL / SIUPPER (Surat Izin Usaha Perusahaan Angkutan Laut)",
-    shortBadge: "Wajib Utama",
-    required: true,
-    category: "SIUPAL_NIB",
-    description:
-      "Izin resmi penyelenggaraan angkutan laut (SIUPAL) atau pelayaran rakyat (SIUPPER) dari Ditjen Perhubungan Laut Kemenhub RI.",
-    placeholderNumber: "Contoh: SIUPAL-042/AL.001/DJPL/2026",
-  },
-  {
-    slotKey: "NIB",
-    title: "Nomor Induk Berusaha (NIB) OSS RBA — KBLI Angkutan Laut",
-    shortBadge: "Wajib Utama",
-    required: true,
-    category: "SIUPAL_NIB",
-    description:
-      "Sertifikat NIB 13 digit berbasis risiko dari lembaga OSS dengan KBLI 5011 / 5013 (Angkutan Laut Dalam Negeri Penumpang/Barang).",
-    placeholderNumber: "Contoh: NIB-9120304857123",
-  },
-  {
-    slotKey: "NPWP",
-    title: "NPWP Badan Usaha & Surat Keterangan Terdaftar (SKT) Pajak",
-    shortBadge: "Wajib Utama",
-    required: true,
-    category: "NPWP",
-    description:
-      "Kartu NPWP 16 digit atas nama perusahaan pelayaran sebagai identitas subjek wajib retribusi daerah (e-SKRD) sesuai PP No. 35/2023.",
-    placeholderNumber: "Contoh: 01.234.567.8-954.000",
-  },
-  {
-    slotKey: "AKTA_AHU",
-    title: "Akta Pendirian Badan Usaha & SK Pengesahan Kemenkumham (AHU)",
-    shortBadge: "Wajib Utama",
-    required: true,
-    category: "LAINNYA",
-    description:
-      "Akta notaris pendirian/perubahan terakhir PT/CV/Koperasi beserta SK Pengesahan Badan Hukum dari Kementerian Hukum dan HAM.",
-    placeholderNumber: "Contoh: AHU-0048291.AH.01.01.TAHUN 2024",
-  },
-  {
-    slotKey: "DOMISILI_CABANG",
-    title: "Surat Keterangan Domisili / Izin Pembukaan Kantor Cabang Mimika",
-    shortBadge: "Wajib Operasional",
-    required: true,
-    category: "LAINNYA",
-    description:
-      "Bukti domisili kantor operasional atau surat pemberitahuan pembukaan kantor cabang perusahaan pelayaran di kawasan Pelabuhan Poumako, Kab. Mimika.",
-    placeholderNumber: "Contoh: 503/DOM-PMK/II/2026",
-  },
-  {
-    slotKey: "KTP_PENUNJUKAN_PIC",
-    title: "KTP Direksi / Surat Kuasa Penunjukan Kepala Cabang / Keagenan (PIC)",
-    shortBadge: "Pendukung",
-    required: false,
-    category: "LAINNYA",
-    description:
-      "Identitas Direktur Utama atau Surat Penunjukan Resmi Kepala Cabang / Agen Pelayaran yang berwenang menandatangani PKS Sandar & e-SKRD.",
-    placeholderNumber: "Contoh: SK-PIC/018/PMS/2026",
-  },
-];
 
 export default function KapalProfilPage() {
   const { user, refreshMe, updateMyProfile, changeMyPassword } = useAuthStore();
@@ -179,7 +86,6 @@ export default function KapalProfilPage() {
   const [isSavingCompany, setIsSavingCompany] = useState<boolean>(false);
   const [companyError, setCompanyError] = useState<string | null>(null);
 
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -204,7 +110,7 @@ export default function KapalProfilPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // New / Edit Vessel Form State
-  const [vesselFormData, setVesselFormData] = useState({
+  const [vesselFormData, setVesselFormData] = useState<VesselFormState>({
     name: "",
     registrationNumber: "",
     imoNumber: "",
@@ -350,8 +256,7 @@ export default function KapalProfilPage() {
         username: updated.username || "",
         currentPassword: "",
       });
-      setSuccessToast("Profil akun login berhasil diperbarui!");
-      setTimeout(() => setSuccessToast(null), 5000);
+      toast.success("Profil Akun Diperbarui", "Data profil akun login berhasil disimpan.");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memperbarui profil akun.";
       setProfileError(msg);
@@ -392,8 +297,7 @@ export default function KapalProfilPage() {
         newPassword: "",
         confirmNewPassword: "",
       });
-      setSuccessToast(res.message || "Kata sandi berhasil diperbarui!");
-      setTimeout(() => setSuccessToast(null), 5000);
+      toast.success("Kata Sandi Diperbarui", res.message || "Kata sandi berhasil diperbarui!");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal mengganti kata sandi.";
       setPasswordError(msg);
@@ -575,12 +479,12 @@ export default function KapalProfilPage() {
 
         setIsAddVesselModalOpen(false);
         setEditingVessel(null);
-        setSuccessToast(
+        toast.success(
+          "Armada Berhasil Diperbarui",
           attachments.length > 0
-            ? `Data kapal ${updated.name} berhasil diperbarui beserta ${attachments.length} berkas baru!`
-            : `Data kapal ${updated.name} berhasil diperbarui!`
+            ? `Data kapal ${updated.name} berhasil diperbarui beserta ${attachments.length} berkas baru.`
+            : `Data kapal ${updated.name} berhasil diperbarui.`
         );
-        setTimeout(() => setSuccessToast(null), 6000);
       } else {
         const created = await createVessel(
           {
@@ -600,12 +504,13 @@ export default function KapalProfilPage() {
         );
 
         setIsAddVesselModalOpen(false);
-        setSuccessToast(
-          `Kapal ${created.name} (${created.grossTonnage} GT) beserta foto & ${
-            Math.max(0, attachments.length - 1)
-          } dokumen pendukung berhasil didaftarkan!`
+        toast.success(
+          "Armada Berhasil Didaftarkan",
+          `Kapal ${created.name} (${created.grossTonnage} GT) beserta foto & ${Math.max(
+            0,
+            attachments.length - 1
+          )} dokumen pendukung telah tersimpan.`
         );
-        setTimeout(() => setSuccessToast(null), 6000);
       }
     } catch (err: unknown) {
       const msg =
@@ -718,8 +623,7 @@ export default function KapalProfilPage() {
 
       setSlotSelectedFiles((prev) => ({ ...prev, [slot.slotKey]: null }));
       setEditingSlotKey(null);
-      setSuccessToast(`Berkas "${slot.title}" berhasil diunggah ke server PORTA!`);
-      setTimeout(() => setSuccessToast(null), 5000);
+      toast.success("Berkas Diunggah", `Dokumen "${slot.title}" berhasil diunggah ke server PORTA.`);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : `Gagal mengunggah berkas ${slot.title}.`;
@@ -752,8 +656,10 @@ export default function KapalProfilPage() {
         address: operatorFormData.address.trim() || undefined,
         operatorProfile: operatorFormData.operatorProfile,
       });
-      setSuccessToast("Profil badan usaha perusahaan pelayaran berhasil diperbarui!");
-      setTimeout(() => setSuccessToast(null), 5000);
+      toast.success(
+        "Profil Usaha Diperbarui",
+        "Profil badan usaha perusahaan pelayaran berhasil diperbarui."
+      );
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Gagal memperbarui profil badan usaha.";
@@ -765,22 +671,6 @@ export default function KapalProfilPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-fade-in border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Global Error Banner */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
@@ -1857,475 +1747,36 @@ export default function KapalProfilPage() {
       {/* ========================================================================= */}
       {/* MODAL: DAFTARKAN / EDIT ARMADA KAPAL (DATA + FOTO + DOKUMEN)              */}
       {/* ========================================================================= */}
-      {isAddVesselModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-auto">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs">
-                  {editingVessel ? <Pencil className="w-4 h-4" /> : <Ship className="w-4 h-4" />}
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-[#0B241E]">
-                    {editingVessel
-                      ? `Edit Data Armada Kapal: ${editingVessel.name}`
-                      : "Registrasi Master Data Armada Kapal Baru"}
-                  </h3>
-                  <p className="text-[11px] text-[#64748B]">
-                    {editingVessel
-                      ? "Perbarui spesifikasi kapal, ganti foto fisik kapal, atau unggah dokumen kelayakan tambahan."
-                      : "Lengkapi spesifikasi kapal, foto fisik kapal, dan dokumen kelayakan pendukung."}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddVesselModalOpen(false);
-                  setEditingVessel(null);
-                }}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0B241E] cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitAddVessel} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Nama Kapal <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: KM Mimika Bahari"
-                    value={vesselFormData.name}
-                    onChange={(e) => setVesselFormData({ ...vesselFormData, name: e.target.value })}
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Nomor Registrasi / Pas Tahunan <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: REG-PMK-002"
-                    value={vesselFormData.registrationNumber}
-                    onChange={(e) =>
-                      setVesselFormData({ ...vesselFormData, registrationNumber: e.target.value })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Gross Tonnage (GT) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={vesselFormData.grossTonnage}
-                    onChange={(e) =>
-                      setVesselFormData({ ...vesselFormData, grossTonnage: Number(e.target.value) })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Panjang LoA (Meter)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min={1}
-                    value={vesselFormData.lengthMeters}
-                    onChange={(e) =>
-                      setVesselFormData({ ...vesselFormData, lengthMeters: Number(e.target.value) })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Sarat Draft (Meter)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min={0.5}
-                    value={vesselFormData.draftMeters}
-                    onChange={(e) =>
-                      setVesselFormData({ ...vesselFormData, draftMeters: Number(e.target.value) })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Kategori Pelayaran Sesuai Tarif PP 35/2023
-                  </label>
-                  <select
-                    value={vesselFormData.shippingCategory}
-                    onChange={(e) =>
-                      setVesselFormData({
-                        ...vesselFormData,
-                        shippingCategory: e.target.value as
-                          | "LUAR_NEGERI"
-                          | "DALAM_NEGERI"
-                          | "PELRA_PERINTIS",
-                      })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  >
-                    <option value="DALAM_NEGERI">Pelayaran Dalam Negeri (Rp 100/GT/Etmal)</option>
-                    <option value="PELRA_PERINTIS">Pelayaran Rakyat / Perintis (Rp 50/GT/Etmal)</option>
-                    <option value="LUAR_NEGERI">Pelayaran Luar Negeri (USD Tariff Rate)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                    Tipe Kapal &amp; Muatan
-                  </label>
-                  <select
-                    value={vesselFormData.vesselCategory}
-                    onChange={(e) =>
-                      setVesselFormData({
-                        ...vesselFormData,
-                        vesselCategory: e.target.value as "BARANG" | "PENUMPANG" | "CAMPURAN",
-                      })
-                    }
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] focus:outline-hidden"
-                  >
-                    <option value="BARANG">Kapal Kargo / Barang</option>
-                    <option value="PENUMPANG">Kapal Penumpang / Ferry</option>
-                    <option value="CAMPURAN">Campuran (Barang &amp; Penumpang)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* BAGIAN A: LAMPIRAN GAMBAR / FOTO FISIK KAPAL */}
-              {(() => {
-                const existingPhotoDocs = (editingVessel?.documents || []).filter(isVesselPhotoDoc);
-                const existingPhotoUrl = getBackendFileUrl(
-                  existingPhotoDocs.length > 0
-                    ? existingPhotoDocs[existingPhotoDocs.length - 1].filePath
-                    : null
-                );
-
-                return (
-                  <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-extrabold text-[#0B241E] flex items-center gap-1.5">
-                        <ImageIcon className="w-4 h-4 text-[#D97706]" />
-                        <span>
-                          Foto Fisik Kapal{" "}
-                          {!editingVessel && <span className="text-red-500">*</span>}
-                        </span>
-                      </label>
-                      <span className="text-[10px] font-mono text-[#64748B]">
-                        JPG / PNG / WEBP • Maks. 5 MB
-                      </span>
-                    </div>
-
-                    {vesselPhotoPreview && vesselPhotoFile ? (
-                      <div className="relative rounded-xl overflow-hidden border border-[#CBD5E1] bg-white">
-                        <img
-                          src={vesselPhotoPreview}
-                          alt="Pratinjau foto kapal baru"
-                          className="w-full h-44 object-cover"
-                        />
-                        <div className="p-2.5 bg-white flex items-center justify-between gap-2 border-t border-[#E2E8F0]">
-                          <div className="min-w-0">
-                            <p className="font-bold text-[#0B241E] truncate text-[11px]">
-                              {vesselPhotoFile.name}
-                            </p>
-                            <p className="text-[10px] text-[#64748B] font-mono">
-                              {(vesselPhotoFile.size / 1024).toFixed(0)} KB (Baru)
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectVesselPhoto(null)}
-                            className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Hapus</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : existingPhotoUrl ? (
-                      <div className="relative rounded-xl overflow-hidden border border-[#CBD5E1] bg-white">
-                        <img
-                          src={existingPhotoUrl}
-                          alt={`Foto ${editingVessel?.name}`}
-                          className="w-full h-44 object-cover"
-                        />
-                        <div className="p-2.5 bg-white flex items-center justify-between gap-2 border-t border-[#E2E8F0]">
-                          <span className="text-[11px] font-semibold text-emerald-700">
-                            ✓ Foto kapal saat ini sudah terunggah
-                          </span>
-                          <label className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer flex items-center gap-1">
-                            <ImageIcon className="w-3 h-3 text-[#D97706]" />
-                            <span>Ganti Foto</span>
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
-                              onChange={(e) => handleSelectVesselPhoto(e.target.files?.[0] || null)}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed border-[#CBD5E1] hover:border-[#0B241E] rounded-xl bg-white cursor-pointer transition-colors text-center">
-                        <div className="w-10 h-10 rounded-full bg-amber-50 text-[#D97706] flex items-center justify-center">
-                          <ImageIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-[#0B241E]">
-                            Klik untuk pilih gambar tampak samping / badan kapal
-                          </p>
-                          <p className="text-[10.5px] text-[#64748B] mt-0.5">
-                            Foto digunakan petugas UPT untuk identifikasi visual kapal saat sandar
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={(e) => handleSelectVesselPhoto(e.target.files?.[0] || null)}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* BAGIAN B: LAMPIRAN DOKUMEN PENDUKUNG KAPAL */}
-              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-[#0B241E] flex items-center gap-1.5">
-                    <Paperclip className="w-4 h-4 text-[#D97706]" />
-                    <span>
-                      Dokumen Pendukung Kelaiklautan Kapal{" "}
-                      {!editingVessel && <span className="text-red-500">*</span>}
-                    </span>
-                  </span>
-                  <span className="text-[10px] font-mono text-[#64748B]">
-                    PDF / JPG / PNG • Maks. 10 MB
-                  </span>
-                </div>
-
-                {/* Daftar Dokumen Sudah Terunggah saat Mode Edit */}
-                {editingVessel &&
-                  (editingVessel.documents || []).filter((d) => !isVesselPhotoDoc(d)).length >
-                    0 && (
-                    <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-1.5">
-                      <span className="text-[10.5px] font-bold text-emerald-900 block">
-                        Dokumen Tersimpan Saat Ini:
-                      </span>
-                      {(editingVessel.documents || [])
-                        .filter((d) => !isVesselPhotoDoc(d))
-                        .map((doc) => {
-                          const docUrl = getBackendFileUrl(doc.filePath);
-                          return (
-                            <div
-                              key={doc.id}
-                              className="flex items-center justify-between gap-2 text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-emerald-200/80"
-                            >
-                              <span className="font-medium text-[#0B241E] truncate">
-                                <strong className="text-[#334155]">
-                                  {formatDocCategory(doc.category)}:
-                                </strong>{" "}
-                                {doc.fileName}
-                              </span>
-                              {docUrl && (
-                                <a
-                                  href={docUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[#0284C7] hover:underline font-bold flex items-center gap-1 shrink-0"
-                                >
-                                  <span>Lihat</span>
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-
-                {/* Dokumen 1 (Wajib saat Daftar Baru, Opsional saat Edit) */}
-                <div className="p-3 rounded-xl bg-white border border-[#E2E8F0] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#0B241E]">
-                      {editingVessel
-                        ? "1. Tambah / Perbarui Dokumen Pendukung"
-                        : "1. Dokumen Legalitas Utama"}{" "}
-                      {!editingVessel && <span className="text-red-500">*</span>}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        editingVessel
-                          ? "bg-slate-100 text-slate-600"
-                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      }`}
-                    >
-                      {editingVessel ? "Opsional" : "Wajib"}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <select
-                      value={primaryDocCategory}
-                      onChange={(e) =>
-                        setPrimaryDocCategory(
-                          e.target.value as "SURAT_UKUR" | "PAS_BESAR_KECIL" | "LAINNYA"
-                        )
-                      }
-                      className="w-full p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs font-semibold"
-                    >
-                      <option value="SURAT_UKUR">Surat Ukur Kapal (Internasional/Nasional)</option>
-                      <option value="PAS_BESAR_KECIL">Pas Besar / Pas Kecil Tahunan</option>
-                      <option value="LAINNYA">Sertifikat Keselamatan &amp; Konstruksi</option>
-                    </select>
-
-                    <input
-                      type="text"
-                      value={primaryDocNumber}
-                      onChange={(e) => setPrimaryDocNumber(e.target.value)}
-                      placeholder="No. Dokumen (Contoh: SU-9912/DJPL/2026)"
-                      className="w-full p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs font-mono"
-                    />
-                  </div>
-
-                  <input
-                    type="file"
-                    required={!editingVessel}
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    onChange={(e) => setPrimaryDocFile(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-[#64748B] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#0B241E] file:text-white file:font-bold cursor-pointer"
-                  />
-                </div>
-
-                {/* Dokumen 2 (Collapsible Opsional) */}
-                {showSecondaryDocSlot ? (
-                  <div className="p-3 rounded-xl bg-white border border-dashed border-[#CBD5E1] space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-[#334155]">
-                        2. Dokumen Pendukung Tambahan (Pas Besar / Sertifikat Lain)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowSecondaryDocSlot(false);
-                          setSecondaryDocNumber("");
-                          setSecondaryDocFile(null);
-                        }}
-                        className="text-[10.5px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
-                      >
-                        Tutup
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <select
-                        value={secondaryDocCategory}
-                        onChange={(e) =>
-                          setSecondaryDocCategory(
-                            e.target.value as "SURAT_UKUR" | "PAS_BESAR_KECIL" | "LAINNYA"
-                          )
-                        }
-                        className="w-full p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs font-semibold"
-                      >
-                        <option value="PAS_BESAR_KECIL">Pas Besar / Pas Kecil Tahunan</option>
-                        <option value="SURAT_UKUR">Surat Ukur Kapal</option>
-                        <option value="LAINNYA">Sertifikat Keselamatan / Izin Trayek</option>
-                      </select>
-
-                      <input
-                        type="text"
-                        value={secondaryDocNumber}
-                        onChange={(e) => setSecondaryDocNumber(e.target.value)}
-                        placeholder="No. Dokumen Tambahan (Opsional)"
-                        className="w-full p-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs font-mono"
-                      />
-                    </div>
-
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg"
-                      onChange={(e) => setSecondaryDocFile(e.target.files?.[0] || null)}
-                      className="w-full text-xs text-[#64748B] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:font-bold cursor-pointer"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowSecondaryDocSlot(true)}
-                    className="w-full py-2 px-3 rounded-xl border border-dashed border-[#CBD5E1] hover:border-[#0B241E] bg-white text-[11px] font-bold text-[#64748B] hover:text-[#0B241E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#D97706]" />
-                    <span>Tambah Slot Dokumen Pendukung Tambahan (Opsional)</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddVesselModalOpen(false);
-                    setEditingVessel(null);
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-[#64748B] hover:text-[#0B241E] cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
-                >
-                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>
-                    {isSubmitting
-                      ? editingVessel
-                        ? "Menyimpan Perubahan..."
-                        : "Mendaftarkan & Mengunggah Berkas..."
-                      : editingVessel
-                      ? "Simpan Perubahan Kapal"
-                      : "Simpan & Daftarkan Kapal"}
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <VesselFormModal
+        isOpen={isAddVesselModalOpen}
+        editingVessel={editingVessel}
+        errorMessage={errorMessage}
+        isSubmitting={isSubmitting}
+        vesselFormData={vesselFormData}
+        onChangeVesselFormData={setVesselFormData}
+        vesselPhotoPreview={vesselPhotoPreview}
+        vesselPhotoFile={vesselPhotoFile}
+        onSelectVesselPhoto={handleSelectVesselPhoto}
+        primaryDocCategory={primaryDocCategory}
+        onChangePrimaryDocCategory={setPrimaryDocCategory}
+        primaryDocNumber={primaryDocNumber}
+        onChangePrimaryDocNumber={setPrimaryDocNumber}
+        onChangePrimaryDocFile={setPrimaryDocFile}
+        showSecondaryDocSlot={showSecondaryDocSlot}
+        onToggleSecondaryDocSlot={setShowSecondaryDocSlot}
+        secondaryDocCategory={secondaryDocCategory}
+        onChangeSecondaryDocCategory={setSecondaryDocCategory}
+        secondaryDocNumber={secondaryDocNumber}
+        onChangeSecondaryDocNumber={setSecondaryDocNumber}
+        onChangeSecondaryDocFile={setSecondaryDocFile}
+        isVesselPhotoDoc={isVesselPhotoDoc}
+        getBackendFileUrl={getBackendFileUrl}
+        onSubmit={handleSubmitAddVessel}
+        onClose={() => {
+          setIsAddVesselModalOpen(false);
+          setEditingVessel(null);
+        }}
+      />
     </div>
   );
 }

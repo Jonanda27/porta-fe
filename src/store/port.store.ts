@@ -8,6 +8,7 @@ import {
   PortCategory,
   PortFacilityItem,
   PortItem,
+  PortBerthsScheduleResponse,
   PortTerminalItem,
   PortZoneItem,
   UpdateBerthPayload,
@@ -20,14 +21,17 @@ interface PortState {
   terminals: PortTerminalItem[];
   zones: PortZoneItem[];
   facilities: PortFacilityItem[];
+  berthsSchedule: PortBerthsScheduleResponse | null;
   activePort: PortItem | null;
   isLoading: boolean;
+  isScheduleLoading: boolean;
   isSubmitting: boolean;
   error: string | null;
 
   // Actions
   fetchPorts: (portCategory?: PortCategory) => Promise<void>;
   fetchBerths: (portId?: number) => Promise<void>;
+  fetchBerthsSchedule: (portId: number, date?: string) => Promise<void>;
   fetchPortAndBerthsData: (portId?: number) => Promise<void>;
   fetchPortInfrastructure: (portId?: number) => Promise<void>;
   createPort: (payload: CreatePortPayload) => Promise<void>;
@@ -43,8 +47,10 @@ export const usePortStore = create<PortState>((set, get) => ({
   terminals: [],
   zones: [],
   facilities: [],
+  berthsSchedule: null,
   activePort: null,
   isLoading: false,
+  isScheduleLoading: false,
   isSubmitting: false,
   error: null,
 
@@ -81,6 +87,22 @@ export const usePortStore = create<PortState>((set, get) => ({
           ? err.message
           : "Gagal memuat data dermaga pelabuhan.";
       set({ isLoading: false, error: message });
+    }
+  },
+
+  fetchBerthsSchedule: async (portId: number, date?: string) => {
+    set({ isScheduleLoading: true, error: null });
+    try {
+      const berthsSchedule = await PortService.getBerthsSchedule(portId, date);
+      set({ berthsSchedule, isScheduleLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal memuat jadwal dermaga.";
+      set({ error: message, isScheduleLoading: false });
     }
   },
 

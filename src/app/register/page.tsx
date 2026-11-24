@@ -27,20 +27,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
-import { AuthUser, RegisterOperatorDto } from "@/types/auth.types";
+import {
+  AuthUser,
+  PartnerRoleType,
+  RegisteredUserSummary,
+  RegisterOperatorDto,
+} from "@/types/auth.types";
 import { RegisterTenantPayload } from "@/types/tenant.types";
 
 const REG_RECEIPT_KEY = "porta_reg_receipt";
-export type PartnerRoleType = "OPERATOR" | "TENANT";
-
-interface RegisteredUserSummary {
-  id: number | string;
-  email: string;
-  fullName: string;
-  role?: string;
-  operatorId?: number | string | null;
-  operatorVerificationStatus?: string | null;
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -162,7 +157,10 @@ export default function RegisterPage() {
     },
   ];
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = <K extends keyof typeof formData>(
+    field: K,
+    value: (typeof formData)[K]
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 

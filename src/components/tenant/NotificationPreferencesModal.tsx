@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -8,12 +8,12 @@ import {
   FileText,
   Receipt,
   Wrench,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Save,
 } from "lucide-react";
 import { NotificationService } from "@/services/notification.service";
+import { toast } from "@/store/toast.store";
 import {
   NotificationPreference,
   NotificationPriority,
@@ -81,7 +81,6 @@ export function NotificationPreferencesModal({
   >({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,7 +94,6 @@ export function NotificationPreferencesModal({
   const loadPreferences = async () => {
     setIsLoading(true);
     setError(null);
-    setFeedback(null);
     try {
       const data: NotificationPreference[] = await NotificationService.getPreferences();
       const map: Record<
@@ -156,7 +154,6 @@ export function NotificationPreferencesModal({
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
-    setFeedback(null);
 
     try {
       await Promise.all(
@@ -170,11 +167,9 @@ export function NotificationPreferencesModal({
         })
       );
 
-      setFeedback("Pengaturan preferensi notifikasi berhasil disimpan.");
+      toast.success("Pengaturan preferensi notifikasi berhasil disimpan.");
       if (onSaved) onSaved();
-      setTimeout(() => {
-        onClose();
-      }, 1200);
+      onClose();
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -213,13 +208,6 @@ export function NotificationPreferencesModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
-          {feedback && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{feedback}</span>
-            </div>
-          )}
-
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -320,7 +308,7 @@ export function NotificationPreferencesModal({
 
           {/* Info note */}
           <p className="text-[11px] text-[#64748B] pt-2">
-            *) Pemberitahuan darurat seperti sanksi tunggakan STPD dan pemadaman darurat pelabuhan akan selalu diteruskan terlepas dari preferensi minimal yang Anda atur.
+            *) Pemberitahuan darurat seperti sanksi tunggakan STRD dan pemadaman darurat pelabuhan akan selalu diteruskan terlepas dari preferensi minimal yang Anda atur.
           </p>
 
           {/* Footer Actions */}

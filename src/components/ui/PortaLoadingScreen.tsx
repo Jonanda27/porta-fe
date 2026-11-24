@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId } from "react";
+import React from "react";
 
 export type PortaLoadingVariant = "fullscreen" | "overlay" | "inline";
 
@@ -25,11 +25,8 @@ export interface PortaLoadingScreenProps {
 export function PortaLoadingScreen({
   variant = "fullscreen",
   title = "Memuat Halaman...",
-  subtitle = "UPTD Pelabuhan Poumako • Kabupaten Mimika",
-  showProgress = true,
   className = "",
 }: PortaLoadingScreenProps) {
-  const gradientId = useId();
   const isDarkSurface = variant === "fullscreen";
 
   const wrapperClass =
@@ -46,182 +43,187 @@ export function PortaLoadingScreen({
       aria-busy="true"
       className={`${wrapperClass} ${className}`}
     >
-      {/* Subtle Nautical Coordinate Grid */}
+      <span className="sr-only">{title}</span>
+
+      {/* Animated Sailing Ship on Feathered Maritime Waves (no hard box edges) */}
       <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
+        className="relative z-10 w-80 h-44 flex items-center justify-center overflow-hidden"
         style={{
-          backgroundImage: isDarkSurface
-            ? "linear-gradient(to right, rgba(133,166,155,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(133,166,155,0.06) 1px, transparent 1px)"
-            : "linear-gradient(to right, rgba(11,36,30,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(11,36,30,0.04) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 48% 46% at 50% 52%, rgba(0,0,0,1) 52%, rgba(0,0,0,0.65) 75%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 48% 46% at 50% 52%, rgba(0,0,0,1) 52%, rgba(0,0,0,0.65) 75%, rgba(0,0,0,0) 100%)",
         }}
-      />
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 240 135"
+          className="w-full h-full overflow-visible"
+        >
+          <defs>
+            <linearGradient id="portaWaveBackGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={isDarkSurface ? "rgba(16, 185, 129, 0.22)" : "rgba(15, 118, 110, 0.14)"}
+              />
+              <stop offset="100%" stopColor="rgba(15, 118, 110, 0)" />
+            </linearGradient>
+            <linearGradient id="portaWaveFrontGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={isDarkSurface ? "rgba(13, 148, 136, 0.36)" : "rgba(15, 118, 110, 0.22)"}
+              />
+              <stop offset="100%" stopColor="rgba(15, 118, 110, 0)" />
+            </linearGradient>
+            <radialGradient id="portaSunGlow" cx="50%" cy="50%" r="50%">
+              <stop
+                offset="0%"
+                stopColor={isDarkSurface ? "rgba(251, 191, 36, 0.38)" : "rgba(217, 119, 6, 0.28)"}
+              />
+              <stop
+                offset="55%"
+                stopColor={isDarkSurface ? "rgba(251, 191, 36, 0.12)" : "rgba(217, 119, 6, 0.1)"}
+              />
+              <stop offset="100%" stopColor="rgba(217, 119, 6, 0)" />
+            </radialGradient>
+          </defs>
 
-      {/* Soft Ambient Lighthouse Glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute w-[400px] h-[400px] rounded-full blur-3xl"
-        style={{
-          background: isDarkSurface
-            ? "radial-gradient(circle, rgba(217,119,6,0.16) 0%, rgba(16,185,129,0.09) 45%, transparent 72%)"
-            : "radial-gradient(circle, rgba(217,119,6,0.12) 0%, rgba(11,36,30,0.06) 45%, transparent 72%)",
-        }}
-      />
-
-      {/* Open Borderless Centerpiece */}
-      <div className="relative z-10 flex flex-col items-center text-center max-w-sm">
-        {/* Maritime Compass & Sonar Emblem */}
-        <div className="relative w-28 h-28 flex items-center justify-center mb-5">
-          {/* Expanding Sonar Pulse Rings */}
-          <span
-            aria-hidden="true"
-            className={`absolute inset-2 rounded-full border ${
-              isDarkSurface ? "border-[#D97706]/45" : "border-[#D97706]/45"
-            } animate-porta-sonar`}
+          {/* Soft Feathered Sun Halo */}
+          <circle cx="174" cy="40" r="24" fill="url(#portaSunGlow)" />
+          <circle
+            cx="174"
+            cy="40"
+            r="7.5"
+            fill={isDarkSurface ? "rgba(251, 191, 36, 0.45)" : "rgba(217, 119, 6, 0.35)"}
           />
-          <span
-            aria-hidden="true"
-            className={`absolute inset-2 rounded-full border ${
-              isDarkSurface ? "border-emerald-400/30" : "border-[#0B241E]/20"
-            } animate-porta-sonar-delayed`}
-          />
 
-          {/* Slowly Rotating Compass Degree Ring */}
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 120 120"
-            className="absolute inset-0 w-full h-full animate-porta-spin-slow"
-          >
-            <circle
-              cx="60"
-              cy="60"
-              r="54"
-              fill="none"
-              stroke={
-                isDarkSurface
-                  ? "rgba(133, 166, 155, 0.28)"
-                  : "rgba(11, 36, 30, 0.16)"
-              }
-              strokeWidth="1.35"
-              strokeDasharray="3 6"
+          {/* Back Wave Layer (fades smoothly downward) */}
+          <g className="animate-porta-wave-slow">
+            <path
+              d="M-80 95 Q -60 88, -40 95 T 0 95 T 40 95 T 80 95 T 120 95 T 160 95 T 200 95 T 240 95 T 280 95 T 320 95 L 320 135 L -80 135 Z"
+              fill="url(#portaWaveBackGrad)"
             />
-            <line
-              x1="60"
-              y1="2"
-              x2="60"
-              y2="9"
-              stroke="#D97706"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-            <line
-              x1="118"
-              y1="60"
-              x2="111"
-              y2="60"
-              stroke="#D97706"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-            <line
-              x1="60"
-              y1="118"
-              x2="60"
-              y2="111"
-              stroke="#D97706"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-            <line
-              x1="2"
-              y1="60"
-              x2="9"
-              y2="60"
-              stroke="#D97706"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
+          </g>
+
+            {/* Sailing Ship Group */}
+            <g className="animate-porta-ship-sail">
+              {/* Funnel Smoke Puffs */}
+              <circle
+                cx="86"
+                cy="34"
+                r="4.5"
+                className="animate-porta-smoke"
+                fill={isDarkSurface ? "rgba(226, 232, 240, 0.45)" : "rgba(100, 116, 139, 0.35)"}
+              />
+              <circle
+                cx="81"
+                cy="29"
+                r="6"
+                className="animate-porta-smoke-delayed"
+                fill={isDarkSurface ? "rgba(226, 232, 240, 0.35)" : "rgba(100, 116, 139, 0.28)"}
+              />
+
+              {/* Radar Mast */}
+              <line
+                x1="126"
+                y1="26"
+                x2="126"
+                y2="46"
+                stroke={isDarkSurface ? "#94B8AC" : "#0B241E"}
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+              <line
+                x1="118"
+                y1="32"
+                x2="134"
+                y2="32"
+                stroke="#D97706"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <circle cx="126" cy="25" r="2.2" fill="#F59E0B" />
+
+              {/* Funnel / Cerobong */}
+              <path
+                d="M84 40 L94 40 L97 56 L81 56 Z"
+                fill={isDarkSurface ? "#1A4D3E" : "#0B241E"}
+              />
+              <rect x="83" y="42" width="12" height="4" rx="1" fill="#D97706" />
+
+              {/* Upper Bridge / Anjungan */}
+              <rect
+                x="102"
+                y="43"
+                width="36"
+                height="13"
+                rx="3"
+                fill={isDarkSurface ? "#E2E8F0" : "#FFFFFF"}
+                stroke={isDarkSurface ? "#336B5B" : "#0B241E"}
+                strokeWidth="1.5"
+              />
+              {/* Bridge Windows */}
+              <rect x="108" y="47" width="6" height="4" rx="1" fill="#F59E0B" />
+              <rect x="117" y="47" width="6" height="4" rx="1" fill="#F59E0B" />
+              <rect x="126" y="47" width="6" height="4" rx="1" fill="#F59E0B" />
+
+              {/* Main Deck Cabin */}
+              <rect
+                x="72"
+                y="56"
+                width="74"
+                height="16"
+                rx="3"
+                fill={isDarkSurface ? "#F8FAFC" : "#F8FAFC"}
+                stroke={isDarkSurface ? "#336B5B" : "#0B241E"}
+                strokeWidth="1.5"
+              />
+              <circle cx="84" cy="64" r="2.2" fill="#0F766E" />
+              <circle cx="95" cy="64" r="2.2" fill="#0F766E" />
+              <circle cx="106" cy="64" r="2.2" fill="#0F766E" />
+              <circle cx="117" cy="64" r="2.2" fill="#0F766E" />
+              <circle cx="128" cy="64" r="2.2" fill="#0F766E" />
+
+              {/* Cargo Containers on Bow */}
+              <rect x="148" y="61" width="16" height="11" rx="1.5" fill="#D97706" />
+              <rect x="166" y="63" width="14" height="9" rx="1.5" fill="#0F766E" />
+
+              {/* Ship Hull / Lambung */}
+              <path
+                d="M50 72 L192 72 L177 95 C175 98, 171 99, 166 99 L66 99 C60 99, 55 96, 53 91 Z"
+                fill={isDarkSurface ? "#11352C" : "#0B241E"}
+                stroke={isDarkSurface ? "#34D399" : "#143E33"}
+                strokeWidth="1.5"
+              />
+              {/* Waterline Stripe */}
+              <path
+                d="M55 88 L181 88 L178 93 L57 93 Z"
+                fill="#D97706"
+              />
+            </g>
+
+            {/* Front Flowing Wave Layer (soft gradient fade) */}
+            <g className="animate-porta-wave">
+              <path
+                d="M-80 99 Q -60 91, -40 99 T 0 99 T 40 99 T 80 99 T 120 99 T 160 99 T 200 99 T 240 99 T 280 99 T 320 99 L 320 135 L -80 135 Z"
+                fill="url(#portaWaveFrontGrad)"
+              />
+              <path
+                d="M-80 104 Q -60 97, -40 104 T 0 104 T 40 104 T 80 104 T 120 104 T 160 104 T 200 104 T 240 104 T 280 104 T 320 104"
+                fill="none"
+                stroke={isDarkSurface ? "rgba(251, 191, 36, 0.5)" : "rgba(217, 119, 6, 0.45)"}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+              <path
+                d="M-80 113 Q -60 107, -40 113 T 0 113 T 40 113 T 80 113 T 120 113 T 160 113 T 200 113 T 240 113 T 280 113 T 320 113"
+                fill="none"
+                stroke={isDarkSurface ? "rgba(52, 211, 153, 0.28)" : "rgba(15, 118, 110, 0.22)"}
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </g>
           </svg>
-
-          {/* Smooth Radar Arc Sweep */}
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 120 120"
-            className="absolute inset-1.5 w-[calc(100%-12px)] h-[calc(100%-12px)] animate-porta-radar-sweep"
-          >
-            <defs>
-              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#D97706" stopOpacity="0" />
-                <stop offset="65%" stopColor="#D97706" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#F59E0B" stopOpacity="1" />
-              </linearGradient>
-            </defs>
-            <circle
-              cx="60"
-              cy="60"
-              r="46"
-              fill="none"
-              stroke={`url(#${gradientId})`}
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              strokeDasharray="95 200"
-            />
-          </svg>
-
-          {/* Inner Medallion with Official PORTA Anchor Logo */}
-          <div
-            className={`relative w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg animate-porta-float ${
-              isDarkSurface
-                ? "bg-[#11352C] border border-[#235B4C] shadow-black/40"
-                : "bg-[#0B241E] border border-[#1E5748] shadow-[#0B241E]/25"
-            }`}
-          >
-            <img
-              src="/brand/symbol-white.svg"
-              alt="Logo PORTA"
-              className="w-9 h-9 object-contain"
-            />
-          </div>
-        </div>
-
-        {/* Brand Wordmark */}
-        <span
-          className={`text-xs font-mono font-extrabold tracking-[0.3em] uppercase mb-1 ${
-            isDarkSurface ? "text-[#FBBF24]" : "text-[#D97706]"
-          }`}
-        >
-          PORTA
-        </span>
-
-        {/* Dynamic Status Title */}
-        <p
-          className={`text-base font-extrabold tracking-tight leading-snug ${
-            isDarkSurface ? "text-white" : "text-[#0B241E]"
-          }`}
-        >
-          {title}
-        </p>
-
-        {/* Subtitle */}
-        <p
-          className={`text-xs mt-1 font-medium ${
-            isDarkSurface ? "text-[#94B8AC]" : "text-[#475569]"
-          }`}
-        >
-          {subtitle}
-        </p>
-
-        {/* Indeterminate Maritime Progress Bar */}
-        {showProgress && (
-          <div
-            className={`w-52 h-1.5 rounded-full overflow-hidden mt-5 relative ${
-              isDarkSurface ? "bg-white/15" : "bg-[#0B241E]/15"
-            }`}
-          >
-            <div className="absolute inset-y-0 left-0 w-2/5 rounded-full bg-gradient-to-r from-[#0B241E] via-[#D97706] to-emerald-500 animate-porta-shimmer" />
-          </div>
-        )}
       </div>
     </div>
   );

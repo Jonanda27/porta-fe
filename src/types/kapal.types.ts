@@ -148,6 +148,45 @@ export interface CreateVisitPayload {
   notes?: string;
 }
 
+export interface DockRequest {
+  id: string;
+  visitId?: number;
+  backendStatus?: string;
+  vesselName: string;
+  callSign: string;
+  gt: number;
+  port: string;
+  route: string;
+  activityType: string;
+  dockType: "Reguler" | "Eksekutif";
+  eta: string;
+  etd: string;
+  durationHours: number;
+  utilities: {
+    freshWater: boolean;
+    waterVolume?: number;
+    shorePower: boolean;
+    powerKwh?: number;
+    wasteDisposal: boolean;
+  };
+  costBreakdown: {
+    mooring: number;
+    anchorage: number;
+    water: number;
+    power: number;
+    waste: number;
+    total: number;
+    labuhFormula?: string;
+    tambatFormula?: string;
+  };
+  officialInvoice?: import("./billing.types").BillingInvoice | null;
+  status: "submitted" | "verified" | "approved" | "rejected";
+  statusLabel: string;
+  allocatedDock?: string;
+  officerNotes?: string;
+  submittedAt: string;
+}
+
 export interface CreateVesselPayload {
   operatorId: number | string;
   registrationNumber: string;
@@ -179,6 +218,29 @@ export interface UploadDocumentPayload {
   category: "SIUPAL_NIB" | "NPWP" | "SURAT_UKUR" | "PAS_BESAR_KECIL" | "LAINNYA";
   documentNumber?: string;
   notes?: string;
+}
+
+export interface LegalDocSlotSpec {
+  slotKey: string;
+  title: string;
+  shortBadge: string;
+  required: boolean;
+  category: "SIUPAL_NIB" | "NPWP" | "LAINNYA";
+  description: string;
+  placeholderNumber: string;
+}
+
+export interface VesselFormState {
+  name: string;
+  registrationNumber: string;
+  imoNumber: string;
+  grossTonnage: number;
+  shipType: "NIAGA" | "NON_NIAGA";
+  vesselCategory: "BARANG" | "PENUMPANG" | "CAMPURAN";
+  shippingCategory: "LUAR_NEGERI" | "DALAM_NEGERI" | "PELRA_PERINTIS";
+  lengthMeters: number;
+  draftMeters: number;
+  flag: string;
 }
 
 export interface VesselRegistrationAttachment {
@@ -252,3 +314,9 @@ export interface VerifyBerthingContractPayload {
   status: "ACTIVE" | "REJECTED";
   rejectionReason?: string;
 }
+
+export type BerthingContractFilter =
+  | "ALL"
+  | "ACTIVE"
+  | "PENDING_VERIFICATION"
+  | "INACTIVE";

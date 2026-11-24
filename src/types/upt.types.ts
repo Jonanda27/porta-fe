@@ -134,6 +134,7 @@ export interface ShipVisitItem {
   operator?: { id: number; name: string };
   port?: { id: number; code: string; name: string };
   berthings?: BerthingRecordItem[];
+  berthingRecords?: BerthingRecordItem[];
   createdAt: string;
 }
 
@@ -401,3 +402,33 @@ export interface DailyObligationRecapResponse {
   overdueTasks?: number;
   [key: string]: unknown;
 }
+
+export type VerifikasiTabType =
+  | "operators"
+  | "vessels"
+  | "tenants"
+  | "pks_sandar"
+  | "pks_ruangan";
+
+export interface RejectVerifikasiTarget {
+  type: VerifikasiTabType;
+  id: number;
+  name: string;
+}
+
+export interface InspectDocsTarget {
+  title: string;
+  subtitle: string;
+  docs: DocumentItem[];
+  missingWarning?: string | null;
+}
+
+export type UptKapalTabType = "visits" | "cargo" | "utilities";
+
+export interface VerifikasiPageProps {
+  forcedTab?: VerifikasiTabType;
+}
+
+export type UptShiftTabType = "handovers" | "reports";
+
+export type UptTiketTabType = "books" | "manifests" | "routes";

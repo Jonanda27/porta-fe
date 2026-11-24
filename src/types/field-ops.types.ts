@@ -181,6 +181,11 @@ export interface VesselManifestItem {
     visitNumber: string;
     vessel?: { name: string };
   };
+  ferryRoute?: {
+    id: number;
+    destinationName: string;
+    distanceMiles?: number | null;
+  } | null;
 }
 
 export interface CreateVesselManifestPayload {

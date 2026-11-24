@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Clock,
   Upload,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   ArrowRight,
@@ -18,6 +17,7 @@ import {
   Search,
 } from "lucide-react";
 import { useTenantStore } from "@/store/tenant.store";
+import { toast } from "@/store/toast.store";
 import { TenantDocumentCategory } from "@/types/tenant.types";
 import { formatLabel } from "@/lib/format-labels";
 import { ComplaintService } from "@/services/complaint.service";
@@ -43,7 +43,6 @@ export default function TenantDashboardPage() {
     useState<TenantDocumentCategory>("SIUPAL_NIB");
   const [docNumber, setDocNumber] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
@@ -77,14 +76,13 @@ export default function TenantDashboardPage() {
   const handleUploadDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docFile) return;
-    setFeedback(null);
     clearError();
     await uploadDocument(
       docCategory,
       docFile,
       docNumber.trim() || undefined
     );
-    setFeedback("Dokumen legalitas berhasil diunggah untuk verifikasi admin.");
+    toast.success("Dokumen legalitas berhasil diunggah untuk verifikasi admin.");
     setDocNumber("");
     setDocFile(null);
   };
@@ -126,13 +124,6 @@ export default function TenantDashboardPage() {
           <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-white/70 border border-current/20">
             {profile.documents?.length ?? 0} Dokumen Terunggah
           </span>
-        </div>
-      )}
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
         </div>
       )}
 

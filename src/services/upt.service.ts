@@ -214,9 +214,10 @@ export const UptService = {
     );
   },
 
-  approveVisit(visitId: number): Promise<ShipVisitItem> {
+  approveVisit(visitId: number, berthId?: number): Promise<ShipVisitItem> {
     return apiClient.post<ShipVisitItem>(
-      `${API_CONFIG.ENDPOINTS.VESSELS.VISITS}/${visitId}/approve`
+      `${API_CONFIG.ENDPOINTS.VESSELS.VISITS}/${visitId}/approve`,
+      berthId ? { berthId } : undefined
     );
   },
 

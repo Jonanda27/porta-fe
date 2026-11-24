@@ -28,11 +28,10 @@ import {
 import { useNotificationStore } from "@/store/notification.store";
 import {
   AppNotification,
+  KapalNotificationFilterTab as FilterTab,
   NotificationPriority,
   NotificationType,
 } from "@/types/notification.types";
-
-type FilterTab = "ALL" | "UNREAD" | "VISITS" | "BILLING" | "WARNINGS";
 
 const NOTIFICATION_CATEGORIES: Array<{
   category: string;

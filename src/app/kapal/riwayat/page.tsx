@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { formatRupiah } from "@/lib/kapal-billing";
 import {
   Ship,
   Clock,
@@ -106,14 +107,6 @@ export default function KapalRiwayatPage() {
     }) + " WIT";
   };
 
-  const formatRupiah = (val?: number | string | null) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {

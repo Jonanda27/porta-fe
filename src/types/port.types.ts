@@ -177,3 +177,46 @@ export interface PortFacilityItem {
   createdAt?: string;
   updatedAt?: string;
 }
+
+
+export interface BerthScheduleSlot {
+  berthingId: number;
+  visitId: number;
+  visitNumber: string;
+  vesselName: string;
+  operatorName: string;
+  startAt: string;
+  endAt: string;
+  status: "ACTIVE" | "PLANNED" | "COMPLETED" | "PENDING_OVERRIDE";
+}
+
+export interface BerthFreeSlot {
+  startAt: string;
+  endAt: string;
+}
+
+export interface BerthScheduleItem {
+  berth: {
+    id: number;
+    code: string;
+    name: string;
+    authorityType: string;
+    operationalStatus: string;
+    berthServiceCategory: BerthServiceCategory;
+    maxLengthMeters: number | null;
+  };
+  occupiedSlots: BerthScheduleSlot[];
+  freeSlots: BerthFreeSlot[];
+}
+
+export interface PortBerthsScheduleResponse {
+  portId: number;
+  date: string;
+  dayStart: string;
+  dayEnd: string;
+  berths: BerthScheduleItem[];
+}
+
+export type BerthAuthorityFilter = "ALL" | "PEMDA_DISHUB" | "UPP_KEMENHUB" | "TUKS_TERSUS";
+export type BerthServiceCategoryFilter = "ALL" | BerthServiceCategory;
+export type BerthOperationalStatusFilter = "ALL" | BerthOperationalStatus;

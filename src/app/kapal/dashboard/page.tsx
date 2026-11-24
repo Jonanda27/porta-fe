@@ -23,7 +23,9 @@ import {
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useBillingStore } from "@/store/billing.store";
+import { formatRupiah } from "@/lib/kapal-billing";
 import { VesselVisit } from "@/types/kapal.types";
+import { FleetAlertsSummary } from "@/components/kapal/dashboard/FleetAlertsSummary";
 
 export default function KapalDashboardPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -119,13 +121,6 @@ export default function KapalDashboardPage() {
     return true;
   });
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   const formatTimeOnly = (dateStr?: string | null) => {
     if (!dateStr) return "--:-- WIT";
@@ -422,7 +417,7 @@ export default function KapalDashboardPage() {
           href={isVerifiedOperator ? "/kapal/manifes" : "/kapal/profil"}
           title={
             isVerifiedOperator
-              ? "Buka Pelaporan Manifes"
+              ? "Lihat Manifes Resmi dari UPT"
               : "Terkunci — Menunggu Verifikasi Petugas"
           }
           className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full group"
@@ -441,29 +436,29 @@ export default function KapalDashboardPage() {
               }`}
             >
               {visitsNeedingManifest.length > 0
-                ? `${visitsNeedingManifest.length} Perlu Lapor`
+                ? `${visitsNeedingManifest.length} Menunggu UPT`
                 : completedVisits.length > 0
                 ? "SOLAS Clear"
-                : "Siap Lapor"}
+                : "Belum Ada"}
             </span>
           </div>
 
           <div className="mt-4">
             <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider truncate">
-              Pelaporan Manifes Kapal
+              Manifes Resmi (UPT)
             </p>
             <p className="text-[22px] leading-tight font-extrabold text-[#0B241E] font-mono mt-1 truncate">
               {visitsNeedingManifest.length > 0
                 ? `${visitsNeedingManifest.length} Pelayaran`
                 : completedVisits.length > 0
-                ? "100% Terlapor"
+                ? "100% Terbit"
                 : "0 Kunjungan"}
             </p>
           </div>
 
           <p className="text-[11px] text-[#64748B] mt-2.5 pt-2.5 border-t border-[#F1F5F9] truncate">
             {visitsNeedingManifest.length > 0
-              ? "Menunggu pelaporan manifes muatan"
+              ? "Menunggu penerbitan manifes oleh petugas UPT"
               : completedVisits.length > 0
               ? `${completedVisits.length} kunjungan selesai clearance SPB`
               : "Belum ada antrean jadwal sandar"}
@@ -882,93 +877,14 @@ export default function KapalDashboardPage() {
       </div>
 
       {/* 3. ALERTS & REGULATORY SUMMARY */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#D97706]" />
-              <span>Status Alokasi & Permohonan Sandar (PPK)</span>
-            </h4>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                pendingVisits.length > 0
-                  ? "bg-amber-100 text-amber-900 border border-amber-200"
-                  : scheduledVisits.length > 0
-                  ? "bg-blue-100 text-blue-800"
-                  : "bg-slate-100 text-slate-700"
-              }`}
-            >
-              {!isVerifiedOperator
-                ? "Menunggu Verifikasi Petugas"
-                : pendingVisits.length > 0
-                ? `${pendingVisits.length} Verifikasi Petugas`
-                : scheduledVisits.length > 0
-                ? `${scheduledVisits.length} Siap Tambat`
-                : "Operasional Normal"}
-            </span>
-          </div>
-          <p className="text-xs text-[#64748B] leading-relaxed">
-            {!isVerifiedOperator
-              ? "Fitur pengajuan jadwal sandar dermaga akan terbuka otomatis setelah akun badan usaha Anda diverifikasi oleh Petugas Registrasi & Kontrak."
-              : pendingVisits.length > 0
-              ? `Terdapat ${pendingVisits.length} permohonan sandar baru sedang menunggu peninjauan dan penetapan dermaga oleh petugas pelabuhan.`
-              : scheduledVisits.length > 0
-              ? `Terdapat ${scheduledVisits.length} jadwal sandar kapal telah terverifikasi/disetujui dan siap memasuki tambatan dermaga.`
-              : "Seluruh permohonan sandar kapal telah terproses. Permohonan baru wajib diajukan minimal 4 jam sebelum estimasi kedatangan (ETA)."}
-          </p>
-          <div className="pt-2">
-            <Link
-              href={isVerifiedOperator ? "/kapal/permohonan" : "/kapal/profil"}
-              className="text-xs font-bold text-[#0B241E] hover:text-[#D97706] flex items-center gap-1 group"
-            >
-              <span>
-                {isVerifiedOperator
-                  ? "Buka Formulir Pengajuan Jadwal"
-                  : "Lengkapi Dokumen Legalitas di Profil"}
-              </span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-[#0B241E] uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Kewajiban Retribusi Daerah (PP 35/2023)</span>
-            </h4>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                unpaidInvoices.length > 0
-                  ? "bg-red-100 text-red-900 border border-red-200"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
-              {unpaidInvoices.length > 0
-                ? "Menunggu Setoran"
-                : "Kepatuhan Penuh"}
-            </span>
-          </div>
-          <p className="text-xs text-[#64748B] leading-relaxed">
-            {unpaidInvoices.length > 0
-              ? `Terdapat ${unpaidInvoices.length} tagihan e-SKRD aktif senilai ${formatRupiah(totalUnpaidIdr)} yang menunggu pelunasan ke Kas Daerah (RKUD) Kab. Mimika via Virtual Account / QRIS.`
-              : `Seluruh ${paidInvoices.length} tagihan retribusi e-SKRD telah lunas terbayar dan tersinkronisasi ke Kas Daerah (RKUD) Kabupaten Mimika.`}
-          </p>
-          <div className="pt-2">
-            <Link
-              href={isVerifiedOperator ? "/kapal/penagihan" : "/kapal/profil"}
-              className="text-xs font-bold text-[#0B241E] hover:text-[#D97706] flex items-center gap-1 group"
-            >
-              <span>
-                {isVerifiedOperator
-                  ? "Cek Tagihan e-SKRD & Rekening RKUD"
-                  : "Buka Halaman Profil & Master Kapal"}
-              </span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-        </div>
-      </div>
+      <FleetAlertsSummary
+        isVerifiedOperator={isVerifiedOperator}
+        pendingVisitsCount={pendingVisits.length}
+        scheduledVisitsCount={scheduledVisits.length}
+        unpaidInvoicesCount={unpaidInvoices.length}
+        paidInvoicesCount={paidInvoices.length}
+        totalUnpaidIdr={totalUnpaidIdr}
+      />
     </div>
   );
 }

@@ -21,7 +21,6 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
-import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import { AppSidebar, SidebarNavGroup } from "@/components/layout/AppSidebar";
 
 export default function BendaharaLayout({
@@ -43,7 +42,6 @@ export default function BendaharaLayout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -60,26 +58,28 @@ export default function BendaharaLayout({
   const getPageTitle = () => {
     if (pathname.includes("/bendahara/verifikasi")) return "Loket Verifikasi Pembayaran & Penerbitan e-SSRD";
     if (pathname.includes("/bendahara/skrd")) return "Penetapan & Penerbitan Surat Ketetapan Retribusi (e-SKRD)";
-    if (pathname.includes("/bendahara/tunggakan")) return "Pengawasan Piutang & Surat Tagihan Retribusi (STPD)";
+    if (pathname.includes("/bendahara/tunggakan")) return "Pengawasan Piutang & Surat Tagihan Retribusi (STRD)";
     if (pathname.includes("/bendahara/rekonsiliasi")) return "Rekonsiliasi Kas Daerah & Tutup Buku Harian";
     if (pathname.includes("/bendahara/kios-utilitas")) return "Penerimaan Retribusi Sewa Tenant & Utilitas Kargo";
     if (pathname.includes("/bendahara/keberatan")) return "Telaah & Keputusan Keberatan Tarif Retribusi";
     if (pathname.includes("/bendahara/tugas-saya")) return "Tugas & Checklist Kebendaharaan";
     if (pathname.includes("/bendahara/tarif")) return "Referensi Master Tarif Retribusi Daerah (Perda 4/2023)";
     if (pathname.includes("/bendahara/proyeksi")) return "Simulasi Proyeksi PAD & Potensi Lahan (GIS)";
+    if (pathname.includes("/bendahara/pengaturan")) return "Pengaturan Akun & Keamanan Petugas";
     return "Dashboard Finansial & Penerimaan Kas Daerah (PAD)";
   };
 
   const getBreadcrumbLabel = () => {
     if (pathname.includes("/bendahara/verifikasi")) return "Verifikasi & e-SSRD";
     if (pathname.includes("/bendahara/skrd")) return "Penetapan e-SKRD";
-    if (pathname.includes("/bendahara/tunggakan")) return "Piutang & STPD";
+    if (pathname.includes("/bendahara/tunggakan")) return "Piutang & STRD";
     if (pathname.includes("/bendahara/rekonsiliasi")) return "Rekonsiliasi Kasda";
     if (pathname.includes("/bendahara/kios-utilitas")) return "Tenant & Utilitas";
     if (pathname.includes("/bendahara/keberatan")) return "Keberatan Tarif";
     if (pathname.includes("/bendahara/tugas-saya")) return "Tugas Saya";
     if (pathname.includes("/bendahara/tarif")) return "Referensi Tarif";
     if (pathname.includes("/bendahara/proyeksi")) return "Simulasi PAD & GIS";
+    if (pathname.includes("/bendahara/pengaturan")) return "Pengaturan Akun";
     return "Dashboard Kasda";
   };
 
@@ -89,7 +89,7 @@ export default function BendaharaLayout({
     if (pathname.includes("/bendahara/skrd"))
       return "Penerbitan surat ketetapan retribusi uang muka (Advance) dan rampung (Final) berdasarkan durasi sandar aktual kapal di dermaga aset Pemkab Mimika.";
     if (pathname.includes("/bendahara/tunggakan"))
-      return "Monitoring piutang retribusi daerah yang melewati tanggal jatuh tempo, simulasi denda administratif 1-2%, dan penerbitan Surat Teguran resmi (STPD).";
+      return "Monitoring piutang retribusi daerah yang melewati tanggal jatuh tempo, simulasi denda administratif 1-2%, dan penerbitan Surat Teguran resmi (STRD).";
     if (pathname.includes("/bendahara/rekonsiliasi"))
       return "Pencocokan penerimaan kas loket tiket gerbang, pendapatan sandar kapal, dan pembukuan Buku Kas Umum (BKU) Penerimaan Pelabuhan Poumako.";
     if (pathname.includes("/bendahara/kios-utilitas"))
@@ -102,6 +102,8 @@ export default function BendaharaLayout({
       return "Katalog resmi tarif retribusi jasa kepelabuhanan Perda Kab. Mimika No. 4/2023 beserta kurs referensi USD live untuk acuan verifikasi e-SKRD.";
     if (pathname.includes("/bendahara/proyeksi"))
       return "Kalkulator simulasi target Pendapatan Asli Daerah (PAD) tahunan dan pemetaan potensi monetisasi aset lahan serta dermaga pelabuhan.";
+    if (pathname.includes("/bendahara/pengaturan"))
+      return "Kelola identitas profil kedinasan, email, username login, serta pembaruan kata sandi akun Bendahara Penerimaan.";
     return "Pusat monitoring pendapatan asli daerah (PAD), realisasi target APBD, status likuiditas kas pelabuhan, dan pengawasan anti-kebocoran retribusi.";
   };
 
@@ -133,7 +135,7 @@ export default function BendaharaLayout({
       title: "Pengawasan & Kepatuhan",
       items: [
         {
-          label: "Pengawasan Piutang & STPD",
+          label: "Pengawasan Piutang & STRD",
           href: "/bendahara/tunggakan",
           icon: AlertTriangle,
         },
@@ -187,7 +189,7 @@ export default function BendaharaLayout({
         }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onOpenAccountSettings={() => setIsAccountModalOpen(true)}
+        onOpenAccountSettings={() => router.push("/bendahara/pengaturan")}
         onLogout={() => setShowLogoutModal(true)}
       />
 
@@ -358,11 +360,6 @@ export default function BendaharaLayout({
         userName={user?.fullName || "Bendahara Kasda"}
         userRole="BENDAHARA PENERIMAAN"
         userEmail={user?.email || "bendahara.pomako@porta.mimikakab.go.id"}
-      />
-
-      <AccountSettingsModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
       />
     </div>
   );

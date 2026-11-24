@@ -28,6 +28,12 @@ export const API_CONFIG = {
       ME_PROFILE: "/auth/me/profile",
       ME_PASSWORD: "/auth/me/password",
     },
+    MONITORING: {
+      KADIS: "/monitoring/kadis",
+      KABID: "/monitoring/kabid",
+      PORT: (portId: number | string) => `/monitoring/port/${portId}`,
+      KABID_DRILLDOWN: "/monitoring/kabid/drilldown",
+    },
     // Modul endpoint backend lainnya akan ditempatkan di sini
     PUBLIC: {
       SCHEDULES: "/public/schedules",
@@ -121,6 +127,7 @@ export const API_CONFIG = {
       LIST: "/ports",
       BERTHS: "/ports/berths",
       PORT_BERTHS: (portId: number | string) => `/ports/${portId}/berths`,
+      PORT_BERTH_SCHEDULE: (portId: number | string) => `/ports/${portId}/berths/schedule`,
       PORT_TERMINALS: (portId: number | string) => `/ports/${portId}/terminals`,
       PORT_ZONES: (portId: number | string) => `/ports/${portId}/zones`,
       PORT_FACILITIES: (portId: number | string) => `/ports/${portId}/facilities`,
@@ -143,6 +150,7 @@ export const API_CONFIG = {
       SUBMIT: "/public/complaints",
       TRACK: "/public/complaints/track",
       MY: "/complaints/my",
+      STAFF: "/complaints",
     },
   },
 } as const;

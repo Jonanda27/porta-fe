@@ -6,12 +6,12 @@ import {
   UserCog,
   X,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   ShieldCheck,
 } from "lucide-react";
 import { AuthService } from "@/services/auth.service";
 import { useAuthStore } from "@/store/auth.store";
+import { toast } from "@/store/toast.store";
 
 interface AccountSettingsModalProps {
   isOpen: boolean;
@@ -32,7 +32,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +43,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setFeedback(null);
       setErrorMsg(null);
       if (user.mustChangePassword) {
         setActiveTab("password");
@@ -61,7 +59,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setFeedback(null);
     setErrorMsg(null);
     try {
       await AuthService.updateMyProfile({
@@ -72,7 +69,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       });
       initialize();
       setProfileCurrentPassword("");
-      setFeedback("Profil dan kredensial akun Anda berhasil diperbarui.");
+      toast.success("Profil dan kredensial akun Anda berhasil diperbarui.");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal memperbarui profil.");
     } finally {
@@ -82,7 +79,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     setErrorMsg(null);
 
     if (newPassword.length < 6) {
@@ -104,7 +100,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setFeedback("Kata sandi berhasil diubah. Sesi perangkat lain otomatis dinonaktifkan.");
+      toast.success("Kata sandi berhasil diubah. Sesi perangkat lain otomatis dinonaktifkan.");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal mengubah kata sandi.");
     } finally {
@@ -144,7 +140,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
             type="button"
             onClick={() => {
               setActiveTab("profile");
-              setFeedback(null);
               setErrorMsg(null);
             }}
             className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
@@ -159,7 +154,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
             type="button"
             onClick={() => {
               setActiveTab("password");
-              setFeedback(null);
               setErrorMsg(null);
             }}
             className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
@@ -178,13 +172,6 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>Demi keamanan, silakan ubah kata sandi bawaan Anda sekarang.</span>
-            </div>
-          )}
-
-          {feedback && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{feedback}</span>
             </div>
           )}
 

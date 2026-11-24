@@ -29,21 +29,26 @@ import {
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
 import { useAuthStore } from "@/store/auth.store";
-import { BillingInvoice, InvoiceItem } from "@/types/billing.types";
+import { toast } from "@/store/toast.store";
+import {
+  BillingInvoice,
+  InvoiceItem,
+  UnifiedPaidRecord,
+  UnpaidLeaseSummary,
+} from "@/types/billing.types";
 import { AssetLease, AssetLeasePayment } from "@/types/asset.types";
 import { PrintReceiptModal } from "@/components/tenant/PrintReceiptModal";
+import { InvoicePaymentModal } from "@/components/kapal/penagihan/InvoicePaymentModal";
+import { InvoiceSsrdModal } from "@/components/kapal/penagihan/InvoiceSsrdModal";
+import { LeasePaymentModal } from "@/components/kapal/penagihan/LeasePaymentModal";
+import {
+  buildUnifiedPaidRecords,
+  computeUnpaidLeases,
+  extractPaidLeasePayments,
+  formatRupiah,
+  getVirtualAccountNo,
+} from "@/lib/kapal-billing";
 import { formatLabel } from "@/lib/format-labels";
-
-interface UnpaidLeaseSummary {
-  lease: AssetLease;
-  totalDue: number;
-  totalPaid: number;
-  remaining: number;
-}
-
-type UnifiedPaidRecord =
-  | { kind: "DERMAGA"; sortDate: number; invoice: BillingInvoice }
-  | { kind: "RUANGAN"; sortDate: number; lease: AssetLease; payment: AssetLeasePayment };
 
 export default function KapalPenagihanPage() {
   const { user } = useAuthStore();
@@ -76,7 +81,6 @@ export default function KapalPenagihanPage() {
   const [selectedBank, setSelectedBank] = useState<string>("bank_papua");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isCheckingOut, setIsCheckingOut] = useState<boolean>(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [refNumberInput, setRefNumberInput] = useState<string>("");
@@ -110,31 +114,16 @@ export default function KapalPenagihanPage() {
   }, [invoices]);
 
   // Hitung tagihan sewa ruangan (PKS Aktif yang masih memiliki sisa tagihan)
-  const unpaidLeases = useMemo<UnpaidLeaseSummary[]>(() => {
-    return leases
-      .filter((l) => l.status === "ACTIVE")
-      .map((lease) => {
-        const totalDue = Number(lease.totalAnnualAmountIdr || 0);
-        const totalPaid = (lease.payments || []).reduce(
-          (sum, p) => sum + Number(p.amountIdr || 0),
-          0
-        );
-        const remaining = Math.max(0, totalDue - totalPaid);
-        return { lease, totalDue, totalPaid, remaining };
-      })
-      .filter((item) => item.remaining > 0);
-  }, [leases]);
+  const unpaidLeases = useMemo<UnpaidLeaseSummary[]>(
+    () => computeUnpaidLeases(leases),
+    [leases]
+  );
 
   // Daftar seluruh pembayaran sewa ruangan yang sudah lunas (untuk tab e-SSRD)
-  const paidLeasePayments = useMemo(() => {
-    const rows: { lease: AssetLease; payment: AssetLeasePayment }[] = [];
-    for (const lease of leases) {
-      for (const payment of lease.payments || []) {
-        rows.push({ lease, payment });
-      }
-    }
-    return rows;
-  }, [leases]);
+  const paidLeasePayments = useMemo(
+    () => extractPaidLeasePayments(leases),
+    [leases]
+  );
 
   const filteredUnpaid = useMemo(() => {
     if (categoryFilter === "RUANGAN") return [];
@@ -159,49 +148,10 @@ export default function KapalPenagihanPage() {
     );
   }, [unpaidLeases, searchQuery, categoryFilter]);
 
-  const unifiedPaidRecords = useMemo<UnifiedPaidRecord[]>(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const list: UnifiedPaidRecord[] = [];
-
-    if (categoryFilter !== "RUANGAN") {
-      for (const inv of paidInvoices) {
-        const matches =
-          !q ||
-          inv.invoiceNumber.toLowerCase().includes(q) ||
-          (inv.ssrdNumber && inv.ssrdNumber.toLowerCase().includes(q)) ||
-          (inv.visit?.vessel?.name && inv.visit.vessel.name.toLowerCase().includes(q));
-        if (matches) {
-          list.push({
-            kind: "DERMAGA",
-            sortDate: new Date(inv.issuedAt).getTime(),
-            invoice: inv,
-          });
-        }
-      }
-    }
-
-    if (categoryFilter !== "DERMAGA") {
-      for (const entry of paidLeasePayments) {
-        const matches =
-          !q ||
-          entry.lease.contractNumber.toLowerCase().includes(q) ||
-          (entry.lease.asset?.name &&
-            entry.lease.asset.name.toLowerCase().includes(q)) ||
-          (entry.lease.asset?.assetCode &&
-            entry.lease.asset.assetCode.toLowerCase().includes(q));
-        if (matches) {
-          list.push({
-            kind: "RUANGAN",
-            sortDate: new Date(entry.payment.paidAt).getTime(),
-            lease: entry.lease,
-            payment: entry.payment,
-          });
-        }
-      }
-    }
-
-    return list.sort((a, b) => b.sortDate - a.sortDate);
-  }, [paidInvoices, paidLeasePayments, searchQuery, categoryFilter]);
+  const unifiedPaidRecords = useMemo<UnifiedPaidRecord[]>(
+    () => buildUnifiedPaidRecords(paidInvoices, paidLeasePayments, searchQuery, categoryFilter),
+    [paidInvoices, paidLeasePayments, searchQuery, categoryFilter]
+  );
 
   const totalUnpaidCount = unpaidInvoices.length + unpaidLeases.length;
   const totalPaidCount = paidInvoices.length + paidLeasePayments.length;
@@ -227,21 +177,6 @@ export default function KapalPenagihanPage() {
     return invSum + leaseSum;
   }, [paidInvoices, paidLeasePayments]);
 
-  const formatRupiah = (val: number | string) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
-
-  const getVirtualAccountNo = (inv: BillingInvoice, bank: string) => {
-    const prefix = bank === "bank_papua" ? "9928" : "8810";
-    const paddedId = String(inv.id).padStart(6, "0");
-    return `${prefix} 1840 2910 ${paddedId}`;
-  };
-
   const handleOpenPayment = (inv: BillingInvoice, defaultTab: "gateway" | "manual" = "gateway") => {
     setSelectedInvoice(inv);
     setPaymentMethodTab(defaultTab);
@@ -266,8 +201,10 @@ export default function KapalPenagihanPage() {
       if (session.redirectUrl) {
         window.open(session.redirectUrl, "_blank", "noopener,noreferrer");
       }
-      setSuccessToast(`Sesi pembayaran online #${session.orderId} berhasil dibuat! Silakan selesaikan pembayaran.`);
-      setTimeout(() => setSuccessToast(null), 6000);
+      toast.success(
+        "Sesi Pembayaran Dibuat",
+        `Sesi pembayaran online #${session.orderId} berhasil dibuat! Silakan selesaikan pembayaran.`
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memulai sesi pembayaran gateway digital.";
       setErrorMessage(msg);
@@ -283,11 +220,12 @@ export default function KapalPenagihanPage() {
       const current = useBillingStore.getState().invoices.find((i) => i.id === selectedInvoice?.id);
       if (current?.status === "PAID") {
         setIsPaymentModalOpen(false);
-        setSuccessToast(`Pembayaran tagihan ${selectedInvoice?.invoiceNumber} telah terverifikasi LUNAS!`);
-        setTimeout(() => setSuccessToast(null), 6000);
+        toast.success(
+          "Pembayaran Terverifikasi",
+          `Pembayaran tagihan ${selectedInvoice?.invoiceNumber} telah terverifikasi LUNAS.`
+        );
       } else {
-        setSuccessToast("Status tagihan berhasil disinkronkan.");
-        setTimeout(() => setSuccessToast(null), 3000);
+        toast.info("Status Disinkronkan", "Status tagihan berhasil disinkronkan.");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menyinkronkan status tagihan.";
@@ -326,10 +264,10 @@ export default function KapalPenagihanPage() {
       );
 
       setIsPaymentModalOpen(false);
-      setSuccessToast(
-        `Bukti pembayaran untuk invoice ${selectedInvoice.invoiceNumber} berhasil dikirim ke RKUD Bank Kas Daerah Mimika!`
+      toast.success(
+        "Bukti Pembayaran Terkirim",
+        `Bukti pembayaran untuk invoice ${selectedInvoice.invoiceNumber} berhasil dikirim ke RKUD Bank Kas Daerah Mimika.`
       );
-      setTimeout(() => setSuccessToast(null), 6000);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Terjadi kesalahan saat memproses pembayaran.";
@@ -371,10 +309,10 @@ export default function KapalPenagihanPage() {
       if (session.redirectUrl) {
         window.open(session.redirectUrl, "_blank", "noopener,noreferrer");
       }
-      setSuccessToast(
+      toast.success(
+        "Sesi Pembayaran Sewa Dibuat",
         `Sesi pembayaran sewa ruangan #${session.orderId} berhasil dibuat! Silakan selesaikan pembayaran.`
       );
-      setTimeout(() => setSuccessToast(null), 6000);
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -401,15 +339,14 @@ export default function KapalPenagihanPage() {
         const rem = Math.max(0, Number(updatedLease.totalAnnualAmountIdr || 0) - paid);
         if (rem === 0 && paid > 0) {
           setIsLeasePaymentModalOpen(false);
-          setSuccessToast(
-            `Pembayaran sewa ruangan ${updatedLease.contractNumber} telah terverifikasi LUNAS!`
+          toast.success(
+            "Pembayaran Sewa Terverifikasi",
+            `Pembayaran sewa ruangan ${updatedLease.contractNumber} telah terverifikasi LUNAS.`
           );
-          setTimeout(() => setSuccessToast(null), 6000);
           return;
         }
       }
-      setSuccessToast("Status pembayaran sewa ruangan berhasil disinkronkan.");
-      setTimeout(() => setSuccessToast(null), 3000);
+      toast.info("Status Disinkronkan", "Status pembayaran sewa ruangan berhasil disinkronkan.");
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Gagal menyinkronkan status pembayaran sewa.";
@@ -433,22 +370,6 @@ export default function KapalPenagihanPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
-      {successToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between animate-fade-in border border-emerald-500">
-          <div className="flex items-center gap-3 text-xs font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-            <span>{successToast}</span>
-          </div>
-          <button
-            onClick={() => setSuccessToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Global Error Banner */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl flex items-center justify-between text-xs">
@@ -483,11 +404,9 @@ export default function KapalPenagihanPage() {
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
             {formatRupiah(totalUnpaid)}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>
-              {unpaidInvoices.length} Dermaga • {unpaidLeases.length} Ruangan
-            </span>
+          <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>Menunggu pelunasan ke RKUD</span>
           </p>
         </div>
 
@@ -507,11 +426,9 @@ export default function KapalPenagihanPage() {
           <p className="text-xl font-extrabold text-[#0B241E] font-mono mt-1">
             {formatRupiah(totalPaid)}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-600 inline" />
-            <span className="text-emerald-700 font-bold">
-              {paidInvoices.length} Dermaga • {paidLeasePayments.length} Ruangan
-            </span>
+          <p className="text-[11px] text-[#64748B] mt-1.5 flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="text-emerald-700 font-semibold">Kuitansi sah terverifikasi</span>
           </p>
         </div>
 
@@ -691,39 +608,64 @@ export default function KapalPenagihanPage() {
                 return (
                   <div
                     key={`dermaga-${inv.id}`}
-                    className="bg-white border-2 border-amber-300 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all space-y-5"
+                    className="bg-white border border-[#CBD5E1] border-l-4 border-l-[#D97706] rounded-2xl p-6 shadow-xs hover:shadow-md transition-all space-y-5"
                   >
                     {/* Header Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F1F5F9] pb-4">
-                      <div>
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#F1F5F9] pb-4">
+                      <div className="space-y-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-900 border border-sky-200">
                             <Anchor className="w-3 h-3" />
                             Pengajuan Dermaga
                           </span>
-                          <span className="font-mono text-xs font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                          <span className="font-mono text-xs font-bold text-[#0B241E] bg-[#F8FAFC] border border-[#CBD5E1] px-2.5 py-0.5 rounded-md">
                             {inv.invoiceNumber}
                           </span>
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-200">
-                            {inv.billingStage} • {inv.status}
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {inv.billingStage === "ADVANCE_SKRD"
+                              ? "Uang Muka"
+                              : "SKRD Rampung"}
                           </span>
-                          <h3 className="font-extrabold text-sm text-[#0B241E] flex items-center gap-1.5">
-                            <Ship className="w-4 h-4 text-[#0B241E]" />
-                            <span>
-                              {vesselName} ({Number(grossTonnage).toLocaleString()} GT)
-                            </span>
-                          </h3>
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                            {inv.status === "ISSUED"
+                              ? "Menunggu Pembayaran"
+                              : formatLabel(inv.status)}
+                          </span>
                         </div>
-                        <p className="text-[11px] text-[#64748B] mt-1">
-                          Kunjungan: {inv.visit?.visitNumber || `VISIT-#${inv.visitId}`} • Pelabuhan Poumako • Jatuh Tempo: {dueDateFormatted}
-                        </p>
+
+                        <h3 className="font-extrabold text-base text-[#0B241E] flex items-center gap-2">
+                          <Ship className="w-4 h-4 text-[#D97706] shrink-0" />
+                          <span>
+                            {vesselName}{" "}
+                            <span className="text-xs font-mono font-semibold text-[#64748B]">
+                              ({Number(grossTonnage).toLocaleString()} GT)
+                            </span>
+                          </span>
+                        </h3>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#64748B]">
+                          <span>
+                            Kunjungan:{" "}
+                            <strong className="font-mono text-[#334155]">
+                              {inv.visit?.visitNumber || `VISIT-#${inv.visitId}`}
+                            </strong>
+                          </span>
+                          <span>
+                            Pelabuhan:{" "}
+                            <strong className="text-[#334155]">Pelabuhan Poumako</strong>
+                          </span>
+                          <span>
+                            Jatuh Tempo:{" "}
+                            <strong className="text-[#0B241E]">{dueDateFormatted}</strong>
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                          Total Tagihan Retribusi (e-SKRD)
+                      <div className="sm:text-right shrink-0 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2.5">
+                        <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
+                          Total Tagihan
                         </span>
-                        <p className="font-mono text-xl font-black text-[#0B241E]">
+                        <p className="font-mono text-xl font-black text-[#0B241E] mt-0.5">
                           {formatRupiah(inv.totalAmountIdr)}
                         </p>
                       </div>
@@ -755,28 +697,19 @@ export default function KapalPenagihanPage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="space-y-1 text-xs text-[#64748B]">
-                          <div className="flex justify-between">
-                            <span>Jasa Labuh Kapal di Kolam Pelabuhan:</span>
-                            <span className="font-mono text-[#0B241E]">{formatRupiah(Number(inv.totalAmountIdr) * 0.3)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Jasa Tambat & Sandar Dermaga:</span>
-                            <span className="font-mono text-[#0B241E]">{formatRupiah(Number(inv.totalAmountIdr) * 0.7)}</span>
-                          </div>
+                        <div className="pt-1.5 flex justify-between text-xs text-[#64748B]">
+                          <span className="font-semibold text-[#0B241E]">
+                            Ketetapan Retribusi Kepelabuhanan
+                          </span>
+                          <span className="font-mono font-bold text-[#0B241E]">
+                            {formatRupiah(inv.totalAmountIdr)}
+                          </span>
                         </div>
                       )}
                     </div>
 
                     {/* Action CTA */}
-                    <div className="pt-2 border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>
-                          Penyetoran langsung masuk ke Rekening Kas Umum Daerah (RKUD) Pemkab Mimika.
-                        </span>
-                      </div>
-
+                    <div className="pt-2 border-t border-[#F1F5F9] flex items-center justify-end gap-2 flex-wrap">
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <Link
                           href="/kapal/keberatan"
@@ -784,7 +717,7 @@ export default function KapalPenagihanPage() {
                           title="Ajukan penundaan atau angsuran e-SKRD sesuai Perbup 25/2024"
                         >
                           <Scale className="w-3.5 h-3.5 text-[#D97706]" />
-                          <span>Keringanan e-SKRD</span>
+                          <span>Ajukan Keringanan</span>
                         </Link>
 
                         <button
@@ -839,12 +772,21 @@ export default function KapalPenagihanPage() {
                             <span>{lease.asset?.name || `Aset #${lease.assetId}`}</span>
                           </h3>
                         </div>
-                        <p className="text-[11px] text-[#64748B] mt-1">
-                          Kode Aset: <strong className="font-mono">{lease.asset?.assetCode || "-"}</strong> •{" "}
-                          Tipe: <strong>{lease.asset?.assetType ? formatLabel(lease.asset.assetType) : "Aset"}</strong> •{" "}
-                          Masa Sewa: {new Date(lease.startDate).toLocaleDateString("id-ID")} s.d.{" "}
-                          {new Date(lease.endDate).toLocaleDateString("id-ID")}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#64748B] mt-1.5">
+                          <span>
+                            Kode Aset: <strong className="font-mono text-[#334155]">{lease.asset?.assetCode || "-"}</strong>
+                          </span>
+                          <span>
+                            Tipe: <strong className="text-[#334155]">{lease.asset?.assetType ? formatLabel(lease.asset.assetType) : "Aset"}</strong>
+                          </span>
+                          <span>
+                            Masa Sewa:{" "}
+                            <strong className="text-[#334155]">
+                              {new Date(lease.startDate).toLocaleDateString("id-ID")} s.d.{" "}
+                              {new Date(lease.endDate).toLocaleDateString("id-ID")}
+                            </strong>
+                          </span>
+                        </div>
                       </div>
 
                       <div className="text-right">
@@ -875,7 +817,7 @@ export default function KapalPenagihanPage() {
                               Sewa {lease.asset?.name || "Ruangan / Aset Pelabuhan"}
                             </span>
                             <p className="text-[10px] text-[#94A3B8] font-mono mt-0.5">
-                              {areaSqm} m² × {formatRupiah(ratePerSqm)} / m² / tahun • Rekening PAD 4.1.02.02.01
+                              {areaSqm} m² × {formatRupiah(ratePerSqm)} / m² / tahun (Rekening PAD 4.1.02.02.01)
                             </p>
                           </div>
                           <span className="font-mono font-bold text-[#0B241E] shrink-0">
@@ -886,14 +828,7 @@ export default function KapalPenagihanPage() {
                     </div>
 
                     {/* Action CTA */}
-                    <div className="pt-2 border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>
-                          Kuitansi e-SSRD resmi diterbitkan otomatis setelah pembayaran terverifikasi di Kasda.
-                        </span>
-                      </div>
-
+                    <div className="pt-2 border-t border-[#F1F5F9] flex items-center justify-end gap-2 flex-wrap">
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <Link
                           href="/kapal/kontrak-sewa"
@@ -935,31 +870,28 @@ export default function KapalPenagihanPage() {
       {/* TAB 2: RIWAYAT PELAYANAN & KUITANSI e-SSRD (TERPADU)           */}
       {/* ============================================================== */}
       {activeTab === "history" && (
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden shadow-xs min-h-[280px] flex flex-col">
           {isLoading && totalPaidCount === 0 ? (
-            <div className="p-10 text-center space-y-3">
+            <div className="p-10 text-center space-y-3 my-auto">
               <RefreshCw className="w-8 h-8 text-[#0B241E] animate-spin mx-auto" />
               <p className="text-xs text-[#64748B]">Memuat riwayat e-SSRD dari server...</p>
             </div>
           ) : unifiedPaidRecords.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#64748B] space-y-2">
+            <div className="p-8 text-center text-xs text-[#64748B] space-y-2 my-auto">
               <FileText className="w-10 h-10 text-[#94A3B8] mx-auto" />
               <p className="font-bold text-[#0B241E] text-sm">Belum ada riwayat transaksi lunas.</p>
               <p>Tagihan Pengajuan Dermaga maupun Pengajuan Ruangan yang telah lunas akan tercantum di sini.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="w-full">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                    <th className="py-3 px-4">Jenis Pengajuan</th>
-                    <th className="py-3 px-4">No. e-SKRD / PKS & e-SSRD</th>
-                    <th className="py-3 px-4">Objek Retribusi (Kapal / Ruangan)</th>
-                    <th className="py-3 px-4">Referensi</th>
-                    <th className="py-3 px-4 text-right">Nilai Retribusi</th>
-                    <th className="py-3 px-4">Tanggal</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center">Dokumen</th>
+                    <th className="py-3.5 px-5">No. SKRD &amp; e-SSRD</th>
+                    <th className="py-3.5 px-4">Objek &amp; Referensi</th>
+                    <th className="py-3.5 px-4">Tanggal</th>
+                    <th className="py-3.5 px-4 text-right">Nilai &amp; Status</th>
+                    <th className="py-3.5 px-5 text-right">Dokumen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
@@ -976,50 +908,54 @@ export default function KapalPenagihanPage() {
 
                       return (
                         <tr key={`paid-dermaga-${inv.id}`} className="hover:bg-[#F8FAFC]/80 transition-colors">
-                          <td className="py-3 px-4">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200 whitespace-nowrap">
+                          <td className="py-4 px-5 align-top">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-50 text-sky-900 border border-sky-200 mb-1.5">
                               <Anchor className="w-3 h-3" />
-                              Pengajuan Dermaga
+                              Dermaga
                             </span>
-                          </td>
-
-                          <td className="py-3 px-4 font-mono">
-                            <p className="font-bold text-[#0B241E]">{inv.invoiceNumber}</p>
-                            <p className="text-[10px] text-emerald-700 font-semibold">
+                            <p className="font-mono font-bold text-[#0B241E] text-xs break-all">
+                              {inv.invoiceNumber}
+                            </p>
+                            <p className="font-mono text-[10.5px] text-emerald-700 font-semibold mt-0.5 break-all">
                               {inv.ssrdNumber || `SSRD-PMK-${inv.id}`}
                             </p>
                           </td>
 
-                          <td className="py-3 px-4 font-bold text-[#0B241E]">
-                            {vesselName} ({Number(gt).toLocaleString()} GT)
+                          <td className="py-4 px-4 align-top">
+                            <p className="font-extrabold text-[#0B241E] text-xs">
+                              {vesselName}{" "}
+                              <span className="font-mono font-semibold text-[#64748B] text-[11px]">
+                                ({Number(gt).toLocaleString()} GT)
+                              </span>
+                            </p>
+                            <p className="font-mono text-[11px] text-[#475569] mt-1 break-all">
+                              {inv.visit?.visitNumber || `VISIT-#${inv.visitId}`}
+                            </p>
+                            <p className="text-[10.5px] text-[#94A3B8] mt-0.5">
+                              Pelabuhan Poumako
+                            </p>
                           </td>
 
-                          <td className="py-3 px-4 text-[#475569]">
-                            <p className="font-mono">{inv.visit?.visitNumber || `VISIT-#${inv.visitId}`}</p>
-                            <p className="text-[10px] text-[#94A3B8]">Pelabuhan Poumako</p>
-                          </td>
-
-                          <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-800">
-                            {formatRupiah(inv.totalAmountIdr)}
-                          </td>
-
-                          <td className="py-3 px-4 font-mono text-[11px] text-[#64748B]">
+                          <td className="py-4 px-4 align-top font-mono text-xs text-[#475569] whitespace-nowrap">
                             {issuedDate}
                           </td>
 
-                          <td className="py-3 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <td className="py-4 px-4 align-top text-right whitespace-nowrap">
+                            <p className="font-mono text-sm font-extrabold text-emerald-800">
+                              {formatRupiah(inv.totalAmountIdr)}
+                            </p>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 mt-1.5">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                               Lunas RKUD
                             </span>
                           </td>
 
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-4 px-5 align-middle text-right whitespace-nowrap">
                             <button
                               onClick={() => handleOpenSSRD(inv)}
-                              className="px-3 py-1.5 rounded-lg bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#0B241E] text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              className="px-3.5 py-2 rounded-xl bg-[#F1F5F9] hover:bg-[#0B241E] hover:text-white text-[#0B241E] text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Printer className="w-3.5 h-3.5" />
+                              <Printer className="w-3.5 h-3.5 shrink-0" />
                               <span>e-SSRD</span>
                             </button>
                           </td>
@@ -1037,53 +973,51 @@ export default function KapalPenagihanPage() {
 
                     return (
                       <tr key={`paid-ruangan-${payment.id}`} className="hover:bg-[#F8FAFC]/80 transition-colors">
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-900 border border-violet-200 whitespace-nowrap">
+                        <td className="py-4 px-5 align-top">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-violet-50 text-violet-900 border border-violet-200 mb-1.5">
                             <Building2 className="w-3 h-3" />
-                            Pengajuan Ruangan
+                            Ruangan
                           </span>
+                          <p className="font-mono font-bold text-[#0B241E] text-xs break-all">
+                            {lease.contractNumber}
+                          </p>
+                          <p className="font-mono text-[10.5px] text-emerald-700 font-semibold mt-0.5 break-all">
+                            {ssrdLabel}
+                          </p>
                         </td>
 
-                        <td className="py-3 px-4 font-mono">
-                          <p className="font-bold text-[#0B241E]">{lease.contractNumber}</p>
-                          <p className="text-[10px] text-emerald-700 font-semibold">{ssrdLabel}</p>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <p className="font-bold text-[#0B241E]">
+                        <td className="py-4 px-4 align-top">
+                          <p className="font-extrabold text-[#0B241E] text-xs">
                             {lease.asset?.name || `Aset #${lease.assetId}`}
                           </p>
-                          <p className="text-[10px] text-[#64748B] font-mono">
-                            {lease.asset?.assetCode} • {Number(lease.asset?.areaSqm || 0)} m²
+                          <p className="text-[11px] text-[#475569] font-mono mt-1">
+                            {lease.asset?.assetCode} ({Number(lease.asset?.areaSqm || 0)} m²)
+                          </p>
+                          <p className="text-[10.5px] text-[#94A3B8] mt-0.5">
+                            Sewa Aset BMD (Tahun {payment.periodYear})
                           </p>
                         </td>
 
-                        <td className="py-3 px-4 text-[#475569]">
-                          <p className="font-mono">Tahun {payment.periodYear}</p>
-                          <p className="text-[10px] text-[#94A3B8]">Sewa Aset BMD</p>
-                        </td>
-
-                        <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-800">
-                          {formatRupiah(payment.amountIdr)}
-                        </td>
-
-                        <td className="py-3 px-4 font-mono text-[11px] text-[#64748B]">
+                        <td className="py-4 px-4 align-top font-mono text-xs text-[#475569] whitespace-nowrap">
                           {paidDate}
                         </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <td className="py-4 px-4 align-top text-right whitespace-nowrap">
+                          <p className="font-mono text-sm font-extrabold text-emerald-800">
+                            {formatRupiah(payment.amountIdr)}
+                          </p>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 mt-1.5">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                             Lunas RKUD
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-4 px-5 align-middle text-right whitespace-nowrap">
                           <button
                             onClick={() => handleOpenLeaseSSRD(payment.id)}
-                            className="px-3 py-1.5 rounded-lg bg-violet-50 hover:bg-[#0B241E] hover:text-white text-violet-900 text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            className="px-3.5 py-2 rounded-xl bg-violet-50 hover:bg-[#0B241E] hover:text-white text-violet-900 text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                           >
-                            <Printer className="w-3.5 h-3.5" />
+                            <Printer className="w-3.5 h-3.5 shrink-0" />
                             <span>e-SSRD</span>
                           </button>
                         </td>
@@ -1098,614 +1032,51 @@ export default function KapalPenagihanPage() {
       )}
 
       {/* 3. MODAL PEMBAYARAN DIGITAL (VA BANK KASDA RKUD) */}
-      {isPaymentModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-[#CBD5E1] overflow-hidden my-8">
-            <div className="bg-[#0B241E] text-white p-4 px-6 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <CreditCard className="w-5 h-5 text-[#D97706]" />
-                <h3 className="font-bold text-sm">
-                  Pembayaran Retribusi e-SKRD Jasa Pelabuhan
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="text-[#85A69B] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5 text-xs">
-              {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Summary */}
-              <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Nomor e-SKRD:</span>
-                  <span className="font-mono font-bold text-[#0B241E]">
-                    {selectedInvoice.invoiceNumber}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Armada:</span>
-                  <strong className="text-[#0B241E]">
-                    {selectedInvoice.visit?.vessel?.name || "Kapal Niaga"} (
-                    {Number(selectedInvoice.visit?.vessel?.grossTonnage || 0).toLocaleString()} GT)
-                  </strong>
-                </div>
-                <div className="flex justify-between border-t border-[#E2E8F0] pt-2 text-sm font-extrabold text-[#0B241E]">
-                  <span>Total Tagihan:</span>
-                  <span className="font-mono text-[#D97706] text-base">
-                    {formatRupiah(selectedInvoice.totalAmountIdr)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Metode Pembayaran Switcher */}
-              <div className="grid grid-cols-2 gap-2 bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethodTab("gateway")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    paymentMethodTab === "gateway"
-                      ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                      : "text-[#64748B] hover:text-[#0B241E]"
-                  }`}
-                >
-                  <Zap className={`w-3.5 h-3.5 ${paymentMethodTab === "gateway" ? "text-[#D97706]" : ""}`} />
-                  <span>QRIS & VA Instan (Online)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethodTab("manual")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    paymentMethodTab === "manual"
-                      ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                      : "text-[#64748B] hover:text-[#0B241E]"
-                  }`}
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Transfer RKUD Manual</span>
-                </button>
-              </div>
-
-              {/* TAB 1: PEMBAYARAN GATEWAY ONLINE REAL-TIME */}
-              {paymentMethodTab === "gateway" && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
-                    <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Gerbang Pembayaran Resmi Midtrans / Bank Papua Online</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-700 leading-relaxed">
-                      Bayar langsung menggunakan <strong>QRIS (BCA, GoPay, OVO, Dana, LinkAja)</strong> atau <strong>Virtual Account Bank Otomatis</strong>. Pelunasan e-SKRD terverifikasi secara real-time ke kas daerah tanpa upload resi manual.
-                    </p>
-                  </div>
-
-                  {activeCheckoutSession ? (
-                    <div className="p-4 bg-[#FAFCFF] border-2 border-dashed border-[#0B241E]/40 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#64748B] font-bold">Order ID Gateway:</span>
-                        <span className="font-mono font-bold text-[#0B241E]">{activeCheckoutSession.orderId}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#64748B] font-bold">Total Pembayaran:</span>
-                        <span className="font-mono font-black text-base text-[#D97706]">
-                          {formatRupiah(activeCheckoutSession.amountIdr)}
-                        </span>
-                      </div>
-
-                      {activeCheckoutSession.snapToken && (
-                        <div className="text-left bg-slate-100 p-2.5 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-[#64748B] block font-mono">Snap Session Token:</span>
-                          <span className="text-xs font-mono font-bold text-slate-800 break-all select-all">
-                            {activeCheckoutSession.snapToken}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-                        {activeCheckoutSession.redirectUrl && (
-                          <a
-                            href={activeCheckoutSession.redirectUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 px-4 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-                          >
-                            <ExternalLink className="w-4 h-4 text-[#D97706]" />
-                            <span>Buka Layar Pembayaran Midtrans</span>
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleCheckPaymentStatus}
-                          disabled={isCheckingOut}
-                          className="w-full sm:w-auto py-2.5 px-4 bg-white border border-[#CBD5E1] hover:bg-[#F8FAFC] text-[#0B241E] font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isCheckingOut ? "animate-spin" : ""}`} />
-                          <span>Cek Status Lunas</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleGatewayCheckout}
-                      disabled={isCheckingOut}
-                      className="w-full py-3 bg-[#0B241E] hover:bg-[#143E33] text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {isCheckingOut ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Menghubungi Payment Gateway Midtrans...</span>
-                        </>
-                      ) : (
-                        <>
-                          <QrCode className="w-4 h-4 text-[#D97706]" />
-                          <span>Buat Sesi Bayar QRIS / VA Otomatis</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 2: TRANSFER MANUAL BANK KASDA */}
-              {paymentMethodTab === "manual" && (
-                <div className="space-y-4">
-                  {/* Bank Persepsi Selector */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-[#0B241E]">
-                      Pilih Bank Rekening Kas Umum Daerah (RKUD) Kab. Mimika:
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBank("bank_papua")}
-                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
-                          selectedBank === "bank_papua"
-                            ? "bg-[#0B241E] text-white border-[#0B241E]"
-                            : "bg-white border-[#CBD5E1] text-[#64748B]"
-                        }`}
-                      >
-                        Bank Papua (RKUD Utama)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBank("bank_bni")}
-                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
-                          selectedBank === "bank_bni"
-                            ? "bg-[#0B241E] text-white border-[#0B241E]"
-                            : "bg-white border-[#CBD5E1] text-[#64748B]"
-                        }`}
-                      >
-                        Bank BNI (Kasda Mitra)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Virtual Account Box */}
-                  <div className="p-5 bg-[#FAFCFF] border-2 border-dashed border-[#0B241E]/40 rounded-xl text-center space-y-3">
-                    <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                      Nomor Virtual Account Kasda Host-to-Host:
-                    </span>
-                    <p className="font-mono text-xl font-black text-[#0B241E] tracking-wider">
-                      {getVirtualAccountNo(selectedInvoice, selectedBank)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleCopyVA}
-                      className="text-xs font-bold text-[#0284C7] hover:underline cursor-pointer"
-                    >
-                      {isCopied ? "✓ Nomor VA Berhasil Disalin!" : "Salin Nomor VA"}
-                    </button>
-                    <p className="text-[10px] text-[#64748B]">
-                      Penyetoran dapat dilakukan via Teller, Mobile Banking, atau Antarbank Kliring/BI-FAST.
-                    </p>
-                  </div>
-
-                  {/* Form Input Referensi & Bukti Transfer */}
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#0B241E] mb-1">
-                        Nomor Referensi Setor / Resi Bank:
-                      </label>
-                      <input
-                        type="text"
-                        value={refNumberInput}
-                        onChange={(e) => setRefNumberInput(e.target.value)}
-                        placeholder="Contoh: REF-BAP-20261117-0921"
-                        className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs font-mono focus:border-[#0B241E] focus:outline-hidden"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#0B241E] mb-1">
-                        Upload File Bukti Setor / Struk (Opsional):
-                      </label>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={(e) => setPaymentFileInput(e.target.files?.[0] || null)}
-                        className="w-full text-xs text-[#64748B] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#0B241E] file:text-white cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Submit Payment Confirmation */}
-                  <button
-                    type="button"
-                    onClick={handleConfirmPayment}
-                    disabled={isProcessing}
-                    className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Merekonsiliasi Status Pembayaran Bank Kasda...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Kirim Bukti Pembayaran ke Kasda Pemkab Mimika</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <InvoicePaymentModal
+        isOpen={isPaymentModalOpen}
+        selectedInvoice={selectedInvoice}
+        errorMessage={errorMessage}
+        paymentMethodTab={paymentMethodTab}
+        onChangePaymentMethodTab={setPaymentMethodTab}
+        activeCheckoutSession={activeCheckoutSession}
+        isCheckingOut={isCheckingOut}
+        isProcessing={isProcessing}
+        selectedBank={selectedBank}
+        onSelectBank={setSelectedBank}
+        isCopied={isCopied}
+        refNumberInput={refNumberInput}
+        onChangeRefNumber={setRefNumberInput}
+        onChangePaymentFile={setPaymentFileInput}
+        onGatewayCheckout={handleGatewayCheckout}
+        onCheckPaymentStatus={handleCheckPaymentStatus}
+        onCopyVA={handleCopyVA}
+        onConfirmPayment={handleConfirmPayment}
+        onClose={() => setIsPaymentModalOpen(false)}
+      />
 
       {/* 4. MODAL BUKTI SETOR e-SSRD (Surat Setoran Retribusi Daerah) */}
-      {isSSRDModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#CBD5E1] overflow-hidden my-8">
-            <div className="bg-[#0B241E] text-white p-4 px-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-[#D97706]" />
-                <h3 className="font-bold text-sm">
-                  Dokumen Resmi e-SSRD (Surat Setoran Retribusi Daerah)
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsSSRDModalOpen(false)}
-                className="text-[#85A69B] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs bg-[#FAFAFA]" id="ssrd-printable-area">
-              {/* Document Kop */}
-              <div className="text-center border-b-2 border-[#0B241E] pb-3 space-y-0.5">
-                <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest">
-                  {activePrintPayload?.issuerAuthority || "PEMERINTAH KABUPATEN MIMIKA • DINAS PERHUBUNGAN"}
-                </p>
-                <h4 className="text-base font-black text-[#0B241E] uppercase">
-                  SURAT SETORAN RETRIBUSI DAERAH (e-SSRD)
-                </h4>
-                <p className="text-[10px] text-[#64748B]">
-                  Penerimaan Retribusi Jasa Kepelabuhanan Sesuai Perda Kab. Mimika No. 4 Tahun 2023 & PP No. 35 Tahun 2023
-                </p>
-                <div className="mt-2 inline-block px-3 py-1 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-300 font-mono font-bold text-xs">
-                  Nomor e-SSRD: {activePrintPayload?.ssrdNumber || selectedInvoice.ssrdNumber || `SSRD-PMK-${selectedInvoice.id}`}
-                </div>
-              </div>
-
-              {/* Rincian Subjek & Objek Retribusi */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-[#E2E8F0]">
-                <div className="space-y-1.5">
-                  <span className="text-[10px] uppercase font-bold text-[#94A3B8]">Wajib Retribusi (Operator)</span>
-                  <p className="font-extrabold text-[#0B241E] text-xs">
-                    {activePrintPayload?.operator?.name || user?.fullName || "PT Pelayaran Mimika Sejahtera"}
-                  </p>
-                  <p className="text-[10px] text-[#64748B]">
-                    NPWP: {activePrintPayload?.operator?.npwp || "01.889.340.2-951.000"}
-                  </p>
-                  <p className="text-[10px] text-[#64748B]">
-                    Alamat: {activePrintPayload?.operator?.address || "Jl. Pelabuhan Poumako, Timika, Papua Tengah"}
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <span className="text-[10px] uppercase font-bold text-[#94A3B8]">Armada & Pelayanan</span>
-                  <p className="font-extrabold text-[#0B241E] text-xs">
-                    {selectedInvoice.visit?.vessel?.name || "Kapal Niaga"} (
-                    {Number(selectedInvoice.visit?.vessel?.grossTonnage || 0).toLocaleString()} GT)
-                  </p>
-                  <p className="text-[10px] text-[#64748B]">
-                    Pelabuhan: {activePrintPayload?.port?.name || "Pelabuhan Poumako (UPTD Pomako)"}
-                  </p>
-                  <p className="text-[10px] text-[#64748B]">
-                    Nomor Kunjungan: {selectedInvoice.visit?.visitNumber || `VISIT-#${selectedInvoice.visitId}`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Rincian Komponen Biaya */}
-              <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] space-y-2">
-                <span className="text-[10px] uppercase font-bold text-[#94A3B8] block">
-                  Rincian Penyetoran Retribusi Daerah:
-                </span>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-[#E2E8F0] text-[10px] uppercase text-[#64748B]">
-                      <th className="py-1">Uraian Jasa</th>
-                      <th className="py-1">Tarif & Rumus</th>
-                      <th className="py-1 text-right">Subtotal (IDR)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F1F5F9]">
-                    {(activePrintPayload?.items || selectedInvoice.items || []).map((item, idx) => (
-                      <tr key={idx} className="py-1.5">
-                        <td className="py-1.5 font-medium text-[#0B241E]">{item.description}</td>
-                        <td className="py-1.5 font-mono text-[10px] text-[#64748B]">{item.formulaNote || "-"}</td>
-                        <td className="py-1.5 font-mono font-bold text-right text-[#0B241E]">
-                          {formatRupiah(item.subtotalIdr)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-[#0B241E] font-black text-sm text-[#0B241E]">
-                      <td colSpan={2} className="pt-2">TOTAL SETORAN KE KAS UMUM DAERAH:</td>
-                      <td className="pt-2 text-right font-mono text-emerald-800">
-                        {formatRupiah(selectedInvoice.totalAmountIdr)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Digital Stamp & QR Validasi */}
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-[11px] text-emerald-950">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6 text-emerald-700 shrink-0" />
-                  <div>
-                    <p className="font-bold">STATUS: LUNAS DI REKENING KAS DAERAH (RKUD)</p>
-                    <p className="text-[10px] text-emerald-800">
-                      NTEB: 9940182901192801 • Bank Papua RKUD Cabang Timika
-                    </p>
-                    <p className="text-[9px] text-[#64748B]">
-                      Dokumen ini sah dan diterbitkan secara elektronik melalui Sistem PORTA Pemkab Mimika.
-                    </p>
-                  </div>
-                </div>
-                <QrCode className="w-10 h-10 text-emerald-900 shrink-0" />
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E2E8F0]">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0B241E] font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak Dokumen e-SSRD</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSSRDModalOpen(false)}
-                  className="px-4 py-2 bg-[#0B241E] text-white font-extrabold rounded-xl hover:bg-[#143E33] cursor-pointer"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <InvoiceSsrdModal
+        isOpen={isSSRDModalOpen}
+        selectedInvoice={selectedInvoice}
+        activePrintPayload={activePrintPayload}
+        operatorFallbackName={user?.fullName}
+        onClose={() => setIsSSRDModalOpen(false)}
+      />
 
       {/* 5. MODAL PEMBAYARAN PENGAJUAN RUANGAN (SEWA ASET / PKS) */}
-      {isLeasePaymentModalOpen && selectedLeaseForPayment && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-[#CBD5E1] overflow-hidden my-8">
-            <div className="bg-[#0B241E] text-white p-4 px-6 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Building2 className="w-5 h-5 text-[#D97706]" />
-                <h3 className="font-bold text-sm">
-                  Pembayaran e-SKRD Sewa Ruangan / Aset
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsLeasePaymentModalOpen(false)}
-                className="text-[#85A69B] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5 text-xs">
-              {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Summary */}
-              <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-900 border border-violet-200">
-                    <Building2 className="w-3 h-3" />
-                    Pengajuan Ruangan
-                  </span>
-                  <span className="font-mono font-bold text-[#0B241E]">
-                    {selectedLeaseForPayment.lease.contractNumber}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-1">
-                  <span className="text-[#64748B]">Objek Aset:</span>
-                  <strong className="text-[#0B241E] text-right">
-                    {selectedLeaseForPayment.lease.asset?.name ||
-                      `Aset #${selectedLeaseForPayment.lease.assetId}`}
-                  </strong>
-                </div>
-                <div className="flex justify-between border-t border-[#E2E8F0] pt-2 text-sm font-extrabold text-[#0B241E]">
-                  <span>Sisa Tagihan Retribusi:</span>
-                  <span className="font-mono text-[#D97706] text-base">
-                    {formatRupiah(selectedLeaseForPayment.remaining)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Metode Switcher */}
-              <div className="grid grid-cols-2 gap-2 bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
-                <button
-                  type="button"
-                  onClick={() => setLeasePaymentTab("gateway")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    leasePaymentTab === "gateway"
-                      ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                      : "text-[#64748B] hover:text-[#0B241E]"
-                  }`}
-                >
-                  <Zap
-                    className={`w-3.5 h-3.5 ${
-                      leasePaymentTab === "gateway" ? "text-[#D97706]" : ""
-                    }`}
-                  />
-                  <span>QRIS & VA Instan</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLeasePaymentTab("manual")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    leasePaymentTab === "manual"
-                      ? "bg-[#0B241E] text-white shadow-xs font-extrabold"
-                      : "text-[#64748B] hover:text-[#0B241E]"
-                  }`}
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Setor RKUD / Bendahara</span>
-                </button>
-              </div>
-
-              {leasePaymentTab === "gateway" && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5">
-                    <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>
-                        Pembayaran Online ({paymentConfig?.provider || "Midtrans"} •{" "}
-                        {paymentConfig?.gatewayEnabled ? "Aktif" : "Mode Bank Papua / Loket"})
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-emerald-700 leading-relaxed">
-                      Klik tombol di bawah untuk membuat sesi pembayaran otomatis QRIS / Virtual
-                      Account. Setelah berhasil, e-SSRD sewa ruangan langsung terbit.
-                    </p>
-                  </div>
-
-                  {activeCheckoutSession ? (
-                    <div className="p-4 bg-[#FAFCFF] border-2 border-dashed border-[#0B241E]/40 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#64748B] font-bold">Order ID:</span>
-                        <span className="font-mono font-bold text-[#0B241E]">
-                          {activeCheckoutSession.orderId}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#64748B] font-bold">Nominal:</span>
-                        <span className="font-mono font-black text-base text-[#D97706]">
-                          {formatRupiah(activeCheckoutSession.amountIdr)}
-                        </span>
-                      </div>
-                      <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-                        {activeCheckoutSession.redirectUrl && (
-                          <a
-                            href={activeCheckoutSession.redirectUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 px-4 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2"
-                          >
-                            <ExternalLink className="w-4 h-4 text-[#D97706]" />
-                            <span>Buka Halaman Pembayaran</span>
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleCheckLeasePaymentStatus}
-                          disabled={isCheckingOut}
-                          className="w-full sm:w-auto py-2.5 px-4 bg-white border border-[#CBD5E1] hover:bg-[#F8FAFC] text-[#0B241E] font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <RefreshCw
-                            className={`w-3.5 h-3.5 ${isCheckingOut ? "animate-spin" : ""}`}
-                          />
-                          <span>Cek Status</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleLeaseGatewayCheckout}
-                      disabled={isCheckingOut}
-                      className="w-full py-3 bg-[#0B241E] hover:bg-[#143E33] text-white font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {isCheckingOut ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Memproses Sesi Pembayaran...</span>
-                        </>
-                      ) : (
-                        <>
-                          <QrCode className="w-4 h-4 text-[#D97706]" />
-                          <span>Buat Sesi Bayar QRIS / VA Sewa Ruangan</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {leasePaymentTab === "manual" && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-[#FAFCFF] border-2 border-dashed border-[#0B241E]/40 rounded-xl space-y-2 text-center">
-                    <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                      Rekening Kas Umum Daerah (RKUD) Kab. Mimika — Bank Papua
-                    </span>
-                    <p className="font-mono text-lg font-black text-[#0B241E]">
-                      104-01-01-000123-8
-                    </p>
-                    <p className="text-[11px] font-semibold text-[#0B241E]">
-                      a.n. RKUD PEMERINTAH KABUPATEN MIMIKA (Retribusi Sewa BMD)
-                    </p>
-                    <p className="text-[10px] text-[#64748B]">
-                      Cantumkan nomor kontrak{" "}
-                      <strong className="font-mono text-[#0B241E]">
-                        {selectedLeaseForPayment.lease.contractNumber}
-                      </strong>{" "}
-                      pada berita transfer, lalu tunjukkan bukti setor ke Bendahara Penerimaan UPTD
-                      Pelabuhan untuk pencatatan & penerbitan kuitansi e-SSRD.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setIsLeasePaymentModalOpen(false)}
-                      className="px-5 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold rounded-xl text-xs cursor-pointer"
-                    >
-                      Mengerti & Tutup
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <LeasePaymentModal
+        isOpen={isLeasePaymentModalOpen}
+        selectedLeaseForPayment={selectedLeaseForPayment}
+        errorMessage={errorMessage}
+        leasePaymentTab={leasePaymentTab}
+        onChangeLeasePaymentTab={setLeasePaymentTab}
+        paymentConfig={paymentConfig}
+        activeCheckoutSession={activeCheckoutSession}
+        isCheckingOut={isCheckingOut}
+        onGatewayCheckout={handleLeaseGatewayCheckout}
+        onCheckStatus={handleCheckLeasePaymentStatus}
+        onClose={() => setIsLeasePaymentModalOpen(false)}
+      />
 
       {/* 6. MODAL CETAK KUITANSI RESMI e-SSRD SEWA RUANGAN (REUSE) */}
       <PrintReceiptModal

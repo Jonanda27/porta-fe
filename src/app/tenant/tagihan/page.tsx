@@ -19,17 +19,15 @@ import { usePaymentStore } from "@/store/payment.store";
 import { formatLabel } from "@/lib/format-labels";
 import { TenantService } from "@/services/tenant.service";
 import { BillingService } from "@/services/billing.service";
-import { ReceiptModalData, TenantLeaseItem, AssetLeasePaymentItem } from "@/types/tenant.types";
+import {
+  ReceiptModalData,
+  TenantLeaseItem,
+  AssetLeasePaymentItem,
+  LeasePaymentTableRow,
+} from "@/types/tenant.types";
 import { UtilityReadingItem } from "@/types/field-ops.types";
 import { WarningRecord } from "@/types/billing.types";
 import { PrintReceiptModal } from "@/components/tenant/PrintReceiptModal";
-
-interface LeasePaymentTableRow extends AssetLeasePaymentItem {
-  contractNumber: string;
-  assetName: string;
-  tenantName?: string;
-  assetId?: number;
-}
 
 export default function TenantTagihanPage() {
   const { leases, utilities, isLoading, error, fetchTenantData } =
@@ -259,7 +257,7 @@ export default function TenantTagihanPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Ketentuan Denda & Peringatan STPD (Perbup Mimika 25/2024) */}
+          {/* Ketentuan Denda & Peringatan STRD (Perbup Mimika 25/2024) */}
           <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 text-xs shadow-2xs">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
@@ -275,7 +273,7 @@ export default function TenantTagihanPage() {
                   </span>
                 </div>
                 <p className="text-[#475569] text-[11px] leading-relaxed">
-                  Keterlambatan penyetoran retribusi daerah melewati tanggal jatuh tempo dikenakan sanksi administratif berupa bunga/denda sebesar <strong>2% (dua persen) per bulan</strong>. Wajib Retribusi yang menunggak akan diterbitkan <strong>Surat Teguran (STPD) I, II, dan III</strong> sebelum penindakan penertiban fasilitas tempat usaha.
+                  Keterlambatan penyetoran retribusi daerah melewati tanggal jatuh tempo dikenakan sanksi administratif berupa bunga/denda sebesar <strong>2% (dua persen) per bulan</strong>. Wajib Retribusi yang menunggak akan diterbitkan <strong>Surat Teguran (STRD) I, II, dan III</strong> sebelum penindakan penertiban fasilitas tempat usaha.
                 </p>
                 {warnings.length > 0 && (
                   <div className="pt-2">

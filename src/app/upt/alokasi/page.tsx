@@ -1,34 +1,29 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  CalendarCheck2,
-  AlertTriangle,
-  Store,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
+  AlertTriangle,
+  CalendarCheck2,
   Loader2,
   RefreshCw,
-  ShieldAlert,
   Search,
-  Anchor,
-  Clock,
-  Check,
-  X,
-  Info,
-  ShieldCheck,
-  Ship,
-  MapPin,
+  ShieldAlert,
+  Store,
 } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useAuthStore } from "@/store/auth.store";
-import { useUptStore } from "@/store/upt.store";
 import { usePortStore } from "@/store/port.store";
-import { formatLabel } from "@/lib/format-labels";
+import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { ShipVisitItem } from "@/types/upt.types";
-
-type TabType = "visits" | "overrides" | "leases";
+import {
+  AlokasiTabType,
+  isBerthCategoryCompatible,
+  paginateItems,
+} from "./alokasi.utils";
+import { LeasesCardList, OverridesCardList, VisitsCardList } from "./components/AlokasiCardLists";
+import { BerthAllocationModal, RejectLeaseModal } from "./components/AlokasiModals";
 
 export default function AlokasiPage() {
   const { user } = useAuthStore();
@@ -46,106 +41,52 @@ export default function AlokasiPage() {
     rejectLease,
     clearError,
   } = useUptStore();
-  const { ports, fetchPorts } = usePortStore();
+  const {
+    ports,
+    berthsSchedule,
+    isScheduleLoading,
+    fetchPorts,
+    fetchBerthsSchedule,
+  } = usePortStore();
 
   const isMultiPortAdmin = user?.role === "ADMIN_PELABUHAN" && !user?.portId;
-  const canAccess = user?.role === "ADMIN_PELABUHAN";
+  const canApproveAdminActions = user?.role === "ADMIN_PELABUHAN";
+  const canAccess =
+    user?.role === "ADMIN_PELABUHAN" ||
+    user?.role === "PETUGAS_REGISTRASI_KONTRAK";
 
   const [selectedPortId, setSelectedPortId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<TabType>("visits");
+  const [activeTab, setActiveTab] = useState<AlokasiTabType>("visits");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [feedback, setFeedback] = useState<string | null>(null);
+
   const [rejectLeaseTarget, setRejectLeaseTarget] = useState<{
     id: number;
     contractNumber: string;
   } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // Modal Alokasi Dermaga oleh Petugas Dermaga
   const [allocatingVisit, setAllocatingVisit] = useState<ShipVisitItem | null>(null);
   const [selectedBerthId, setSelectedBerthId] = useState<number>(1);
-  const [allocationNotes, setAllocationNotes] = useState<string>("");
+  const [scheduleDate, setScheduleDate] = useState<string>("");
   const [allocatedBerthsMap, setAllocatedBerthsMap] = useState<Record<number, string>>({});
 
   const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
 
-  // Master fasilitas dermaga Pelabuhan Poumako
   const availableBerths = useMemo(() => {
-    const fromPort = ports.find((p) => p.id === (numericPortId || 1))?.berths;
-    if (fromPort && fromPort.length > 0) return fromPort;
-    return [
-      {
-        id: 1,
-        code: "DRM-PEMDA-01",
-        name: "Dermaga Beton Nusantara Pemda",
-        authorityType: "PEMDA_DISHUB",
-        maxLengthMeters: 120,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_CAMPURAN",
-      },
-      {
-        id: 2,
-        code: "TLD-PEMDA-01",
-        name: "Tambatan Talud Cenderawasih",
-        authorityType: "PEMDA_DISHUB",
-        maxLengthMeters: 60,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_BARANG",
-      },
-      {
-        id: 3,
-        code: "DOL-PEMDA-01",
-        name: "Dolphin Bressing MB Penyeberangan Ferry",
-        authorityType: "PEMDA_DISHUB",
-        maxLengthMeters: 90,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_PENUMPANG",
-      },
-      {
-        id: 4,
-        code: "DRM-PELRA-01",
-        name: "Dermaga Pelabuhan Rakyat Muara Pomako",
-        authorityType: "PEMDA_DISHUB",
-        maxLengthMeters: 50,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_BARANG",
-      },
-      {
-        id: 5,
-        code: "DRM-UPP-01",
-        name: "Dermaga UPP Kemenhub (Non-Retribusi)",
-        authorityType: "UPP_KEMENHUB",
-        maxLengthMeters: 150,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_CAMPURAN",
-      },
-      {
-        id: 6,
-        code: "TUKS-LPS-01",
-        name: "Dermaga TUKS Logistik Pantai Selatan",
-        authorityType: "TUKS_TERSUS",
-        maxLengthMeters: 80,
-        operationalStatus: "OPEN",
-        berthServiceCategory: "DERMAGA_BARANG",
-      },
-    ];
-  }, [ports, numericPortId]);
+    const targetPortId = numericPortId || user?.portId || ports[0]?.id;
+    return ports.find((p) => p.id === targetPortId)?.berths ?? [];
+  }, [ports, numericPortId, user?.portId]);
 
-  // Cek apakah dermaga sedang digunakan kapal lain yang aktif bersandar
-  const isBerthOccupied = (berthId: number) => {
-    return visits.some((v) =>
-      v.berthings?.some((b) => b.berthId === berthId && !b.actualEndAt)
-    );
-  };
+  const isBerthOccupied = (berthId: number) =>
+    visits.some((v) => v.berthings?.some((b) => b.berthId === berthId && !b.actualEndAt));
 
   useEffect(() => {
-    if (canAccess) {
-      fetchAllocationData(numericPortId);
-      fetchPorts();
-    }
+    if (!canAccess) return;
+    fetchAllocationData(numericPortId);
+    fetchPorts();
   }, [canAccess, numericPortId, fetchAllocationData, fetchPorts]);
 
   if (!canAccess) {
@@ -154,43 +95,44 @@ export default function AlokasiPage() {
         <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto mb-3" />
         <h2 className="text-base font-bold text-[#0B241E]">Akses Terbatas</h2>
         <p className="text-xs text-[#64748B] mt-1">
-          Persetujuan sandar dan sewa aset dikelola oleh Admin Pelabuhan.
+          Persetujuan sandar dan sewa aset dikelola oleh Admin Pelabuhan atau Petugas Registrasi &amp; Kontrak.
         </p>
       </div>
     );
   }
 
+  const query = searchQuery.toLowerCase();
   const requestedVisits = visits.filter((v) => v.status === "REQUESTED");
   const requestedLeases = leases.filter((l) => l.status === "REQUESTED");
 
   const filteredVisits = visits.filter((v) => {
-    const matchStatus = !statusFilter || v.status === statusFilter;
+    const matchStatus =
+      !statusFilter ||
+      (statusFilter === "ASSIGNED" ? v.status !== "REQUESTED" : v.status === statusFilter);
     const matchSearch =
-      !searchQuery ||
-      v.visitNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.vessel?.name && v.vessel.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (v.vessel?.registrationNumber &&
-        v.vessel.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+      !query ||
+      v.visitNumber.toLowerCase().includes(query) ||
+      Boolean(v.vessel?.name?.toLowerCase().includes(query)) ||
+      Boolean(v.vessel?.registrationNumber?.toLowerCase().includes(query));
     return matchStatus && matchSearch;
   });
 
   const filteredOverrides = pendingOverrides.filter((o) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
+    if (!query) return true;
     return (
-      (o.berth?.name && o.berth.name.toLowerCase().includes(q)) ||
-      (o.berth?.code && o.berth.code.toLowerCase().includes(q)) ||
-      (o.overrideReason && o.overrideReason.toLowerCase().includes(q))
+      Boolean(o.berth?.name?.toLowerCase().includes(query)) ||
+      Boolean(o.berth?.code?.toLowerCase().includes(query)) ||
+      Boolean(o.overrideReason?.toLowerCase().includes(query))
     );
   });
 
   const filteredLeases = leases.filter((l) => {
     const matchStatus = !statusFilter || l.status === statusFilter;
     const matchSearch =
-      !searchQuery ||
-      l.contractNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (l.tenantName && l.tenantName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (l.asset?.name && l.asset.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      !query ||
+      l.contractNumber.toLowerCase().includes(query) ||
+      Boolean(l.tenantName?.toLowerCase().includes(query)) ||
+      Boolean(l.asset?.name?.toLowerCase().includes(query));
     return matchStatus && matchSearch;
   });
 
@@ -202,40 +144,43 @@ export default function AlokasiPage() {
       : filteredLeases.length;
 
   const totalPages = Math.ceil(currentListLength / itemsPerPage) || 1;
-  const pagedVisits = filteredVisits.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const pagedOverrides = filteredOverrides.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const pagedLeases = filteredLeases.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const pagedVisits = paginateItems(filteredVisits, currentPage, itemsPerPage);
+  const pagedOverrides = paginateItems(filteredOverrides, currentPage, itemsPerPage);
+  const pagedLeases = paginateItems(filteredLeases, currentPage, itemsPerPage);
 
-  const handleApproveVisit = async (visitId: number, visitNumber: string) => {
-    setFeedback(null);
-    clearError();
-    await approveVisit(visitId, numericPortId);
-    setFeedback(`Kunjungan ${visitNumber} berhasil disetujui (APPROVED).`);
+  const handleSelectTab = (tab: AlokasiTabType) => {
+    setActiveTab(tab);
+    setStatusFilter("");
+    setCurrentPage(1);
   };
 
   const handleOpenAllocationModal = (visit: ShipVisitItem) => {
+    const visitDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jayapura",
+    }).format(new Date(visit.eta));
+    const vesselLoa = visit.vessel?.lengthMeters ? Number(visit.vessel.lengthMeters) : null;
+    const firstEligibleBerth = availableBerths.find((b) => {
+      const maxLen = b.maxLengthMeters ? Number(b.maxLengthMeters) : null;
+      const loaOk = vesselLoa !== null && maxLen !== null ? vesselLoa <= maxLen : true;
+      const catOk = isBerthCategoryCompatible(
+        visit.vessel?.vesselCategory,
+        b.berthServiceCategory
+      );
+      return loaOk && catOk;
+    });
     setAllocatingVisit(visit);
-    setSelectedBerthId(availableBerths[0]?.id || 1);
-    setAllocationNotes("");
+    setSelectedBerthId(firstEligibleBerth?.id || 0);
+    setScheduleDate(visitDate);
+    fetchBerthsSchedule(visit.portId, visitDate);
   };
 
   const handleConfirmAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!allocatingVisit) return;
-    setFeedback(null);
     clearError();
 
     const chosenBerth = availableBerths.find((b) => b.id === selectedBerthId);
-    await approveVisit(allocatingVisit.id, numericPortId);
+    await approveVisit(allocatingVisit.id, numericPortId, selectedBerthId);
 
     if (chosenBerth) {
       setAllocatedBerthsMap((prev) => ({
@@ -244,7 +189,8 @@ export default function AlokasiPage() {
       }));
     }
 
-    setFeedback(
+    toast.success(
+      "Alokasi Sandar Disetujui",
       `Permohonan sandar kapal ${allocatingVisit.vessel?.name || allocatingVisit.visitNumber} berhasil disetujui & dialokasikan ke ${
         chosenBerth?.name || "Dermaga Terpilih"
       }.`
@@ -257,7 +203,6 @@ export default function AlokasiPage() {
     berthingId: number,
     decision: "APPROVED" | "REJECTED"
   ) => {
-    setFeedback(null);
     clearError();
     await decideOverride(
       visitId,
@@ -271,79 +216,72 @@ export default function AlokasiPage() {
       },
       numericPortId
     );
-    setFeedback(`Override sandar #${berthingId} berhasil diputuskan: ${decision}.`);
+    toast.success("Override Sandar Diputuskan", `Override sandar #${berthingId} berhasil diputuskan: ${decision}.`);
   };
 
   const handleApproveLease = async (leaseId: number, contractNumber: string) => {
-    setFeedback(null);
     clearError();
     await approveLease(leaseId, numericPortId);
-    setFeedback(`Pengajuan sewa ${contractNumber} disetujui dan diaktifkan.`);
+    toast.success("Pengajuan Sewa Disetujui", `Pengajuan sewa ${contractNumber} disetujui dan diaktifkan.`);
   };
 
   const handleConfirmRejectLease = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectLeaseTarget) return;
-    setFeedback(null);
     clearError();
     await rejectLease(rejectLeaseTarget.id, rejectReason.trim(), numericPortId);
-    setFeedback(`Pengajuan sewa ${rejectLeaseTarget.contractNumber} telah ditolak.`);
+    toast.success("Pengajuan Sewa Ditolak", `Pengajuan sewa ${rejectLeaseTarget.contractNumber} telah ditolak.`);
     setRejectLeaseTarget(null);
     setRejectReason("");
   };
 
+  const tabItems = [
+    {
+      key: "visits" as const,
+      label: "Permohonan Kunjungan",
+      count: requestedVisits.length,
+      icon: CalendarCheck2,
+    },
+    {
+      key: "overrides" as const,
+      label: "Override Dermaga",
+      count: pendingOverrides.length,
+      icon: AlertTriangle,
+    },
+    {
+      key: "leases" as const,
+      label: "Pengajuan Sewa Aset",
+      count: requestedLeases.length,
+      icon: Store,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Toolbar */}
       <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setActiveTab("visits")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer ${
-              activeTab === "visits"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
-          >
-            <CalendarCheck2 className="w-4 h-4 text-[#D97706]" />
-            Permohonan Kunjungan
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800">
-              {requestedVisits.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("overrides")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer ${
-              activeTab === "overrides"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4 text-[#D97706]" />
-            Override Dermaga
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800">
-              {pendingOverrides.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("leases")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer ${
-              activeTab === "leases"
-                ? "bg-[#0B241E] text-white"
-                : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
-            }`}
-          >
-            <Store className="w-4 h-4 text-[#D97706]" />
-            Pengajuan Sewa Aset
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800">
-              {requestedLeases.length}
-            </span>
-          </button>
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleSelectTab(tab.key)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer ${
+                  active
+                    ? "bg-[#0B241E] text-white"
+                    : "bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9]"
+                }`}
+              >
+                <Icon className="w-4 h-4 text-[#D97706]" />
+                {tab.label}
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800">
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -391,13 +329,6 @@ export default function AlokasiPage() {
         </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -413,254 +344,39 @@ export default function AlokasiPage() {
       ) : (
         <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
           {activeTab === "visits" && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
-                    <th className="py-3 px-4">No. Kunjungan</th>
-                    <th className="py-3 px-4">Kapal &amp; Operator</th>
-                    <th className="py-3 px-4">Rute</th>
-                    <th className="py-3 px-4">ETA / ETD</th>
-                    <th className="py-3 px-4">Alokasi Dermaga</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi Petugas</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {pagedVisits.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-10 text-center text-[#94A3B8]">
-                        Belum ada data kunjungan kapal yang sesuai.
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedVisits.map((v) => (
-                      <tr key={v.id} className="hover:bg-[#F8FAFC]">
-                        <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
-                          {v.visitNumber}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-[#1E293B]">
-                            {v.vessel?.name || `Kapal #${v.vesselId}`}
-                          </div>
-                          <div className="text-[11px] text-[#64748B]">
-                            {v.operator?.name || `Operator #${v.operatorId}`}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-[#475569]">
-                          {v.originPort || "-"} → {v.destinationPort || "-"}
-                        </td>
-                        <td className="py-3 px-4 text-[11px] text-[#475569]">
-                          <div>ETA: {new Date(v.eta).toLocaleString("id-ID")}</div>
-                          <div>ETD: {new Date(v.etd).toLocaleString("id-ID")}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          {v.status === "REQUESTED" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              <span>Menunggu Petugas</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              <Anchor className="w-3 h-3 text-emerald-600" />
-                              <span>{allocatedBerthsMap[v.id] || v.berthings?.[0]?.berth?.name || "Dermaga Nusantara"}</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                              v.status === "REQUESTED"
-                                ? "bg-amber-50 text-amber-800 border-amber-200"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            }`}
-                          >
-                            {formatLabel(v.status)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          {v.status === "REQUESTED" ? (
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => handleOpenAllocationModal(v)}
-                              className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
-                            >
-                              <Anchor className="w-3.5 h-3.5 text-[#D97706]" />
-                              <span>Pilih Dermaga &amp; Setujui</span>
-                            </button>
-                          ) : (
-                            <span className="text-[11px] text-[#94A3B8]">Ditetapkan &amp; Disetujui</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <VisitsCardList
+              visits={pagedVisits}
+              totalVisitsCount={visits.length}
+              requestedCount={requestedVisits.length}
+              filteredCount={filteredVisits.length}
+              statusFilter={statusFilter}
+              onStatusFilterChange={(nextStatus) => {
+                setStatusFilter(nextStatus);
+                setCurrentPage(1);
+              }}
+              allocatedBerthsMap={allocatedBerthsMap}
+              isSubmitting={isSubmitting}
+              onOpenAllocationModal={handleOpenAllocationModal}
+            />
           )}
 
           {activeTab === "overrides" && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
-                    <th className="py-3 px-4">Kunjungan & Kapal</th>
-                    <th className="py-3 px-4">Dermaga</th>
-                    <th className="py-3 px-4">Hasil Validasi</th>
-                    <th className="py-3 px-4">Alasan Override</th>
-                    <th className="py-3 px-4 text-right">Keputusan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {pagedOverrides.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-10 text-center text-[#94A3B8]">
-                        Tidak ada permohonan override dermaga yang menunggu persetujuan.
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedOverrides.map((b) => (
-                      <tr key={b.id} className="hover:bg-[#F8FAFC]">
-                        <td className="py-3 px-4">
-                          <div className="font-mono font-bold text-[#0B241E]">
-                            {b.visit?.visitNumber || `Visit #${b.visitId}`}
-                          </div>
-                          <div className="text-[11px] text-[#64748B]">
-                            {b.visit?.vessel?.name || "-"}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-[#334155]">
-                          {b.berth ? `${b.berth.code} - ${b.berth.name}` : `Berth #${b.berthId}`}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                            {formatLabel(b.validationResult)} ({formatLabel(b.compatibilityStatus)})
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-[#475569] max-w-xs">
-                          {b.overrideReason || "-"}
-                        </td>
-                        <td className="py-3 px-4 text-right space-x-2">
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => handleDecideOverride(b.visitId, b.id, "APPROVED")}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer"
-                          >
-                            Setujui
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => handleDecideOverride(b.visitId, b.id, "REJECTED")}
-                            className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-bold cursor-pointer"
-                          >
-                            Tolak
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <OverridesCardList
+              overrides={pagedOverrides}
+              canApproveAdminActions={canApproveAdminActions}
+              isSubmitting={isSubmitting}
+              onDecideOverride={handleDecideOverride}
+            />
           )}
 
           {activeTab === "leases" && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
-                    <th className="py-3 px-4">No. Kontrak</th>
-                    <th className="py-3 px-4">Tenant / Penyewa</th>
-                    <th className="py-3 px-4">Aset Pelabuhan</th>
-                    <th className="py-3 px-4">Periode & Nilai</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {pagedLeases.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-10 text-center text-[#94A3B8]">
-                        Belum ada data pengajuan atau kontrak sewa aset.
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedLeases.map((l) => (
-                      <tr key={l.id} className="hover:bg-[#F8FAFC]">
-                        <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
-                          {l.contractNumber}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-[#1E293B]">{l.tenantName}</div>
-                          <div className="text-[11px] text-[#64748B]">
-                            {l.tenantPhone || "-"}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-[#475569]">
-                          {l.asset ? `${l.asset.assetCode} - ${l.asset.name}` : `Aset #${l.assetId}`}
-                        </td>
-                        <td className="py-3 px-4 text-[11px]">
-                          <div className="font-bold text-[#0B241E]">
-                            Rp {Number(l.totalAnnualAmountIdr).toLocaleString("id-ID")} / thn
-                          </div>
-                          <div className="text-[#64748B]">
-                            {new Date(l.startDate).toLocaleDateString("id-ID")} –{" "}
-                            {new Date(l.endDate).toLocaleDateString("id-ID")}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                              l.status === "REQUESTED"
-                                ? "bg-amber-50 text-amber-800 border-amber-200"
-                                : l.status === "ACTIVE"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-slate-100 text-slate-700 border-slate-200"
-                            }`}
-                          >
-                            {formatLabel(l.status)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right space-x-2">
-                          {l.status === "REQUESTED" ? (
-                            <>
-                              <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => handleApproveLease(l.id, l.contractNumber)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer"
-                              >
-                                Setujui
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() =>
-                                  setRejectLeaseTarget({
-                                    id: l.id,
-                                    contractNumber: l.contractNumber,
-                                  })
-                                }
-                                className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <XCircle className="w-3 h-3" />
-                                Tolak
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-[11px] text-[#94A3B8]">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <LeasesCardList
+              leases={pagedLeases}
+              canApproveAdminActions={canApproveAdminActions}
+              isSubmitting={isSubmitting}
+              onApproveLease={handleApproveLease}
+              onRequestRejectLease={setRejectLeaseTarget}
+            />
           )}
 
           <TablePagination
@@ -674,260 +390,28 @@ export default function AlokasiPage() {
         </div>
       )}
 
-      {/* Modal Verifikasi & Alokasi Dermaga Sandar oleh Petugas */}
-      {allocatingVisit && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <form
-            onSubmit={handleConfirmAllocation}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-8 space-y-5 shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-200"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shadow-xs">
-                  <Anchor className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-[#0B241E]">
-                    Alokasikan Dermaga Sandar Kapal
-                  </h3>
-                  <p className="text-xs text-[#64748B]">
-                    Verifikasi kelaikan kapal &amp; pilih dermaga kosong di Pelabuhan Poumako
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAllocatingVisit(null)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <BerthAllocationModal
+        visit={allocatingVisit}
+        availableBerths={availableBerths}
+        selectedBerthId={selectedBerthId}
+        berthsSchedule={berthsSchedule}
+        isScheduleLoading={isScheduleLoading}
+        scheduleDate={scheduleDate}
+        isSubmitting={isSubmitting}
+        isBerthOccupied={isBerthOccupied}
+        onSelectBerth={setSelectedBerthId}
+        onClose={() => setAllocatingVisit(null)}
+        onSubmit={handleConfirmAllocation}
+      />
 
-            {/* Informasi Detail Kapal Pemohon */}
-            <div className="bg-[#F8FAFC] border border-[#CBD5E1] rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-mono font-bold text-[#0B241E] bg-white px-2.5 py-1 rounded-md border border-slate-200">
-                  {allocatingVisit.visitNumber}
-                </span>
-                <span className="text-[11px] text-[#64748B]">
-                  Rute: <strong>{allocatingVisit.originPort || "Dobo"}</strong> ➔ <strong>{allocatingVisit.destinationPort || "Poumako"}</strong>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Nama Kapal</span>
-                  <p className="font-extrabold text-[#0B241E] truncate mt-0.5">
-                    {allocatingVisit.vessel?.name || `Kapal #${allocatingVisit.vesselId}`}
-                  </p>
-                  <p className="text-[10px] font-mono text-[#64748B]">
-                    {allocatingVisit.vessel?.registrationNumber || "-"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Operator</span>
-                  <p className="font-bold text-[#334155] truncate mt-0.5">
-                    {allocatingVisit.operator?.name || "PT Pelayaran Mitra"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Bobot &amp; Panjang</span>
-                  <p className="font-mono font-bold text-[#0B241E] mt-0.5">
-                    {allocatingVisit.vessel?.grossTonnage || 500} GT
-                  </p>
-                  <p className="text-[10.5px] font-mono text-[#64748B]">
-                    LOA: {allocatingVisit.vessel?.lengthMeters || 65}m • Draft: {allocatingVisit.vessel?.draftMeters || 3.5}m
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] font-bold block uppercase">Jadwal ETA / ETD</span>
-                  <p className="text-[11px] font-mono font-semibold text-[#0B241E] mt-0.5">
-                    {new Date(allocatingVisit.eta).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {new Date(allocatingVisit.eta).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                  <p className="text-[10px] font-mono text-[#64748B]">
-                    s/d {new Date(allocatingVisit.etd).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {new Date(allocatingVisit.etd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Pilihan Fasilitas Dermaga (Pilih Dermaga yang Kosong) */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-[#0B241E] flex items-center gap-1.5 uppercase font-mono tracking-wider">
-                  <Anchor className="w-4 h-4 text-[#D97706]" />
-                  <span>PILIH FASILITAS DERMAGA SANDAR (SLOT KOSONG) <span className="text-red-500">*</span></span>
-                </label>
-                <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  {availableBerths.length} Dermaga Terdaftar
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
-                {availableBerths.map((b) => {
-                  const isSelected = selectedBerthId === b.id;
-                  const occupied = isBerthOccupied(b.id);
-                  const maxLen = Number(b.maxLengthMeters) || 100;
-                  const vesselLoa = Number(allocatingVisit.vessel?.lengthMeters) || 65;
-                  const isLoaFit = vesselLoa <= maxLen;
-
-                  return (
-                    <div
-                      key={b.id}
-                      onClick={() => setSelectedBerthId(b.id)}
-                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2 relative ${
-                        isSelected
-                          ? "border-[#0B241E] bg-[#F4F9F6] shadow-sm ring-1 ring-[#0B241E]/20"
-                          : "border-[#E2E8F0] bg-white hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#0B241E]/10 text-[#0B241E]">
-                            {b.code}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                              occupied
-                                ? "bg-amber-100 text-amber-800 border-amber-300"
-                                : "bg-emerald-100 text-emerald-800 border-emerald-300"
-                            }`}
-                          >
-                            {occupied ? "🟡 Sedang Terisi" : "🟢 Tersedia (Kosong)"}
-                          </span>
-                        </div>
-
-                        <h4 className="font-extrabold text-xs text-[#0B241E] mt-1.5 leading-snug">
-                          {b.name}
-                        </h4>
-
-                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[#64748B]">
-                          <span>Kapasitas: <strong className="text-[#0B241E] font-mono">{maxLen}m</strong></span>
-                          <span>•</span>
-                          <span
-                            className={`font-semibold ${
-                              isLoaFit ? "text-emerald-700" : "text-amber-700"
-                            }`}
-                          >
-                            {isLoaFit ? "✓ Muat LOA Kapal" : "⚠️ Melebihi Garis Tambat"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-[10px]">
-                        <span className="text-[#64748B] font-medium">
-                          {b.authorityType === "PEMDA_DISHUB" ? "Retribusi Pemda (PP 35/2023)" : "UPP Kemenhub"}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          {isSelected && (
-                            <span className="text-[9px] font-mono font-bold text-emerald-700">Dialokasikan</span>
-                          )}
-                          <input
-                            type="radio"
-                            name="allocatedBerth"
-                            checked={isSelected}
-                            onChange={() => setSelectedBerthId(b.id)}
-                            className="w-3.5 h-3.5 text-[#0B241E] focus:ring-0 cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Catatan Verifikasi Petugas */}
-            <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
-                Catatan Operasional Petugas Dermaga (Opsional)
-              </label>
-              <textarea
-                rows={2}
-                value={allocationNotes}
-                onChange={(e) => setAllocationNotes(e.target.value)}
-                placeholder="Contoh: Disetujui sandar di sisi barat Dermaga Beton Pemda. Wajib koordinasi radio VHF saat tiba di muara."
-                className="w-full px-3.5 py-2 rounded-xl border border-[#CBD5E1] text-xs focus:outline-none focus:ring-2 focus:ring-[#0B241E] resize-none"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-[#E2E8F0]">
-              <button
-                type="button"
-                onClick={() => setAllocatingVisit(null)}
-                className="px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/20 transition-all disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Menetapkan Dermaga...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4 text-[#D97706] stroke-[3]" />
-                    <span>Tetapkan Dermaga &amp; Setujui Kunjungan</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Reject Lease Modal */}
-      {rejectLeaseTarget && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={handleConfirmRejectLease}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
-          >
-            <h3 className="text-base font-extrabold text-[#0B241E]">
-              Tolak Pengajuan Sewa {rejectLeaseTarget.contractNumber}
-            </h3>
-            <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
-                Alasan Penolakan
-              </label>
-              <textarea
-                required
-                rows={3}
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Misal: Aset sedang dijadwalkan untuk pemeliharaan"
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectLeaseTarget(null)}
-                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Tolak Pengajuan
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <RejectLeaseModal
+        target={rejectLeaseTarget}
+        reason={rejectReason}
+        isSubmitting={isSubmitting}
+        onChangeReason={setRejectReason}
+        onClose={() => setRejectLeaseTarget(null)}
+        onSubmit={handleConfirmRejectLease}
+      />
     </div>
   );
 }

@@ -3,71 +3,12 @@
 import React, { useRef } from "react";
 import { Printer, X, CheckCircle2, ShieldCheck, QrCode } from "lucide-react";
 import { ReceiptModalData } from "@/types/tenant.types";
+import { angkaTerbilang } from "@/lib/terbilang";
 
 interface PrintReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
   receipt: ReceiptModalData | null;
-}
-
-function angkaTerbilang(nilai: number): string {
-  const bilangan = [
-    "",
-    "Satu",
-    "Dua",
-    "Tiga",
-    "Empat",
-    "Lima",
-    "Enam",
-    "Tujuh",
-    "Delapan",
-    "Sembilan",
-    "Sepuluh",
-    "Sebelas",
-  ];
-  nilai = Math.floor(Math.abs(nilai));
-  if (nilai === 0) return "Nol";
-  if (nilai < 12) return bilangan[nilai];
-  if (nilai < 20) return bilangan[nilai - 10] + " Belas";
-  if (nilai < 100)
-    return (
-      bilangan[Math.floor(nilai / 10)] +
-      " Puluh" +
-      (nilai % 10 !== 0 ? " " + bilangan[nilai % 10] : "")
-    );
-  if (nilai < 200)
-    return "Seratus" + (nilai - 100 !== 0 ? " " + angkaTerbilang(nilai - 100) : "");
-  if (nilai < 1000)
-    return (
-      bilangan[Math.floor(nilai / 100)] +
-      " Ratus" +
-      (nilai % 100 !== 0 ? " " + angkaTerbilang(nilai % 100) : "")
-    );
-  if (nilai < 2000)
-    return (
-      "Seribu" + (nilai - 1000 !== 0 ? " " + angkaTerbilang(nilai - 1000) : "")
-    );
-  if (nilai < 1000000)
-    return (
-      angkaTerbilang(Math.floor(nilai / 1000)) +
-      " Ribu" +
-      (nilai % 1000 !== 0 ? " " + angkaTerbilang(nilai % 1000) : "")
-    );
-  if (nilai < 1000000000)
-    return (
-      angkaTerbilang(Math.floor(nilai / 1000000)) +
-      " Juta" +
-      (nilai % 1000000 !== 0 ? " " + angkaTerbilang(nilai % 1000000) : "")
-    );
-  if (nilai < 1000000000000)
-    return (
-      angkaTerbilang(Math.floor(nilai / 1000000000)) +
-      " Miliar" +
-      (nilai % 1000000000 !== 0
-        ? " " + angkaTerbilang(nilai % 1000000000)
-        : "")
-    );
-  return nilai.toString();
 }
 
 export function PrintReceiptModal({

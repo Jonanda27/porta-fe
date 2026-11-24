@@ -11,18 +11,20 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  Upload,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { usePortStore } from "@/store/port.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import {
   CargoCategory,
   PortEquipmentType,
   UtilityType,
 } from "@/types/field-ops.types";
-
-type TabType = "visits" | "cargo" | "utilities";
+import { UptKapalTabType } from "@/types/upt.types";
 
 export default function UptKapalPage() {
   const { user } = useAuthStore();
@@ -49,12 +51,12 @@ export default function UptKapalPage() {
   const numericPortId = selectedPortId ? Number(selectedPortId) : undefined;
   const activePortId = Number(numericPortId || user?.portId || ports[0]?.id || 1);
 
-  const [activeTab, setActiveTab] = useState<TabType>("visits");
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<UptKapalTabType>("visits");
 
   // Start berthing modal
   const [berthingVisitId, setBerthingVisitId] = useState<number | null>(null);
   const [berthId, setBerthId] = useState<string>("");
+  const [isBerthLocked, setIsBerthLocked] = useState<boolean>(false);
   const [berthCategory, setBerthCategory] = useState<"UMUM" | "KHUSUS_TUKS">("UMUM");
   const [overrideReason, setOverrideReason] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
@@ -88,52 +90,68 @@ export default function UptKapalPage() {
     ports.flatMap((p) => p.berths || []);
 
   const handleArrival = async (visitId: number, visitNumber: string) => {
-    setFeedback(null);
     clearError();
-    await recordArrival(visitId, new Date().toISOString(), numericPortId);
-    setFeedback(`Kedatangan (ATA) untuk ${visitNumber} berhasil dicatat.`);
+    try {
+      await recordArrival(visitId, new Date().toISOString(), numericPortId);
+      toast.success("Kedatangan Dicatat", `Kedatangan (ATA) untuk ${visitNumber} berhasil dicatat.`);
+    } catch {
+      // Error sudah ditangani di store
+    }
   };
 
   const handleStartBerthing = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!berthingVisitId || !berthId) return;
-    setFeedback(null);
     clearError();
-    await startBerthing(
-      berthingVisitId,
-      {
-        berthId: Number(berthId),
-        berthCategory,
-        actualStartAt: new Date().toISOString(),
-        overrideReason: overrideReason.trim() || undefined,
-        safetyChecklistVerified: true,
-        evidenceFile,
-      },
-      numericPortId
-    );
-    setFeedback("Pencatatan sandar (ATB) berhasil disimpan.");
-    setBerthingVisitId(null);
-    setOverrideReason("");
-    setEvidenceFile(null);
+    try {
+      await startBerthing(
+        berthingVisitId,
+        {
+          berthId: Number(berthId),
+          berthCategory,
+          actualStartAt: new Date().toISOString(),
+          overrideReason: overrideReason.trim() || undefined,
+          safetyChecklistVerified: true,
+          evidenceFile,
+        },
+        numericPortId
+      );
+      toast.success(
+        overrideReason.trim() ? "Override Sandar Dikirim" : "Sandar Dicatat",
+        overrideReason.trim()
+          ? "Pengajuan override sandar berhasil dikirim dan menunggu persetujuan Admin Pelabuhan di menu Alokasi Dermaga."
+          : "Pencatatan sandar (ATB) berhasil disimpan."
+      );
+      setBerthingVisitId(null);
+      setOverrideReason("");
+      setEvidenceFile(null);
+    } catch {
+      // Error sudah ditangani di store
+    }
   };
 
   const handleEndBerthing = async (visitId: number, berthingId: number) => {
-    setFeedback(null);
     clearError();
-    await endBerthing(visitId, berthingId, new Date().toISOString(), numericPortId);
-    setFeedback("Selesai sandar berhasil dicatat.");
+    try {
+      await endBerthing(visitId, berthingId, new Date().toISOString(), numericPortId);
+      toast.success("Selesai Sandar Dicatat", "Selesai sandar berhasil dicatat.");
+    } catch {
+      // Error sudah ditangani di store
+    }
   };
 
   const handleDeparture = async (visitId: number, visitNumber: string) => {
-    setFeedback(null);
     clearError();
-    await recordDeparture(visitId, new Date().toISOString(), numericPortId);
-    setFeedback(`Keberangkatan (ATD) untuk ${visitNumber} berhasil dicatat.`);
+    try {
+      await recordDeparture(visitId, new Date().toISOString(), numericPortId);
+      toast.success("Keberangkatan Dicatat", `Keberangkatan (ATD) untuk ${visitNumber} berhasil dicatat.`);
+    } catch {
+      // Error sudah ditangani di store
+    }
   };
 
   const handleCreateCargo = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     await createCargo(
       {
@@ -146,14 +164,13 @@ export default function UptKapalPage() {
       },
       numericPortId
     );
-    setFeedback("Catatan bongkar muat berhasil disimpan.");
+    toast.success("Bongkar Muat Disimpan", "Catatan bongkar muat berhasil disimpan.");
     setCargoDesc("");
     setCargoQty("");
   };
 
   const handleCreateEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     await createEquipment(
       {
@@ -165,12 +182,11 @@ export default function UptKapalPage() {
       },
       numericPortId
     );
-    setFeedback("Sewa alat pelabuhan berhasil dicatat.");
+    toast.success("Sewa Alat Dicatat", "Sewa alat pelabuhan berhasil dicatat.");
   };
 
   const handleCreateUtility = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFeedback(null);
     clearError();
     await createUtility(
       {
@@ -183,7 +199,7 @@ export default function UptKapalPage() {
       },
       numericPortId
     );
-    setFeedback("Pembacaan meter utilitas berhasil disimpan.");
+    toast.success("Meter Utilitas Disimpan", "Pembacaan meter utilitas berhasil disimpan.");
     setMeterStart("");
     setMeterEnd("");
   };
@@ -260,13 +276,6 @@ export default function UptKapalPage() {
         </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -286,8 +295,13 @@ export default function UptKapalPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {activePortBerths.map((berth) => {
                 const occupyingVisit = visits.find((v) =>
-                  v.berthings?.some(
-                    (b) => b.berthId === berth.id && !b.actualEndAt
+                  (v.berthingRecords || v.berthings)?.some(
+                    (b) =>
+                      b.berthId === berth.id &&
+                      Boolean(b.actualStartAt) &&
+                      !b.actualEndAt &&
+                      b.approvalStatus !== "PENDING" &&
+                      b.approvalStatus !== "REJECTED"
                   )
                 );
                 return (
@@ -336,8 +350,8 @@ export default function UptKapalPage() {
                   <th className="py-3 px-4">No. Kunjungan</th>
                   <th className="py-3 px-4">Kapal</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Waktu Aktual (ATA / ATD)</th>
-                  <th className="py-3 px-4 text-right">Aksi Lapangan</th>
+                  <th className="py-3 px-4">Waktu Aktual (ATA / ATD WIT)</th>
+                  <th className="py-3 px-4">Alur &amp; Aksi Lapangan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9] text-xs">
@@ -356,7 +370,17 @@ export default function UptKapalPage() {
                   </tr>
                 ) : (
                   visits.map((v) => {
-                    const activeBerthing = v.berthings?.find((b) => !b.actualEndAt);
+                    const berthingList = v.berthingRecords || v.berthings || [];
+                    const pendingOverride = berthingList.find(
+                      (b) => b.approvalStatus === "PENDING" && !b.actualEndAt
+                    );
+                    const activeBerthing = berthingList.find(
+                      (b) =>
+                        Boolean(b.actualStartAt) &&
+                        !b.actualEndAt &&
+                        b.approvalStatus !== "PENDING" &&
+                        b.approvalStatus !== "REJECTED"
+                    );
                     return (
                       <tr key={v.id} className="hover:bg-[#F8FAFC]">
                         <td className="py-3 px-4 font-mono font-bold text-[#0B241E]">
@@ -375,71 +399,176 @@ export default function UptKapalPage() {
                             {formatLabel(v.status)}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-[11px] text-[#475569]">
+                        <td className="py-3 px-4 text-[11px] text-[#475569] font-mono">
                           <div>
                             ATA:{" "}
                             {v.ataAnchorage
-                              ? new Date(v.ataAnchorage).toLocaleString("id-ID")
+                              ? `${new Date(v.ataAnchorage).toLocaleString("id-ID", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  timeZone: "Asia/Jayapura",
+                                })} WIT`
                               : "-"}
                           </div>
                           <div>
                             ATD:{" "}
                             {v.atdPort
-                              ? new Date(v.atdPort).toLocaleString("id-ID")
+                              ? `${new Date(v.atdPort).toLocaleString("id-ID", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  timeZone: "Asia/Jayapura",
+                                })} WIT`
                               : "-"}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-right space-x-2">
-                          {v.status === "APPROVED" && (
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => handleArrival(v.id, v.visitNumber)}
-                              className="px-2.5 py-1 rounded-lg bg-[#0B241E] text-white text-[11px] font-bold cursor-pointer"
-                            >
-                              Catat Tiba (ATA)
-                            </button>
-                          )}
-                          {(v.status === "ANCHORED" || v.status === "APPROVED") &&
-                            !activeBerthing && (
-                              <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => {
-                                  setBerthingVisitId(v.id);
-                                  setBerthId(
-                                    activePortBerths[0]?.id
-                                      ? String(activePortBerths[0].id)
-                                      : ""
-                                  );
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col items-end gap-1.5">
+                            {/* Mini Stepper Alur Operasional */}
+                            <div className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                              <span
+                                className={
+                                  v.ataAnchorage
+                                    ? "text-emerald-700 font-bold"
+                                    : v.status === "APPROVED"
+                                    ? "text-[#0B241E] font-bold"
+                                    : ""
+                                }
                               >
-                                <Anchor className="w-3 h-3" />
-                                Mulai Sandar
-                              </button>
-                            )}
-                          {activeBerthing && (
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => handleEndBerthing(v.id, activeBerthing.id)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-bold cursor-pointer"
-                            >
-                              Lepas Sandar
-                            </button>
-                          )}
-                          {(v.status === "BERTHED" || v.status === "ANCHORED") &&
-                            !activeBerthing && (
-                              <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => handleDeparture(v.id, v.visitNumber)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer"
+                                1. Tiba
+                              </span>
+                              <span>→</span>
+                              <span
+                                className={
+                                  activeBerthing ||
+                                  v.status === "BERTHED" ||
+                                  v.status === "DEPARTED" ||
+                                  v.status === "BILLED" ||
+                                  v.status === "SETTLED"
+                                    ? "text-emerald-700 font-bold"
+                                    : v.status === "ANCHORED"
+                                    ? "text-amber-700 font-bold"
+                                    : ""
+                                }
                               >
-                                Catat Berangkat (ATD)
-                              </button>
-                            )}
+                                2. Sandar
+                              </span>
+                              <span>→</span>
+                              <span
+                                className={
+                                  v.status === "BERTHED" && !activeBerthing
+                                    ? "text-blue-700 font-bold"
+                                    : v.atdPort
+                                    ? "text-emerald-700 font-bold"
+                                    : ""
+                                }
+                              >
+                                3. Lepas
+                              </span>
+                              <span>→</span>
+                              <span className={v.atdPort ? "text-emerald-700 font-bold" : ""}>
+                                4. Berangkat
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 flex-wrap">
+                              {/* Langkah 1: Catat Tiba (ATA) */}
+                              {v.status === "APPROVED" && (
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => handleArrival(v.id, v.visitNumber)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#13382F] text-white text-[11px] font-bold cursor-pointer transition-colors"
+                                >
+                                  1. Catat Tiba (ATA)
+                                </button>
+                              )}
+
+                              {/* Langkah 2: Mulai Sandar (ATB) setelah kapal tiba / berlabuh */}
+                              {v.status === "ANCHORED" && !activeBerthing && pendingOverride && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
+                                  Menunggu Persetujuan Override (Menu Alokasi UPT)
+                                </span>
+                              )}
+
+                              {v.status === "ANCHORED" && !activeBerthing && !pendingOverride && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => {
+                                      const allocatedBerthing =
+                                        v.berthingRecords?.[0] || v.berthings?.[0];
+                                      const allocatedBerthId = allocatedBerthing?.berthId;
+                                      setBerthingVisitId(v.id);
+                                      setBerthId(
+                                        allocatedBerthId
+                                          ? String(allocatedBerthId)
+                                          : activePortBerths[0]?.id
+                                          ? String(activePortBerths[0].id)
+                                          : ""
+                                      );
+                                      setIsBerthLocked(Boolean(allocatedBerthId));
+                                      if (allocatedBerthing?.berthCategory) {
+                                        setBerthCategory(allocatedBerthing.berthCategory);
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                  >
+                                    <Anchor className="w-3 h-3" />
+                                    2. Mulai Sandar (ATB)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => handleDeparture(v.id, v.visitNumber)}
+                                    title="Gunakan hanya jika kapal langsung bertolak tanpa sandar di dermaga"
+                                    className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#475569] text-[11px] font-semibold cursor-pointer transition-colors"
+                                  >
+                                    Berangkat Tanpa Sandar
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Langkah 3: Lepas Sandar saat kapal sedang sandar */}
+                              {activeBerthing && (
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => handleEndBerthing(v.id, activeBerthing.id)}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                                >
+                                  3. Lepas Sandar
+                                </button>
+                              )}
+
+                              {/* Langkah 4: Catat Berangkat (ATD) setelah lepas sandar */}
+                              {v.status === "BERTHED" && !activeBerthing && (
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => handleDeparture(v.id, v.visitNumber)}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                                >
+                                  4. Catat Berangkat (ATD)
+                                </button>
+                              )}
+
+                              {(v.status === "DEPARTED" ||
+                                v.status === "BILLED" ||
+                                v.status === "SETTLED") && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Pelayaran Selesai
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -746,83 +875,203 @@ export default function UptKapalPage() {
       )}
 
       {/* Start Berthing Modal */}
-      {berthingVisitId && (
+      {berthingVisitId && (() => {
+        const activeVisitObj = visits.find((v) => v.id === berthingVisitId);
+        const selectedBerthObj = activePortBerths.find(
+          (b) => String(b.id) === berthId
+        );
+        const vesselCat = activeVisitObj?.vessel?.vesselCategory;
+        const berthCat = selectedBerthObj?.berthServiceCategory;
+        const isCategoryMismatch = Boolean(
+          vesselCat &&
+            berthCat &&
+            berthCat !== "DERMAGA_CAMPURAN" &&
+            !(vesselCat === "BARANG" && berthCat === "DERMAGA_BARANG") &&
+            !(vesselCat === "PENUMPANG" && berthCat === "DERMAGA_PENUMPANG")
+        );
+
+        return (
         <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleStartBerthing}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
+            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 space-y-5 shadow-2xl"
           >
-            <h3 className="text-base font-extrabold text-[#0B241E]">
-              Mulai Sandar Kapal (ATB)
-            </h3>
-            <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                Pilih Dermaga
-              </label>
-              <select
-                required
-                value={berthId}
-                onChange={(e) => setBerthId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+            <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0">
+                  <Anchor className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#0B241E]">
+                    Mulai Sandar Kapal (ATB)
+                  </h3>
+                  <p className="text-[11px] text-[#64748B] mt-0.5">
+                    {activeVisitObj?.vessel?.name || `Kapal #${activeVisitObj?.vesselId || ""}`}{" "}
+                    <span className="font-mono text-[#94A3B8]">
+                      ({activeVisitObj?.visitNumber || ""})
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBerthingVisitId(null)}
+                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+                aria-label="Tutup modal"
               >
-                <option value="">-- Pilih Dermaga --</option>
-                {activePortBerths.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.code} - {b.name} ({formatLabel(b.berthServiceCategory)})
-                  </option>
-                ))}
-              </select>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-[#334155]">
+                  Dermaga Sandar
+                </label>
+                {isBerthLocked && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Sesuai Alokasi UPT
+                  </span>
+                )}
+              </div>
+              {isBerthLocked ? (
+                <div className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#0B241E]">
+                  {(() => {
+                    const allocBerth =
+                      activeVisitObj?.berthingRecords?.[0]?.berth ||
+                      activeVisitObj?.berthings?.[0]?.berth;
+                    if (selectedBerthObj) {
+                      return `${selectedBerthObj.code} - ${selectedBerthObj.name} (${formatLabel(
+                        selectedBerthObj.berthServiceCategory
+                      )})`;
+                    }
+                    if (allocBerth) {
+                      return `${allocBerth.code} - ${allocBerth.name}`;
+                    }
+                    return `Dermaga #${berthId}`;
+                  })()}
+                </div>
+              ) : (
+                <select
+                  required
+                  value={berthId}
+                  onChange={(e) => setBerthId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+                >
+                  <option value="">-- Pilih Dermaga --</option>
+                  {activePortBerths.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} - {b.name} ({formatLabel(b.berthServiceCategory)})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-[#334155] mb-1.5">
                 Kategori Tambat
               </label>
-              <select
-                value={berthCategory}
-                onChange={(e) =>
-                  setBerthCategory(e.target.value as "UMUM" | "KHUSUS_TUKS")
-                }
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
-              >
-                <option value="UMUM">Tambat Dermaga Umum</option>
-                <option value="KHUSUS_TUKS">Tambat Khusus / TUKS</option>
-              </select>
+              {isBerthLocked ? (
+                <div className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#334155]">
+                  {berthCategory === "KHUSUS_TUKS"
+                    ? "Tambat Khusus / TUKS"
+                    : "Tambat Dermaga Umum"}
+                </div>
+              ) : (
+                <select
+                  value={berthCategory}
+                  onChange={(e) =>
+                    setBerthCategory(e.target.value as "UMUM" | "KHUSUS_TUKS")
+                  }
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+                >
+                  <option value="UMUM">Tambat Dermaga Umum</option>
+                  <option value="KHUSUS_TUKS">Tambat Khusus / TUKS</option>
+                </select>
+              )}
             </div>
+            {(isCategoryMismatch || !isBerthLocked) && (
+              <div className="space-y-1.5">
+                {isCategoryMismatch && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-semibold">
+                    Kategori kapal ({formatLabel(vesselCat || "")}) tidak sesuai dengan peruntukan dermaga ({formatLabel(berthCat || "")}). Wajib mengisi alasan override untuk pengajuan persetujuan.
+                  </div>
+                )}
+                <label className="block text-xs font-bold text-[#334155]">
+                  Alasan Override {isCategoryMismatch ? <span className="text-rose-500">*</span> : "(Opsional)"}
+                </label>
+                <input
+                  type="text"
+                  required={isCategoryMismatch}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder={
+                    isCategoryMismatch
+                      ? "Contoh: Dermaga barang penuh, dialihkan sementara ke dermaga penumpang"
+                      : "Opsional"
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
-                Alasan Override (Jika Dermaga Mismatch)
-              </label>
-              <input
-                type="text"
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="Opsional"
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[#334155] mb-1">
+              <label className="block text-xs font-bold text-[#334155] mb-1.5">
                 Foto Bukti Sandar (Opsional)
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
-                className="w-full text-xs"
-              />
+              {evidenceFile ? (
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC]">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#0B241E] truncate">
+                        {evidenceFile.name}
+                      </p>
+                      <p className="text-[10px] text-[#64748B]">
+                        {(evidenceFile.size / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEvidenceFile(null)}
+                    className="p-1.5 rounded-lg text-[#64748B] hover:text-rose-600 hover:bg-rose-50 cursor-pointer shrink-0"
+                    title="Hapus foto"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-xs font-semibold text-[#475569] cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-[#64748B]" />
+                  <span>Pilih Foto Bukti Sandar (JPG / PNG)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-4 border-t border-[#E2E8F0]">
               <button
                 type="button"
                 onClick={() => setBerthingVisitId(null)}
-                className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#13382F] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Simpan Sandar
@@ -830,7 +1079,8 @@ export default function UptKapalPage() {
             </div>
           </form>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

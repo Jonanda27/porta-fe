@@ -8,6 +8,7 @@ import {
   PortCategory,
   PortFacilityItem,
   PortItem,
+  PortBerthsScheduleResponse,
   PortTerminalItem,
   PortZoneItem,
   UpdateBerthPayload,
@@ -58,6 +59,19 @@ export const PortService = {
       berthServiceCategory ? { params: { berthServiceCategory } } : undefined
     );
     return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Mendapatkan jadwal okupansi & slot waktu kosong per dermaga pada tanggal tertentu.
+   */
+  async getBerthsSchedule(
+    portId: number,
+    date?: string
+  ): Promise<PortBerthsScheduleResponse> {
+    return apiClient.get<PortBerthsScheduleResponse>(
+      API_CONFIG.ENDPOINTS.PORTS.PORT_BERTH_SCHEDULE(portId),
+      date ? { params: { date } } : undefined
+    );
   },
 
   /**

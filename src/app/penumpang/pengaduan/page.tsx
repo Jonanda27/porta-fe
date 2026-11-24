@@ -21,20 +21,7 @@ import {
   X,
   RefreshCw,
 } from "lucide-react";
-
-interface ComplaintTicket {
-  ticketNumber: string;
-  category: string;
-  reporterName: string;
-  location: string;
-  reportedAt: string;
-  status: "submitted" | "verified" | "in_progress" | "resolved";
-  statusLabel: string;
-  slaDeadline: string;
-  description: string;
-  resolutionNote?: string;
-  assignedOfficer?: string;
-}
+import type { ComplaintTicket } from "@/types/penumpang.types";
 
 export default function PenumpangPengaduanPage() {
   const [activeTab, setActiveTab] = useState<"form" | "track">("form");

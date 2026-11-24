@@ -102,7 +102,7 @@ interface UptState {
   ) => Promise<void>;
 
   fetchAllocationData: (portId?: number) => Promise<void>;
-  approveVisit: (visitId: number, portId?: number) => Promise<void>;
+  approveVisit: (visitId: number, portId?: number, berthId?: number) => Promise<void>;
   decideOverride: (
     visitId: number,
     berthingId: number,
@@ -487,10 +487,10 @@ export const useUptStore = create<UptState>((set, get) => ({
     }
   },
 
-  approveVisit: async (visitId: number, portId?: number) => {
+  approveVisit: async (visitId: number, portId?: number, berthId?: number) => {
     set({ isSubmitting: true, error: null });
     try {
-      await UptService.approveVisit(visitId);
+      await UptService.approveVisit(visitId, berthId);
       await get().fetchAllocationData(portId);
       set({ isSubmitting: false });
     } catch (err: unknown) {

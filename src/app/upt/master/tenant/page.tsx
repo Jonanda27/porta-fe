@@ -15,11 +15,11 @@ import {
   Edit3,
   Trash2,
   Loader2,
-  CheckCircle2,
   AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { UptService } from "@/services/upt.service";
 import { formatLabel } from "@/lib/format-labels";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -39,7 +39,6 @@ export default function MasterTenantPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -90,7 +89,6 @@ export default function MasterTenantPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       const payload = {
         name: name.trim(),
@@ -102,10 +100,10 @@ export default function MasterTenantPage() {
       };
       if (editingTenant) {
         await UptService.updateTenant(editingTenant.id, payload);
-        setFeedback(`Data tenant "${payload.name}" berhasil diperbarui.`);
+        toast.success("Tenant Diperbarui", `Data tenant "${payload.name}" berhasil diperbarui.`);
       } else {
         await UptService.createTenant(payload);
-        setFeedback(`Tenant baru "${payload.name}" berhasil ditambahkan.`);
+        toast.success("Tenant Ditambahkan", `Tenant baru "${payload.name}" berhasil ditambahkan.`);
       }
       setIsFormModalOpen(false);
       await fetchVerificationData();
@@ -120,10 +118,9 @@ export default function MasterTenantPage() {
     if (!confirm(`Nonaktifkan tenant "${tn.name}" dari daftar aktif?`)) return;
     setIsSubmitting(true);
     setErrorMsg(null);
-    setFeedback(null);
     try {
       await UptService.updateTenant(tn.id, { isActive: false });
-      setFeedback(`Tenant "${tn.name}" telah dinonaktifkan.`);
+      toast.success("Tenant Dinonaktifkan", `Tenant "${tn.name}" telah dinonaktifkan.`);
       await fetchVerificationData();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal menonaktifkan tenant.");
@@ -214,13 +211,6 @@ export default function MasterTenantPage() {
           </div>
         </div>
       </div>
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
 
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">

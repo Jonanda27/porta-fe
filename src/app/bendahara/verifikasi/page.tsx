@@ -16,7 +16,13 @@ import {
   Copy,
 } from "lucide-react";
 import { useBillingStore } from "@/store/billing.store";
+import { toast } from "@/store/toast.store";
+import { formatRupiah } from "@/lib/kapal-billing";
 import { BillingInvoice, PaymentMethod } from "@/types/billing.types";
+import {
+  OfficialRetribusiDocumentData,
+  OfficialRetribusiDocumentModal,
+} from "@/components/billing/OfficialRetribusiDocumentModal";
 
 export default function BendaharaVerifikasiPage() {
   const {
@@ -38,7 +44,8 @@ export default function BendaharaVerifikasiPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<BillingInvoice | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [isGeneratingGateway, setIsGeneratingGateway] = useState<boolean>(false);
-  const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [printableSsrdDoc, setPrintableSsrdDoc] = useState<OfficialRetribusiDocumentData | null>(null);
 
   // Form Pembayaran Kasir Loket Tunai/EDC
   const [cashInvoiceId, setCashInvoiceId] = useState<number>(0);
@@ -52,24 +59,19 @@ export default function BendaharaVerifikasiPage() {
   }, [fetchInvoices, fetchPaymentConfig]);
 
   const handleCreateCheckoutLink = async (invoiceId: number) => {
+    setErrorToast(null);
     setIsGeneratingGateway(true);
     try {
       await checkoutPayment({ targetType: "INVOICE", targetId: invoiceId });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Gagal membuat sesi pembayaran digital.");
+      setErrorToast(
+        err instanceof Error ? err.message : "Gagal membuat sesi pembayaran digital."
+      );
     } finally {
       setIsGeneratingGateway(false);
     }
   };
 
-  const formatRupiah = (val: number | string) => {
-    const num = Number(val) || 0;
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
 
   // Daftar pembayaran yang belum diverifikasi
   const pendingPaymentsList = useMemo(() => {
@@ -129,13 +131,17 @@ export default function BendaharaVerifikasiPage() {
 
   const handleVerify = async (paymentId: number, invoiceNumber: string) => {
     if (!paymentId) return;
+    setErrorToast(null);
     setIsVerifying(true);
     try {
       await verifyPayment(paymentId);
-      setFeedbackToast(`Pembayaran untuk e-SKRD ${invoiceNumber} berhasil diverifikasi sah! e-SSRD telah terbit.`);
+      toast.success(
+        "Pembayaran Terverifikasi",
+        `Pembayaran untuk e-SKRD ${invoiceNumber} berhasil diverifikasi sah! e-SSRD telah terbit.`
+      );
       setSelectedInvoice(null);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Gagal memverifikasi pembayaran.");
+      setErrorToast(err instanceof Error ? err.message : "Gagal memverifikasi pembayaran.");
     } finally {
       setIsVerifying(false);
     }
@@ -143,8 +149,9 @@ export default function BendaharaVerifikasiPage() {
 
   const handleCashSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorToast(null);
     if (!cashInvoiceId || cashAmount <= 0) {
-      alert("Harap pilih invoice dan masukkan nominal pembayaran yang valid.");
+      setErrorToast("Harap pilih invoice dan masukkan nominal pembayaran yang valid.");
       return;
     }
     setIsVerifying(true);
@@ -156,13 +163,16 @@ export default function BendaharaVerifikasiPage() {
         idempotencyKey: `CASH-${cashInvoiceId}-${Date.now()}`,
         paidAt: new Date().toISOString(),
       });
-      setFeedbackToast("Pembayaran loket kasir berhasil dicatat dan disahkan ke Kasda!");
+      toast.success(
+        "Pembayaran Loket Tercatat",
+        "Pembayaran loket kasir berhasil dicatat dan disahkan ke Kasda!"
+      );
       setCashInvoiceId(0);
       setCashAmount(0);
       setCashRefNo("");
       setActiveTab("verified");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Gagal mencatat pembayaran loket.");
+      setErrorToast(err instanceof Error ? err.message : "Gagal mencatat pembayaran loket.");
     } finally {
       setIsVerifying(false);
     }
@@ -170,18 +180,16 @@ export default function BendaharaVerifikasiPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Feedback */}
-      {feedbackToast && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between border border-emerald-500 text-xs font-semibold animate-fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-white" />
-            <span>{feedbackToast}</span>
-          </div>
+      {/* Error Toast */}
+      {errorToast && (
+        <div className="bg-rose-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between border border-rose-500 text-xs font-semibold">
+          <span>{errorToast}</span>
           <button
-            onClick={() => setFeedbackToast(null)}
-            className="text-white hover:text-emerald-100 p-1 cursor-pointer"
+            type="button"
+            onClick={() => setErrorToast(null)}
+            className="text-rose-100 hover:text-white font-bold cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            Tutup
           </button>
         </div>
       )}
@@ -421,11 +429,44 @@ export default function BendaharaVerifikasiPage() {
                         <button
                           type="button"
                           onClick={async () => {
+                            setErrorToast(null);
                             try {
                               const payload = await fetchPrintPayload(inv.id);
-                              alert(`Mencetak Salinan e-SSRD No: ${payload.ssrdNumber || inv.invoiceNumber}\nStatus: LUNAS KAS DAERAH`);
+                              const totalIdr =
+                                Number(payload.totalAmountIdr || inv.totalAmountIdr) || 0;
+                              const issuedDate = inv.updatedAt || inv.issuedAt;
+                              setPrintableSsrdDoc({
+                                docType: "SSRD",
+                                ssrdBasis: "SKRD",
+                                documentNumber:
+                                  payload.ssrdNumber ||
+                                  inv.ssrdNumber ||
+                                  `SSRD-2026-${inv.id.toString().padStart(4, "0")}`,
+                                referenceSkrdNumber: payload.invoiceNumber || inv.invoiceNumber,
+                                issuedAt: issuedDate,
+                                tahunRetribusi: new Date(issuedDate).getFullYear(),
+                                wajibRetribusiName:
+                                  payload.operator?.name ||
+                                  inv.visit?.vessel?.name ||
+                                  `Operator #${inv.operatorId}`,
+                                wajibRetribusiAddress:
+                                  payload.operator?.address ||
+                                  "Jl. Pelabuhan Poumako, Kabupaten Mimika",
+                                npwrd: `NPWRD-PMK-${String(inv.operatorId || inv.id).padStart(5, "0")}`,
+                                retribusiTypeLabel: "Retribusi Jasa Kepelabuhanan",
+                                items: payload.items || inv.items,
+                                principalIdr: totalIdr,
+                                totalIdr,
+                                portName: payload.port?.name,
+                                visitNumber: inv.visit?.visitNumber,
+                                vesselSummary: `${
+                                  payload.vessel?.name || inv.visit?.vessel?.name || "Kapal"
+                                } (${Number(inv.visit?.vessel?.grossTonnage || 0).toLocaleString(
+                                  "id-ID"
+                                )} GT)`,
+                              });
                             } catch {
-                              alert("Gagal memuat dokumen cetak.");
+                              setErrorToast("Gagal memuat dokumen cetak.");
                             }
                           }}
                           className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#143E33] text-white font-bold rounded-lg transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
@@ -659,7 +700,7 @@ export default function BendaharaVerifikasiPage() {
                     type="button"
                     onClick={() => {
                       navigator.clipboard?.writeText(activeCheckoutSession.redirectUrl || "");
-                      setFeedbackToast("Link pembayaran digital berhasil disalin!");
+                      toast.success("Link Disalin", "Link pembayaran digital berhasil disalin!");
                     }}
                     className="px-3.5 py-2 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#0B241E] inline-flex items-center gap-1.5 cursor-pointer"
                   >
@@ -688,6 +729,13 @@ export default function BendaharaVerifikasiPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Cetak Resmi e-SSRD (Lampiran III Perbup Mimika 25/2024) */}
+      <OfficialRetribusiDocumentModal
+        isOpen={Boolean(printableSsrdDoc)}
+        data={printableSsrdDoc}
+        onClose={() => setPrintableSsrdDoc(null)}
+      />
     </div>
   );
 }

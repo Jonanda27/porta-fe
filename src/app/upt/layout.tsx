@@ -26,7 +26,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
-import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import {
   AppSidebar,
   SidebarNavGroup as NavGroup,
@@ -68,7 +67,6 @@ export default function UptLayout({
 
   const [mounted, setMounted] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
@@ -234,6 +232,11 @@ export default function UptLayout({
               label: "Verifikasi PKS Ruangan",
               icon: Warehouse,
             },
+            {
+              href: "/upt/alokasi",
+              label: "Alokasi & Penetapan Dermaga",
+              icon: CalendarCheck2,
+            },
           ],
         },
         {
@@ -328,6 +331,7 @@ export default function UptLayout({
     if (pathname.includes("/upt/tiket")) return "Tiket & Manifes Penumpang";
     if (pathname.includes("/upt/pemeliharaan")) return "Pemeliharaan & Aset";
     if (pathname.includes("/upt/shift")) return "Laporan Sif Harian";
+    if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun & Keamanan Petugas";
     return isPetugasRegistrasiKontrak
       ? "Dashboard Registrasi & Kontrak Mitra"
       : "Ringkasan Operasional Pelabuhan";
@@ -356,12 +360,15 @@ export default function UptLayout({
     if (pathname.includes("/upt/tiket")) return "Tiket & Manifes";
     if (pathname.includes("/upt/pemeliharaan")) return "Pemeliharaan & Aset";
     if (pathname.includes("/upt/shift")) return "Laporan Sif";
+    if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun";
     return isPetugasRegistrasiKontrak ? "Dashboard Registrasi" : "Ringkasan";
   };
 
   const getPageDescription = () => {
     if (pathname.includes("/upt/tugas-saya"))
       return "Pelaksanaan lembar tugas pemeriksaan SOP, surat penugasan aktif, dan pelaporan harian petugas.";
+    if (pathname.includes("/upt/pengaturan"))
+      return "Kelola identitas profil kedinasan, email, username login, serta pembaruan kata sandi akun petugas UPT.";
     if (pathname.includes("/upt/master/kapal"))
       return "Data induk identitas seluruh kapal yang terdaftar di sistem PORTA Kabupaten Mimika.";
     if (pathname.includes("/upt/master/operator"))
@@ -445,7 +452,7 @@ export default function UptLayout({
         }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onOpenAccountSettings={() => setIsAccountModalOpen(true)}
+        onOpenAccountSettings={() => router.push("/upt/pengaturan")}
         onLogout={() => setShowLogoutModal(true)}
       />
 
@@ -627,11 +634,6 @@ export default function UptLayout({
         userName={user?.fullName || "Petugas Operasional UPT"}
         userRole={user?.role || "ADMIN_PELABUHAN"}
         userEmail={user?.email || "upt.pomako@porta.mimikakab.go.id"}
-      />
-
-      <AccountSettingsModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
       />
     </div>
   );

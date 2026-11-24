@@ -37,8 +37,8 @@ Pemerintah Daerah kerap kehilangan potensi Pendapatan Asli Daerah (PAD) dari ret
 | Role | Portal / Aplikasi | Wewenang Utama | Batasan Keamanan |
 | :--- | :--- | :--- | :--- |
 | **DINAS** | `apps/web` (Dashboard Pimpinan) | Read-only analitik PAD, agregat utilisasi pelabuhan, audit kepatuhan | Dilarang mengubah data operasional harian atau membuka data manifes mentah |
-| **UPT** | `apps/web` (Portal Admin UPT) | Persetujuan jadwal sandar, clearance SPB, pencatatan waktu aktual, verifikasi manifes SOLAS | Terikat audit log untuk setiap approval dan penerbitan izin |
-| **KAPAL** | `apps/web` (Portal Operator) | Manajemen armada, pengajuan alokasi dermaga, unggah manifes muatan, bayar retribusi | **Hanya dapat mengakses data kapal miliknya sendiri (`company_id`)** |
+| **UPT** | `apps/web` (Portal Admin UPT) | Persetujuan jadwal sandar, penerbitan & penyerahan manifes resmi ke operator kapal, clearance SPB, pencatatan waktu aktual | Terikat audit log untuk setiap approval, penerbitan manifes, dan penerbitan izin |
+| **KAPAL** | `apps/web` (Portal Operator) | Manajemen armada, pengajuan alokasi dermaga, penerimaan & pemantauan manifes resmi dari UPT, bayar retribusi | **Hanya dapat mengakses data kapal dan manifes miliknya sendiri (`company_id`)** |
 | **PENUMPANG** | `apps/mobile` & Portal Publik | Pembelian tiket penyeberangan, pembayaran retribusi pas pelabuhan, unduh boarding pass QR | Dilarang mengakses data kapal lain atau manifes muatan |
 | **TENANT** | Portal Kios/Lahan | Pemantauan masa kontrak sewa aset dan pembayaran utilitas | Hanya mengakses kontrak aset milik sendiri |
 
@@ -48,8 +48,8 @@ Pemerintah Daerah kerap kehilangan potensi Pendapatan Asli Daerah (PAD) dari ret
 
 > [!IMPORTANT]
 > Entitas `Manifest` diklasifikasikan sebagai data **RESTRICTED_CONFIDENTIAL** (Keselamatan Pelayaran SOLAS):
-> - **Isolasi Row-Level Security (RLS):** Operator Perusahaan Kapal hanya boleh membaca/mengunggah manifes untuk armadanya sendiri (`company_id`).
-> - **Bypass Verifikasi UPT:** Hanya Admin UPT yang berhak memvalidasi manifes untuk penerbitan Surat Persetujuan Berlayar (SPB).
+> - **Otoritas Penerbitan Manifes (SOP UPT):** Petugas Pelabuhan (UPT) mencatat dan menerbitkan manifes resmi penumpang, kendaraan, serta muatan berdasarkan data gate/terminal, lalu menyerahkannya kepada Operator Kapal terkait.
+> - **Isolasi Row-Level Security (RLS):** Operator Perusahaan Kapal hanya boleh membaca/mengunduh manifes yang diterbitkan untuk armadanya sendiri (`company_id`).
 > - **Blokir Akses Publik:** Layanan publik dan penumpang diblokir secara ketat dari traversal query manifes.
 
 ---
@@ -64,18 +64,19 @@ sequenceDiagram
     actor System as Sistem PORTA
     actor KasDaerah as Kas Daerah (RKUD)
 
-    Operator->>System: 1. Ajukan Jadwal Sandar & Upload Manifes
+    Operator->>System: 1. Ajukan Permohonan & Jadwal Sandar
     System-->>UPT: 2. Notifikasi Permohonan Sandar Baru
-    UPT->>System: 3. Verifikasi Manifes SOLAS & Setujui Alokasi
+    UPT->>System: 3. Setujui Alokasi Dermaga & Terbitkan Manifes Resmi ke Operator
+    System-->>Operator: 4. Manifes Resmi Diterima & Clearance SPB Siap
     Note over UPT,System: Kapal tiba di dermaga
-    UPT->>System: 4. Catat Waktu Sandar Aktual (Argo Mulai)
+    UPT->>System: 5. Catat Waktu Sandar Aktual (Argo Mulai)
     Note over UPT,System: Pelayanan bongkar muat selesai
-    UPT->>System: 5. Catat Keberangkatan (Argo Berhenti)
-    System->>System: 6. Hitung Tagihan Otomatis (Tarif PP 35/2023 × Durasi)
-    System->>Operator: 7. Terbitkan Invoice e-SKRD (VA/QRIS)
-    Operator->>KasDaerah: 8. Pembayaran Retribusi
-    KasDaerah-->>System: 9. Webhook Notifikasi Lunas
-    System->>System: 10. Rekonsiliasi Otomatis & Terbitkan Bukti Sah
+    UPT->>System: 6. Catat Keberangkatan (Argo Berhenti)
+    System->>System: 7. Hitung Tagihan Otomatis (Tarif PP 35/2023 × Durasi)
+    System->>Operator: 8. Terbitkan Invoice e-SKRD (VA/QRIS)
+    Operator->>KasDaerah: 9. Pembayaran Retribusi
+    KasDaerah-->>System: 10. Webhook Notifikasi Lunas
+    System->>System: 11. Rekonsiliasi Otomatis & Terbitkan Bukti Sah
 ```
 
 ---

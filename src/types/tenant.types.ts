@@ -157,3 +157,10 @@ export type ReceiptModalData =
   | { type: "LEASE_PAYMENT"; data: LeasePaymentReceiptPayload }
   | { type: "UTILITY"; data: UtilityReceiptPayload };
 
+export interface LeasePaymentTableRow extends AssetLeasePaymentItem {
+  contractNumber: string;
+  assetName: string;
+  tenantName?: string;
+  assetId?: number;
+}
+

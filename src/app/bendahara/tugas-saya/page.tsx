@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ClipboardList,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   RefreshCw,
@@ -20,6 +19,7 @@ import {
 import { API_CONFIG } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
+import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { OfficerTaskItem } from "@/types/upt.types";
 
@@ -62,7 +62,6 @@ export default function BendaharaTugasSayaPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   const [selectedTask, setSelectedTask] = useState<OfficerTaskItem | null>(null);
   const [checklistState, setChecklistState] = useState<
@@ -147,15 +146,16 @@ export default function BendaharaTugasSayaPage() {
 
   const handleStartTask = async (taskId: number) => {
     clearError();
-    setFeedback(null);
     await startOfficerTask(taskId);
-    setFeedback("Tugas dimulai. Silakan lengkapi checklist dan unggah bukti pendukung.");
+    toast.success(
+      "Tugas Dimulai",
+      "Tugas dimulai. Silakan lengkapi checklist dan unggah bukti pendukung."
+    );
   };
 
   const handleSaveChecklist = async () => {
     if (!selectedTask) return;
     clearError();
-    setFeedback(null);
     const items = Object.entries(checklistState).map(([code, val]) => ({
       code,
       checkedByOfficer: val.checked,
@@ -165,13 +165,12 @@ export default function BendaharaTugasSayaPage() {
       items,
       notes: submissionNotes || undefined,
     });
-    setFeedback("Checklist tugas berhasil disimpan.");
+    toast.success("Checklist Tersimpan", "Checklist tugas berhasil disimpan.");
   };
 
   const handleUploadAttachment = async () => {
     if (!selectedTask || !attachmentFile) return;
     clearError();
-    setFeedback(null);
     await uploadOfficerTaskAttachment(
       selectedTask.id,
       attachmentFile,
@@ -179,13 +178,12 @@ export default function BendaharaTugasSayaPage() {
     );
     setAttachmentFile(null);
     setAttachmentNotes("");
-    setFeedback("Lampiran bukti tugas berhasil diunggah.");
+    toast.success("Lampiran Diunggah", "Lampiran bukti tugas berhasil diunggah.");
   };
 
   const handleSubmitTask = async () => {
     if (!selectedTask) return;
     clearError();
-    setFeedback(null);
     const checklistItems = Object.entries(checklistState).map(([code, val]) => ({
       code,
       checkedByOfficer: val.checked,
@@ -196,14 +194,16 @@ export default function BendaharaTugasSayaPage() {
       checklistItems,
     });
     setSelectedTask(null);
-    setFeedback("Lembar tugas berhasil dikirim untuk verifikasi pimpinan.");
+    toast.success(
+      "Tugas Dikirim",
+      "Lembar tugas berhasil dikirim untuk verifikasi pimpinan."
+    );
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskType || !newTaskTitle.trim()) return;
     clearError();
-    setFeedback(null);
     await createOfficerTask({
       taskType: newTaskType,
       title: newTaskTitle.trim(),
@@ -217,7 +217,7 @@ export default function BendaharaTugasSayaPage() {
     setIsCreateModalOpen(false);
     setNewTaskTitle("");
     setNewTaskDescription("");
-    setFeedback("Lembar tugas baru berhasil diterbitkan.");
+    toast.success("Tugas Diterbitkan", "Lembar tugas baru berhasil diterbitkan.");
   };
 
   return (
@@ -233,22 +233,6 @@ export default function BendaharaTugasSayaPage() {
             type="button"
             onClick={clearError}
             className="text-rose-600 hover:text-rose-800 font-bold"
-          >
-            Tutup
-          </button>
-        </div>
-      )}
-
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{feedback}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold"
           >
             Tutup
           </button>
