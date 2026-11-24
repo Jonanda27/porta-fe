@@ -26,6 +26,7 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useKapalStore } from "@/store/kapal.store";
 import { AuthService } from "@/services/auth.service";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 
 export default function KapalLayout({
   children,
@@ -558,6 +559,13 @@ export default function KapalLayout({
           {children}
         </main>
       </div>
+
+      <AccountSettingsModal
+        isOpen={Boolean(user?.mustChangePassword)}
+        onClose={() => {}}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }

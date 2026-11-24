@@ -33,9 +33,28 @@ export interface ShipOperatorItem {
   createdAt: string;
 }
 
-export interface VesselItem {
+export type VesselRelationshipType = "OWNER" | "AGENT" | "CHARTERER";
+
+export interface OperatorVesselLinkItem {
   id: number;
   operatorId: number;
+  vesselId: number;
+  relationshipType: VesselRelationshipType;
+  verificationStatus: VerificationStatus | "SUSPENDED";
+  rejectionReason?: string | null;
+  authorizationDocPath?: string | null;
+  isActive: boolean;
+  operator?: {
+    id: number;
+    name: string;
+    operatorProfile?: "REGULAR_SCHEDULED" | "INCIDENTAL";
+    verificationStatus?: VerificationStatus;
+  };
+}
+
+export interface VesselItem {
+  id: number;
+  operatorId?: number | null;
   registrationNumber: string;
   imoNumber?: string | null;
   name: string;
@@ -49,7 +68,8 @@ export interface VesselItem {
   verificationStatus: VerificationStatus;
   rejectionReason?: string | null;
   isActive: boolean;
-  operator?: { id: number; name: string };
+  operator?: { id: number; name: string } | null;
+  operatorLinks?: OperatorVesselLinkItem[];
   documents?: DocumentItem[];
   createdAt: string;
 }

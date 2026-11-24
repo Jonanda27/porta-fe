@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  ClaimVesselPayload,
   CreateVesselPayload,
   CreateVisitPayload,
   OperatorDocument,
@@ -27,6 +28,12 @@ interface KapalState {
   fetchVisitDetail: (visitId: number) => Promise<VesselVisit>;
   createVisitRequest: (payload: CreateVisitPayload) => Promise<VesselVisit>;
   createVessel: (payload: CreateVesselPayload) => Promise<Vessel>;
+  claimVessel: (
+    operatorId: number,
+    vesselId: number,
+    payload: ClaimVesselPayload
+  ) => Promise<void>;
+  unlinkVessel: (operatorId: number, vesselId: number) => Promise<void>;
   uploadVesselDocument: (
     vesselId: number,
     payload: UploadDocumentPayload,
@@ -151,6 +158,46 @@ export const useKapalStore = create<KapalState>((set, get) => ({
           : err instanceof Error
           ? err.message
           : "Gagal mendaftarkan armada kapal baru.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  claimVessel: async (
+    operatorId: number,
+    vesselId: number,
+    payload: ClaimVesselPayload
+  ): Promise<void> => {
+    set({ isLoading: true, error: null });
+    try {
+      await KapalService.claimVessel(operatorId, vesselId, payload);
+      await get().fetchVessels();
+      set({ isLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal mengklaim kapal ke armada Anda.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  unlinkVessel: async (operatorId: number, vesselId: number): Promise<void> => {
+    set({ isLoading: true, error: null });
+    try {
+      await KapalService.unlinkVessel(operatorId, vesselId);
+      await get().fetchVessels();
+      set({ isLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal melepas kapal dari armada Anda.";
       set({ isLoading: false, error: message });
       throw err;
     }

@@ -65,11 +65,13 @@ export class AuthService {
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEYS.TOKEN, res.accessToken);
       const stored = this.getStoredUser();
-      if (stored) {
-        localStorage.setItem(
-          STORAGE_KEYS.USER,
-          JSON.stringify({ ...stored, mustChangePassword: false })
-        );
+      const nextUser = res.user
+        ? { ...stored, ...res.user, mustChangePassword: false }
+        : stored
+        ? { ...stored, mustChangePassword: false }
+        : null;
+      if (nextUser) {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(nextUser));
       }
     }
     return res;
@@ -127,7 +129,10 @@ export class AuthService {
    */
   public static getRedirectRouteByRole(role?: UserRole | string): string {
     switch (role) {
+      case "KEPALA_DINAS":
       case "DISHUB_EKSEKUTIF":
+      case "KEPALA_BIDANG":
+      case "KEPALA_UPTD":
         return "/dinas/dashboard";
 
       case "OPERATOR_KAPAL":
@@ -140,10 +145,22 @@ export class AuthService {
         return "/upt/pelabuhan";
 
       case "ADMIN_PELABUHAN":
+        return "/upt/checker/tugas";
+
+      case "KEPALA_PELABUHAN":
       case "BENDAHARA":
+      case "PETUGAS_TAGIHAN":
         return "/upt/dashboard";
 
+      case "PETUGAS_REGISTRASI_KONTRAK":
+        return "/upt/verifikasi";
+
+      case "PETUGAS_RUANGAN":
+        return "/upt/pemeliharaan";
+
       case "PETUGAS_DERMAGA":
+      case "PETUGAS_DERMAGA_BARANG":
+      case "PETUGAS_DERMAGA_PENUMPANG":
         return "/upt/kapal";
 
       default:

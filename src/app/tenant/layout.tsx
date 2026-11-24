@@ -355,8 +355,10 @@ export default function TenantLayout({
       </div>
 
       <AccountSettingsModal
-        isOpen={isAccountModalOpen}
+        isOpen={isAccountModalOpen || Boolean(user?.mustChangePassword)}
         onClose={() => setIsAccountModalOpen(false)}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleLogout}
       />
     </div>
   );

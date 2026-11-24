@@ -72,7 +72,9 @@ export const UptService = {
   },
 
   createVessel(payload: {
-    operatorId: number;
+    operatorId?: number;
+    relationshipType?: "OWNER" | "AGENT" | "CHARTERER";
+    confirmNotDuplicate?: boolean;
     registrationNumber: string;
     imoNumber?: string;
     name: string;
@@ -114,6 +116,23 @@ export const UptService = {
     return apiClient.post<VesselItem>(
       `${API_CONFIG.ENDPOINTS.VESSELS.LIST}/${vesselId}/verify`,
       payload
+    );
+  },
+
+  verifyVesselClaim(
+    operatorId: number,
+    vesselId: number,
+    payload: VerifyEntityPayload
+  ): Promise<unknown> {
+    return apiClient.patch<unknown>(
+      `${API_CONFIG.ENDPOINTS.VESSELS.OPERATORS_BASE}/${operatorId}/vessels/${vesselId}/verify`,
+      payload
+    );
+  },
+
+  mergeDuplicateVessel(sourceVesselId: number, targetVesselId: number): Promise<unknown> {
+    return apiClient.post<unknown>(
+      `${API_CONFIG.ENDPOINTS.VESSELS.LIST}/${sourceVesselId}/merge-into/${targetVesselId}`
     );
   },
 

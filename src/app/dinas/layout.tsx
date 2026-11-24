@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
+import { AuthService } from "@/services/auth.service";
+import { useAuthStore } from "@/store/auth.store";
+import { UserRole } from "@/types/auth.types";
 import {
   Landmark,
   Receipt,
@@ -23,13 +27,35 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+const ALLOWED_DINAS_ROLES: UserRole[] = [
+  "SUPERADMIN",
+  "KEPALA_DINAS",
+  "DISHUB_EKSEKUTIF",
+  "KEPALA_BIDANG",
+  "KEPALA_UPTD",
+];
+
 export default function DinasLayout({
   children,
 }: {
-  children: any;
+  children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, initialize: initAuth, logout: storeLogout } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+    const storedUser = AuthService.getStoredUser();
+    const token = AuthService.getStoredToken();
+    if (!token || !storedUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!ALLOWED_DINAS_ROLES.includes(storedUser.role)) {
+      router.replace(AuthService.getRedirectRouteByRole(storedUser.role));
+    }
+  }, [initAuth, router]);
 
   // Collapsible Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -40,7 +66,9 @@ export default function DinasLayout({
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const handleLogout = () => {
-    router.push("/");
+    AuthService.logout();
+    storeLogout();
+    router.push("/login");
   };
 
   // Determine Active Header Title & Breadcrumb based on URL
@@ -585,6 +613,13 @@ export default function DinasLayout({
           {children}
         </main>
       </div>
+
+      <AccountSettingsModal
+        isOpen={Boolean(user?.mustChangePassword)}
+        onClose={() => {}}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }

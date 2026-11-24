@@ -2,19 +2,28 @@ import { create } from "zustand";
 import { UserService } from "@/services/user.service";
 import {
   CreateUserPayload,
+  RbacRoleMatrixItem,
   ResetUserPasswordPayload,
   UpdateUserPayload,
   UserAccountItem,
+  UserMutationResponse,
 } from "@/types/user.types";
+import { UserRole } from "@/types/auth.types";
 
 interface UserState {
   users: UserAccountItem[];
+  rbacRoles: RbacRoleMatrixItem[];
   isLoading: boolean;
+  isLoadingRbac: boolean;
   isSubmitting: boolean;
   error: string | null;
 
   fetchUsers: (portId?: number) => Promise<void>;
-  createUser: (payload: CreateUserPayload, activePortFilter?: number) => Promise<void>;
+  fetchRbacRoles: () => Promise<void>;
+  createUser: (
+    payload: CreateUserPayload,
+    activePortFilter?: number
+  ) => Promise<UserMutationResponse>;
   updateUser: (
     userId: number,
     payload: UpdateUserPayload,
@@ -24,13 +33,16 @@ interface UserState {
   resetUserPassword: (
     userId: number,
     payload: ResetUserPasswordPayload
-  ) => Promise<void>;
+  ) => Promise<UserMutationResponse>;
+  updateRolePermissions: (role: UserRole, permissionCodes: string[]) => Promise<void>;
   clearError: () => void;
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
   users: [],
+  rbacRoles: [],
   isLoading: false,
+  isLoadingRbac: false,
   isSubmitting: false,
   error: null,
 
@@ -46,12 +58,25 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
+  fetchRbacRoles: async () => {
+    set({ isLoadingRbac: true, error: null });
+    try {
+      const rbacRoles = await UserService.getRbacRoles();
+      set({ rbacRoles, isLoadingRbac: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat katalog RBAC role.";
+      set({ error: message, isLoadingRbac: false });
+    }
+  },
+
   createUser: async (payload: CreateUserPayload, activePortFilter?: number) => {
     set({ isSubmitting: true, error: null });
     try {
-      await UserService.createUser(payload);
+      const created = await UserService.createUser(payload);
       await get().fetchUsers(activePortFilter);
       set({ isSubmitting: false });
+      return created;
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal membuat akun pengguna.";
@@ -106,9 +131,24 @@ export const useUserStore = create<UserState>((set, get) => ({
         ),
         isSubmitting: false,
       }));
+      return updated;
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal mereset kata sandi pengguna.";
+      set({ error: message, isSubmitting: false });
+      throw err;
+    }
+  },
+
+  updateRolePermissions: async (role: UserRole, permissionCodes: string[]) => {
+    set({ isSubmitting: true, error: null });
+    try {
+      await UserService.updateRolePermissions(role, permissionCodes);
+      await get().fetchRbacRoles();
+      set({ isSubmitting: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal menyimpan hak akses role.";
       set({ error: message, isSubmitting: false });
       throw err;
     }

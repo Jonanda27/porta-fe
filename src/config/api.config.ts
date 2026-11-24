@@ -34,7 +34,9 @@ export const API_CONFIG = {
     },
     VESSELS: {
       LIST: "/vessels",
+      CATALOG: "/vessels/catalog",
       OPERATORS: "/vessels/operators",
+      OPERATORS_BASE: "/operators",
       VISITS: "/visits",
     },
     BILLING: {
@@ -74,9 +76,16 @@ export const API_CONFIG = {
     },
     DAILY_REPORTS: {
       BASE: "/daily-reports",
+      OBLIGATIONS: "/daily-reports/obligations",
+    },
+    TASK_REVIEWS: {
+      ADMIN_DASHBOARD: "/task-reviews/admin/dashboard",
+      ADMIN_BASE: "/task-reviews/admin",
+      HEAD_QUEUE: "/task-reviews/head/queue",
     },
     USERS: {
       BASE: "/users",
+      RBAC_ROLES: "/users/rbac/roles",
     },
     PORTS: {
       BASE: "/ports",

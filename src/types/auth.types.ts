@@ -1,15 +1,25 @@
 /**
  * Definisi Tipe & Kontrak Data untuk Autentikasi PORTA
+ * Selaras dengan enum UserRole di porta-be (prisma/schema.prisma)
  */
 
 export type UserRole =
   | "SUPERADMIN"
+  | "KEPALA_DINAS"
+  | "DISHUB_EKSEKUTIF"
+  | "KEPALA_BIDANG"
+  | "KEPALA_UPTD"
+  | "KEPALA_PELABUHAN"
   | "ADMIN_PELABUHAN"
+  | "PETUGAS_REGISTRASI_KONTRAK"
+  | "PETUGAS_DERMAGA_BARANG"
+  | "PETUGAS_DERMAGA_PENUMPANG"
+  | "PETUGAS_RUANGAN"
+  | "PETUGAS_TAGIHAN"
   | "PETUGAS_DERMAGA"
   | "BENDAHARA"
   | "OPERATOR_KAPAL"
-  | "TENANT"
-  | "DISHUB_EKSEKUTIF";
+  | "TENANT";
 
 export interface LoginCredentials {
   identifier?: string;
@@ -29,6 +39,7 @@ export interface AuthUser {
   tenantId?: number | null;
   tenantVerificationStatus?: string | null;
   mustChangePassword?: boolean;
+  effectivePermissions?: string[];
 }
 
 export interface LoginResponse {
@@ -51,4 +62,5 @@ export interface ChangeMyPasswordPayload {
 export interface ChangeMyPasswordResponse {
   message: string;
   accessToken: string;
+  user?: AuthUser;
 }

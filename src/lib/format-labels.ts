@@ -4,14 +4,30 @@
  */
 
 const LABEL_DICTIONARY: Record<string, string> = {
-  // Peran Pengguna (Roles)
+  // Peran Pengguna (Roles — 16 Role Resmi PORTA)
   SUPERADMIN: "Superadmin",
+  KEPALA_DINAS: "Kepala Dinas",
+  DISHUB_EKSEKUTIF: "Pimpinan Dishub",
+  KEPALA_BIDANG: "Kepala Bidang",
+  KEPALA_UPTD: "Kepala UPTD",
+  KEPALA_PELABUHAN: "Kepala Pelabuhan",
   ADMIN_PELABUHAN: "Admin Pelabuhan",
-  PETUGAS_DERMAGA: "Petugas Dermaga",
+  PETUGAS_REGISTRASI_KONTRAK: "Petugas Registrasi & Kontrak",
+  PETUGAS_DERMAGA_BARANG: "Petugas Dermaga Barang",
+  PETUGAS_DERMAGA_PENUMPANG: "Petugas Dermaga Penumpang",
+  PETUGAS_RUANGAN: "Petugas Ruangan & Aset",
+  PETUGAS_TAGIHAN: "Petugas Tagihan",
+  PETUGAS_DERMAGA: "Petugas Dermaga (Umum)",
   BENDAHARA: "Bendahara",
   OPERATOR_KAPAL: "Operator Kapal",
   TENANT: "Penyewa (Tenant)",
-  DISHUB_EKSEKUTIF: "Pimpinan Dishub",
+
+  // Relasi Kapal & Operator (Many-to-Many)
+  OWNER: "Pemilik Kapal",
+  AGENT: "Agen Pelayaran",
+  CHARTERER: "Penyewa (Charterer)",
+  SUSPENDED: "Ditangguhkan",
+  PENDING_HEAD_OF_PORT: "Menunggu ACC Kepala Pelabuhan",
 
   // Kategori Pelabuhan & Dermaga
   BARANG: "Barang",
@@ -116,8 +132,22 @@ const LABEL_DICTIONARY: Record<string, string> = {
   REPORTED: "Dilaporkan",
   IN_PROGRESS: "Dikerjakan",
   RESOLVED: "Selesai",
-  SUBMITTED: "Menunggu Sahkan",
+  SUBMITTED: "Menunggu Dicek",
   ACKNOWLEDGED: "Disahkan",
+  ADMIN_CHECKED: "Sudah Dicek Admin",
+  HEAD_VERIFIED: "Disahkan Kepala Pelabuhan",
+  RETURNED: "Dikembalikan",
+  NOT_STARTED: "Belum Dikerjakan",
+  OVERDUE: "Terlambat",
+  WAITING_ADMIN: "Menunggu Cek Admin",
+  ADMIN_REVIEW: "Sedang Dicek Admin",
+  ADMIN_RETURNED: "Dikembalikan Admin",
+  ADMIN_APPROVED: "Diteruskan Admin",
+  WAITING_HEAD_VERIFICATION: "Menunggu Kepala Pelabuhan",
+  HEAD_RETURNED: "Dikembalikan Kepala",
+  NO_OBLIGATION: "Tidak Ada Kewajiban",
+  OBLIGATION_NOT_STARTED: "Belum Mulai",
+  INCOMPLETE_RETURNED: "Perlu Revisi",
   TEGURAN_1: "Teguran 1",
   TEGURAN_2: "Teguran 2",
   TEGURAN_3: "Teguran 3",
