@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import {
   Receipt,
   Calendar,
@@ -26,6 +27,8 @@ import {
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
 import { AppSidebar, SidebarNavGroup } from "@/components/layout/AppSidebar";
 import { useAuthStore } from "@/store/auth.store";
+import { AuthService } from "@/services/auth.service";
+import { UserRole } from "@/types/auth.types";
 import { useNotificationStore } from "@/store/notification.store";
 import { PortService } from "@/services/port.service";
 import { PortItem } from "@/types/port.types";
@@ -113,6 +116,14 @@ function DinasHeaderFilters({
   );
 }
 
+const ALLOWED_DINAS_ROLES: UserRole[] = [
+  "SUPERADMIN",
+  "KEPALA_DINAS",
+  "DISHUB_EKSEKUTIF",
+  "KEPALA_BIDANG",
+  "KEPALA_UPTD",
+];
+
 export default function DinasLayout({
   children,
 }: {
@@ -120,6 +131,21 @@ export default function DinasLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, initialize: initAuth, logout } = useAuthStore();
+  const storeLogout = logout;
+
+  useEffect(() => {
+    initAuth();
+    const storedUser = AuthService.getStoredUser();
+    const token = AuthService.getStoredToken();
+    if (!token || !storedUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!ALLOWED_DINAS_ROLES.includes(storedUser.role)) {
+      router.replace(AuthService.getRedirectRouteByRole(storedUser.role));
+    }
+  }, [initAuth, router]);
 
   // Collapsible Sidebar State (Desktop) & Drawer State (Mobile/Tablet)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -135,7 +161,6 @@ export default function DinasLayout({
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
 
-  const { user, logout } = useAuthStore();
   const {
     notifications,
     unreadCount,
@@ -518,6 +543,13 @@ export default function DinasLayout({
         userName={user?.fullName || "Kepala Dinas Perhubungan"}
         userRole="DISHUB EKSEKUTIF"
         userEmail={user?.email || "kadis.dishub@porta.mimikakab.go.id"}
+      />
+
+      <AccountSettingsModal
+        isOpen={Boolean(user?.mustChangePassword)}
+        onClose={() => {}}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleConfirmLogout}
       />
     </div>
   );

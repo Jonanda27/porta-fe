@@ -34,6 +34,7 @@ import { useKapalStore } from "@/store/kapal.store";
 import { usePortStore } from "@/store/port.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { AuthService } from "@/services/auth.service";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 
 export default function KapalLayout({
   children,
@@ -611,6 +612,13 @@ export default function KapalLayout({
         userName={operatorName}
         userRole={user?.role || "OPERATOR_KAPAL"}
         userEmail={user?.email || "operator@pelayaran.co.id"}
+      />
+
+      <AccountSettingsModal
+        isOpen={Boolean(user?.mustChangePassword)}
+        onClose={() => {}}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleConfirmLogout}
       />
     </div>
   );

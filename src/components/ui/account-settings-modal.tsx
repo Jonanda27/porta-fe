@@ -16,10 +16,18 @@ import { toast } from "@/store/toast.store";
 interface AccountSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  forcePasswordChange?: boolean;
+  onLogout?: () => void;
 }
 
-export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalProps) {
+export function AccountSettingsModal({
+  isOpen,
+  onClose,
+  forcePasswordChange = false,
+  onLogout,
+}: AccountSettingsModalProps) {
   const { user, initialize } = useAuthStore();
+  const isMandatory = Boolean(forcePasswordChange || user?.mustChangePassword);
 
   const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
   const [fullName, setFullName] = useState("");
@@ -44,11 +52,11 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
       setNewPassword("");
       setConfirmPassword("");
       setErrorMsg(null);
-      if (user.mustChangePassword) {
+      if (user.mustChangePassword || forcePasswordChange) {
         setActiveTab("password");
       }
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, forcePasswordChange]);
 
   if (!isOpen || !user) return null;
 
@@ -83,6 +91,10 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
 
     if (newPassword.length < 6) {
       setErrorMsg("Kata sandi baru minimal 6 karakter.");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setErrorMsg("Kata sandi baru tidak boleh sama dengan kata sandi sementara saat ini.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -125,31 +137,35 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {!isMandatory && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
         <div className="px-6 pt-4 flex gap-2 border-b border-[#F1F5F9]">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("profile");
-              setErrorMsg(null);
-            }}
-            className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === "profile"
-                ? "border-[#0B241E] text-[#0B241E]"
-                : "border-transparent text-[#64748B] hover:text-[#1E293B]"
-            }`}
-          >
-            Email & Username
-          </button>
+          {!isMandatory && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("profile");
+                setErrorMsg(null);
+              }}
+              className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                activeTab === "profile"
+                  ? "border-[#0B241E] text-[#0B241E]"
+                  : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+              }`}
+            >
+              Email &amp; Username
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -168,10 +184,15 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
         </div>
 
         <div className="p-6 space-y-4">
-          {user.mustChangePassword && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>Demi keamanan, silakan ubah kata sandi bawaan Anda sekarang.</span>
+          {isMandatory && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+              <div>
+                <p className="font-extrabold">Wajib Ganti Kata Sandi (Login Pertama)</p>
+                <p className="font-medium text-amber-800 mt-0.5">
+                  Akun Anda menggunakan kata sandi sementara dari Admin. Anda wajib menggantinya sebelum dapat mengakses fitur PORTA.
+                </p>
+              </div>
             </div>
           )}
 
@@ -240,13 +261,25 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               )}
 
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-                >
-                  Tutup
-                </button>
+                {isMandatory ? (
+                  onLogout && (
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="px-4 py-2 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-50 cursor-pointer"
+                    >
+                      Keluar (Logout)
+                    </button>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -301,13 +334,25 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
-                >
-                  Tutup
-                </button>
+                {isMandatory ? (
+                  onLogout && (
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="px-4 py-2 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-50 cursor-pointer"
+                    >
+                      Keluar (Logout)
+                    </button>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={isSubmitting}

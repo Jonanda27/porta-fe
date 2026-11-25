@@ -21,6 +21,7 @@ import { UptService } from "@/services/upt.service";
 import { PortAssetCatalogItem } from "@/types/tenant.types";
 import { formatLabel } from "@/lib/format-labels";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { StatusDot } from "@/components/ui/status-indicator";
 
 export default function MasterAsetPage() {
   const { user } = useAuthStore();
@@ -265,101 +266,82 @@ export default function MasterAsetPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-[#F8FAFC]">
-                <th className="py-3.5 px-5">Aset & Fasilitas</th>
-                <th className="py-3.5 px-4">Tipe & Luas Area</th>
-                <th className="py-3.5 px-4">Tarif Sewa Tahunan</th>
-                <th className="py-3.5 px-4">Retribusi & Dasar Hukum</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-5 text-right">Aksi</th>
+              <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/50">
+                <th className="py-3 px-5">Aset & Fasilitas</th>
+                <th className="py-3 px-4 hidden sm:table-cell">Tipe & Luas</th>
+                <th className="py-3 px-4 hidden md:table-cell">Tarif Sewa</th>
+                <th className="py-3 px-4 hidden lg:table-cell">Retribusi</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-5 text-right w-24">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F1F5F9] text-xs">
+            <tbody className="divide-y divide-slate-100 text-xs">
               {paginatedAssets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[#94A3B8]">
-                    <Warehouse className="w-8 h-8 mx-auto mb-2 text-[#CBD5E1]" />
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <Warehouse className="w-7 h-7 mx-auto mb-2 text-slate-300" />
                     <p className="font-medium">Tidak ada data aset yang sesuai.</p>
                   </td>
                 </tr>
               ) : (
                 paginatedAssets.map((ast) => (
-                  <tr key={ast.id} className="hover:bg-[#F8FAFC] transition-colors">
-                    <td className="py-4 px-5">
-                      <div className="font-bold text-[#0B241E] text-sm flex items-center gap-2">
-                        <Warehouse className="w-4 h-4 text-[#133D31] shrink-0" />
-                        {ast.name}
-                      </div>
-                      <div className="font-mono text-[11px] text-[#64748B] mt-0.5">
-                        Kode: {ast.assetCode}
+                  <tr key={ast.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-5">
+                      <div className="font-semibold text-slate-900">{ast.name}</div>
+                      <div className="font-mono text-[11px] text-slate-400 mt-0.5">
+                        {ast.assetCode}
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      <span className="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {formatLabel(ast.assetType)}
-                      </span>
-                      <div className="text-[11px] text-[#64748B] mt-1 font-medium">
-                        Luas: {Number(ast.areaSqm).toLocaleString("id-ID")} m²
+                    <td className="py-3.5 px-4 hidden sm:table-cell">
+                      <div className="font-medium text-slate-800">{formatLabel(ast.assetType)}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {Number(ast.areaSqm).toLocaleString("id-ID")} m²
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="font-bold text-[#0B241E]">
+                    <td className="py-3.5 px-4 hidden md:table-cell">
+                      <div className="font-medium text-slate-900">
                         Rp {Number(ast.annualRatePerSqmIdr).toLocaleString("id-ID")} / m²
                       </div>
-                      <div className="text-[11px] text-[#64748B] mt-0.5">
-                        Total ~ Rp{" "}
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        ~ Rp{" "}
                         {(
                           Number(ast.areaSqm) * Number(ast.annualRatePerSqmIdr)
                         ).toLocaleString("id-ID")}{" "}
                         / thn
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-md text-[10px] font-semibold border ${
-                          ast.billingEligibility === "BILLABLE"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-slate-100 text-slate-600 border-slate-200"
-                        }`}
-                      >
+                    <td className="py-3.5 px-4 hidden lg:table-cell">
+                      <div className="font-medium text-slate-800">
                         {formatLabel(ast.billingEligibility)}
-                      </span>
-                      <div className="text-[11px] text-[#64748B] mt-1 truncate max-w-xs">
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">
                         {ast.legalBasis || "Perda Kab. Mimika No. 4/2023"}
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                          ast.status === "AVAILABLE"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : ast.status === "LEASED"
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : "bg-amber-50 text-amber-800 border-amber-200"
-                        }`}
-                      >
-                        {formatLabel(ast.status)}
-                      </span>
+                    <td className="py-3.5 px-4">
+                      <StatusDot status={ast.status} />
                     </td>
-                    <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAsset(ast)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-semibold text-[#1E293B] inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-[#133D31]" />
-                        Detail
-                      </button>
-                      {isSuperadmin && (
+                    <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-0.5">
                         <button
                           type="button"
-                          onClick={() => openEditModal(ast)}
-                          className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-semibold text-[#1E293B] inline-flex items-center gap-1 cursor-pointer"
+                          onClick={() => setSelectedAsset(ast)}
+                          title="Lihat Detail Aset"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
-                          <Edit3 className="w-3.5 h-3.5 text-[#D97706]" />
-                          Ubah
+                          <Eye className="w-4 h-4" />
                         </button>
-                      )}
+                        {isSuperadmin && (
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(ast)}
+                            title="Ubah Aset"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

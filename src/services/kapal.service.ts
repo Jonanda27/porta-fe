@@ -1,6 +1,7 @@
 import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
+  ClaimVesselPayload,
   CreateBerthingContractPayload,
   CreateVesselPayload,
   CreateVisitPayload,
@@ -78,6 +79,17 @@ export class KapalService {
   }
 
   /**
+   * Mencari kapal di Katalog Master Kapal Global PORTA (Search-First sebelum daftar baru)
+   */
+  public static async searchVesselCatalog(query?: string): Promise<Vessel[]> {
+    const response = await apiClient.get<Vessel[]>(
+      API_CONFIG.ENDPOINTS.VESSELS.CATALOG,
+      query ? { params: { q: query } } : undefined
+    );
+    return Array.isArray(response) ? response : [];
+  }
+
+  /**
    * Mendaftarkan armada kapal baru milik operator ke Backend
    * Menggunakan endpoint khusus operator: POST /operators/:id/vessels
    */
@@ -105,6 +117,29 @@ export class KapalService {
     return apiClient.patch<Vessel>(
       `${API_CONFIG.ENDPOINTS.VESSELS.LIST}/${vesselId}`,
       payload
+    );
+  }
+
+  /**
+   * Mengklaim kapal yang sudah terdaftar di Katalog Global ke armada perusahaan (OWNER / AGENT / CHARTERER)
+   */
+  public static async claimVessel(
+    operatorId: number,
+    vesselId: number,
+    payload: ClaimVesselPayload
+  ): Promise<unknown> {
+    return apiClient.post<unknown>(
+      `${API_CONFIG.ENDPOINTS.VESSELS.OPERATORS_BASE}/${operatorId}/vessels/${vesselId}/claim`,
+      payload
+    );
+  }
+
+  /**
+   * Melepas ikatan kapal dari armada perusahaan (tanpa menghapus master kapal global)
+   */
+  public static async unlinkVessel(operatorId: number, vesselId: number): Promise<unknown> {
+    return apiClient.delete<unknown>(
+      `${API_CONFIG.ENDPOINTS.VESSELS.OPERATORS_BASE}/${operatorId}/vessels/${vesselId}`
     );
   }
 

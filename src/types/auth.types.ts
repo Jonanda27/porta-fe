@@ -1,11 +1,16 @@
 /**
  * Definisi Tipe & Kontrak Data untuk Autentikasi PORTA
+ * Selaras dengan enum UserRole di porta-be (prisma/schema.prisma)
  */
 
 export type UserRole =
   | "SUPERADMIN"
-  | "ADMIN_PELABUHAN"
+  | "KEPALA_DINAS"
+  | "DISHUB_EKSEKUTIF"
+  | "KEPALA_BIDANG"
+  | "KEPALA_UPTD"
   | "KEPALA_PELABUHAN"
+  | "ADMIN_PELABUHAN"
   | "PETUGAS_PELABUHAN"
   | "PETUGAS_REGISTRASI_KONTRAK"
   | "PETUGAS_DERMAGA"
@@ -15,10 +20,7 @@ export type UserRole =
   | "PETUGAS_TAGIHAN"
   | "BENDAHARA"
   | "OPERATOR_KAPAL"
-  | "TENANT"
-  | "KEPALA_DINAS"
-  | "KEPALA_BIDANG"
-  | "DISHUB_EKSEKUTIF";
+  | "TENANT";
 
 export type OperatorProfile = "REGULAR_SCHEDULED" | "INCIDENTAL";
 
@@ -40,6 +42,7 @@ export interface AuthUser {
   tenantId?: number | null;
   tenantVerificationStatus?: string | null;
   mustChangePassword?: boolean;
+  effectivePermissions?: string[];
 }
 
 export interface LoginResponse {
@@ -94,6 +97,7 @@ export interface ChangeMyPasswordPayload {
 export interface ChangeMyPasswordResponse {
   message: string;
   accessToken: string;
+  user?: AuthUser;
 }
 
 export type LandingUserRoleType = "dinas" | "upt" | "kapal" | "penumpang" | "tenant";

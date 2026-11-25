@@ -53,9 +53,27 @@ export interface UpdateOperatorPayload {
   operatorProfile?: "REGULAR_SCHEDULED" | "INCIDENTAL";
 }
 
-export interface Vessel {
+export type VesselRelationshipType = "OWNER" | "AGENT" | "CHARTERER";
+
+export interface OperatorVesselLink {
   id: number;
   operatorId: number;
+  vesselId: number;
+  relationshipType: VesselRelationshipType;
+  verificationStatus: "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
+  rejectionReason?: string | null;
+  isActive: boolean;
+  operator?: {
+    id: number;
+    name: string;
+    operatorProfile?: "REGULAR_SCHEDULED" | "INCIDENTAL";
+    verificationStatus?: string;
+  };
+}
+
+export interface Vessel {
+  id: number;
+  operatorId?: number | null;
   registrationNumber: string;
   imoNumber?: string | null;
   name: string;
@@ -70,8 +88,29 @@ export interface Vessel {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  operator?: ShipOperator;
+  operator?: ShipOperator | null;
+  operatorLinks?: OperatorVesselLink[];
   documents?: OperatorDocument[];
+}
+
+export interface VesselConflictErrorDetails {
+  code?: "DUPLICATE_VESSEL_IDENTITY" | "POSSIBLE_DUPLICATE_VESSEL";
+  message?: string;
+  existingVessel?: {
+    id: number;
+    name: string;
+    registrationNumber: string;
+    imoNumber?: string | null;
+    grossTonnage?: number | string;
+  };
+  similarVessels?: Array<{
+    id: number;
+    name: string;
+    registrationNumber: string;
+    imoNumber?: string | null;
+    grossTonnage?: number | string;
+    similarity?: number;
+  }>;
 }
 
 export interface BerthingRecord {
@@ -188,7 +227,9 @@ export interface DockRequest {
 }
 
 export interface CreateVesselPayload {
-  operatorId: number | string;
+  operatorId?: number | string;
+  relationshipType?: VesselRelationshipType;
+  confirmNotDuplicate?: boolean;
   registrationNumber: string;
   imoNumber?: string;
   name: string;
@@ -212,6 +253,11 @@ export interface UpdateVesselPayload {
   shippingCategory?: "LUAR_NEGERI" | "DALAM_NEGERI" | "PELRA_PERINTIS";
   lengthMeters?: number;
   draftMeters?: number;
+}
+
+export interface ClaimVesselPayload {
+  relationshipType?: VesselRelationshipType;
+  notes?: string;
 }
 
 export interface UploadDocumentPayload {

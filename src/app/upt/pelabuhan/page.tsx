@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Anchor,
   Plus,
@@ -11,14 +11,13 @@ import {
   ShieldAlert,
   RefreshCw,
   X,
-  Building2,
-  Layers,
   Search,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
 import { toast } from "@/store/toast.store";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { StatusDot } from "@/components/ui/status-indicator";
 import { formatLabel } from "@/lib/format-labels";
 import {
   AuthorityType,
@@ -30,24 +29,6 @@ import {
   PortCategory,
   PortItem,
 } from "@/types/port.types";
-
-const BERTH_STATUS_BADGE: Record<BerthOperationalStatus, string> = {
-  OPEN: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  CLOSED: "bg-rose-50 text-rose-700 border-rose-200",
-  MAINTENANCE: "bg-amber-50 text-amber-800 border-amber-200",
-};
-
-const BILLING_ELIGIBILITY_BADGE: Record<BillingEligibility, string> = {
-  BILLABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  NOT_BILLABLE: "bg-slate-100 text-slate-600 border-slate-200",
-  PENDING_VERIFICATION: "bg-amber-50 text-amber-700 border-amber-200",
-};
-
-const SERVICE_CATEGORY_BADGE: Record<BerthServiceCategory, string> = {
-  DERMAGA_BARANG: "bg-blue-50 text-blue-700 border-blue-200",
-  DERMAGA_PENUMPANG: "bg-purple-50 text-purple-700 border-purple-200",
-  DERMAGA_CAMPURAN: "bg-teal-50 text-teal-700 border-teal-200",
-};
 
 export default function PelabuhanPage() {
   const { user } = useAuthStore();
@@ -65,14 +46,18 @@ export default function PelabuhanPage() {
   } = usePortStore();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
-  const isAdminPelabuhan = user?.role === "ADMIN_PELABUHAN";
+  const isAdminPelabuhan =
+    user?.role === "ADMIN_PELABUHAN" || user?.role === "KEPALA_PELABUHAN";
   const canAccess = isSuperadmin || isAdminPelabuhan;
 
   const [categoryFilter, setCategoryFilter] = useState<PortCategory | "">("");
+  const [portSearchQuery, setPortSearchQuery] = useState("");
+  const [selectedPortId, setSelectedPortId] = useState<number | null>(null);
+
   const [searchBerthQuery, setSearchBerthQuery] = useState("");
   const [berthCategoryFilter, setBerthCategoryFilter] = useState<string>("");
   const [berthPage, setBerthPage] = useState(1);
-  const [berthItemsPerPage, setBerthItemsPerPage] = useState(5);
+  const [berthItemsPerPage, setBerthItemsPerPage] = useState(10);
 
   // Port modal state
   const [isPortModalOpen, setIsPortModalOpen] = useState(false);
@@ -107,23 +92,72 @@ export default function PelabuhanPage() {
     }
   }, [canAccess, categoryFilter, fetchPorts]);
 
+  const visiblePorts = useMemo(() => {
+    const scoped = isSuperadmin
+      ? ports
+      : ports.filter((p) => (user?.portId ? p.id === user.portId : true));
+    const q = portSearchQuery.trim().toLowerCase();
+    if (!q) return scoped;
+    return scoped.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [isSuperadmin, ports, user?.portId, portSearchQuery]);
+
+  useEffect(() => {
+    if (visiblePorts.length === 0) {
+      setSelectedPortId(null);
+      return;
+    }
+    const stillExists = visiblePorts.some((p) => p.id === selectedPortId);
+    if (!stillExists) {
+      setSelectedPortId(visiblePorts[0].id);
+    }
+  }, [visiblePorts, selectedPortId]);
+
+  const selectedPort = useMemo(
+    () => visiblePorts.find((p) => p.id === selectedPortId) || null,
+    [visiblePorts, selectedPortId]
+  );
+
+  const allBerths = useMemo(
+    () => visiblePorts.flatMap((p) => p.berths || []),
+    [visiblePorts]
+  );
+
+  const filteredBerths = useMemo(() => {
+    const berths = selectedPort?.berths || [];
+    const q = searchBerthQuery.trim().toLowerCase();
+    return berths.filter((b) => {
+      const matchQuery =
+        !q ||
+        b.name.toLowerCase().includes(q) ||
+        b.code.toLowerCase().includes(q);
+      const matchCat =
+        !berthCategoryFilter || b.berthServiceCategory === berthCategoryFilter;
+      return matchQuery && matchCat;
+    });
+  }, [selectedPort, searchBerthQuery, berthCategoryFilter]);
+
+  const totalBerthPages = Math.ceil(filteredBerths.length / berthItemsPerPage) || 1;
+  const pagedBerths = useMemo(() => {
+    const start = (berthPage - 1) * berthItemsPerPage;
+    return filteredBerths.slice(start, start + berthItemsPerPage);
+  }, [filteredBerths, berthPage, berthItemsPerPage]);
+
   if (!canAccess) {
     return (
-      <div className="bg-white border border-rose-200 rounded-2xl p-8 text-center">
-        <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto mb-3" />
-        <h2 className="text-base font-bold text-[#0B241E]">Akses Terbatas</h2>
-        <p className="text-xs text-[#64748B] mt-1">
-          Halaman Master Pelabuhan & Dermaga hanya dapat diakses oleh Superadmin atau Admin Pelabuhan.
+      <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+        <ShieldAlert className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+        <h2 className="text-sm font-semibold text-slate-900">Akses Terbatas</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          Halaman Pelabuhan & Dermaga hanya dapat diakses oleh Superadmin atau Admin Pelabuhan.
         </p>
       </div>
     );
   }
-
-  const visiblePorts = isSuperadmin
-    ? ports
-    : ports.filter((p) => (user?.portId ? p.id === user.portId : true));
-
-  const allBerths = visiblePorts.flatMap((p) => p.berths || []);
 
   const openCreatePort = () => {
     setEditingPort(null);
@@ -246,40 +280,33 @@ export default function PelabuhanPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Quick Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-medium text-[#64748B]">Pelabuhan</p>
-          <p className="text-2xl font-bold text-[#0B241E] mt-1">
-            {visiblePorts.length}
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-0.5">Lokasi terdaftar</p>
+    <div className="space-y-4">
+      {/* Compact Flat Summary Strip (No nested boxes) */}
+      <div className="bg-white border border-slate-200 rounded-xl grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500">Total Pelabuhan</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5">{visiblePorts.length}</p>
         </div>
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-medium text-[#64748B]">Total Dermaga</p>
-          <p className="text-2xl font-bold text-[#0B241E] mt-1">
-            {allBerths.length}
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-0.5">
-            {allBerths.filter((b) => b.operationalStatus === "OPEN").length} dermaga aktif
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500">Total Dermaga</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5">
+            {allBerths.length}{" "}
+            <span className="text-xs font-normal text-slate-500">
+              ({allBerths.filter((b) => b.operationalStatus === "OPEN").length} aktif)
+            </span>
           </p>
         </div>
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-medium text-[#64748B]">Kena Retribusi</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500">Kena Retribusi</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5">
             {allBerths.filter((b) => b.billingEligibility === "BILLABLE").length}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-0.5">Dermaga berbayar</p>
         </div>
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs">
-          <p className="text-xs font-medium text-[#64748B]">Jenis Dermaga</p>
-          <p className="text-sm font-bold text-[#0B241E] mt-2">
-            {allBerths.filter((b) => b.berthServiceCategory === "DERMAGA_BARANG").length} Barang •{" "}
-            {allBerths.filter((b) => b.berthServiceCategory === "DERMAGA_PENUMPANG").length} Penumpang •{" "}
-            {allBerths.filter((b) => b.berthServiceCategory === "DERMAGA_CAMPURAN").length} Campuran
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500">Dalam Perbaikan</span>
+          <p className="text-lg font-bold text-slate-900 mt-0.5">
+            {allBerths.filter((b) => b.operationalStatus === "MAINTENANCE").length}
           </p>
-          <p className="text-[11px] text-[#64748B] mt-1">Peruntukan layanan</p>
         </div>
       </div>
 
@@ -320,258 +347,289 @@ export default function PelabuhanPage() {
       </div>
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+        <div className="px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Ports & Berths Cards */}
-      {isLoading ? (
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-12 flex items-center justify-center gap-2 text-xs text-[#64748B]">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Memuat master data pelabuhan...
-        </div>
-      ) : visiblePorts.length === 0 ? (
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-12 text-center text-xs text-[#64748B]">
-          Belum ada data pelabuhan aktif.
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {visiblePorts.map((port) => (
-            <div
-              key={port.id}
-              className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs"
-            >
-              <div className="p-5 bg-[#F8FAFC] border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center shrink-0">
-                    <Anchor className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-md bg-[#0B241E] text-white">
-                        {port.code}
-                      </span>
-                      <h3 className="text-base font-extrabold text-[#0B241E]">
-                        {port.name}
-                      </h3>
-                      <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                        {formatLabel(port.portCategory)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#64748B] flex items-center gap-1.5 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#D97706]" />
-                      {port.location || "Lokasi belum ditentukan"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  {isSuperadmin && (
-                    <button
-                      type="button"
-                      onClick={() => openEditPort(port)}
-                      className="px-3.5 py-2 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-xs font-bold text-[#334155] flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Ubah Pelabuhan
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openCreateBerth(port.id)}
-                    className="px-3.5 py-2 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#D97706]" />
-                    Tambah Dermaga
-                  </button>
-                </div>
+      {/* SINGLE FULL-WIDTH WORKSPACE (Horizontal Port Tabs + Full-Width Berths Table) */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        {/* Top Bar: Port Switcher Tabs + Search + Add Port */}
+        <div className="px-4 sm:px-5 pt-3.5 border-b border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <div className="relative w-full sm:w-56">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={portSearchQuery}
+                  onChange={(e) => setPortSearchQuery(e.target.value)}
+                  placeholder="Filter daftar pelabuhan..."
+                  className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-[#0B241E]"
+                />
               </div>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as PortCategory | "")}
+                className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
+                title="Filter Kategori Pelabuhan"
+              >
+                <option value="">Semua Kategori Pelabuhan</option>
+                <option value="BARANG">Barang</option>
+                <option value="PENUMPANG">Penumpang</option>
+                <option value="CAMPURAN">Campuran</option>
+              </select>
+            </div>
 
-              {/* Berths Filter Bar */}
-              <div className="px-5 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0] flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
-                  <div className="relative w-full sm:w-64">
-                    <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={searchBerthQuery}
-                      onChange={(e) => {
-                        setSearchBerthQuery(e.target.value);
-                        setBerthPage(1);
-                      }}
-                      placeholder="Cari nama dermaga, kode..."
-                      className="w-full pl-8 pr-3 py-1.5 text-xs border border-[#CBD5E1] rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#133D31]"
-                    />
-                  </div>
-                  <select
-                    value={berthCategoryFilter}
-                    onChange={(e) => {
-                      setBerthCategoryFilter(e.target.value);
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => fetchPorts(categoryFilter || undefined)}
+                title="Muat Ulang"
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+              </button>
+              {isSuperadmin && (
+                <button
+                  type="button"
+                  onClick={openCreatePort}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#0B241E]" />
+                  <span>Tambah Pelabuhan</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Horizontal Scrollable Port Tabs (Always visible, zero width stolen from table!) */}
+          <div className="flex items-center gap-1 overflow-x-auto -mb-px">
+            {isLoading && visiblePorts.length === 0 ? (
+              <div className="py-2.5 text-xs text-slate-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1.5" />
+                Memuat pelabuhan...
+              </div>
+            ) : visiblePorts.length === 0 ? (
+              <div className="py-2.5 text-xs text-slate-400">
+                Tidak ada pelabuhan ditemukan.
+              </div>
+            ) : (
+              visiblePorts.map((port) => {
+                const isSelected = port.id === selectedPort?.id;
+                const berthCount = port.berths?.length || 0;
+                return (
+                  <button
+                    key={port.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPortId(port.id);
                       setBerthPage(1);
                     }}
-                    className="w-full sm:w-auto py-1.5 px-3 text-xs border border-[#CBD5E1] rounded-xl bg-white font-medium text-[#1E293B]"
+                    className={`px-3.5 py-2.5 text-xs whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
+                      isSelected
+                        ? "border-[#0B241E] text-slate-900 font-semibold"
+                        : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 font-medium"
+                    }`}
                   >
-                    <option value="">Semua Kategori Dermaga</option>
-                    <option value="DERMAGA_BARANG">Dermaga Barang</option>
-                    <option value="DERMAGA_PENUMPANG">Dermaga Penumpang</option>
-                    <option value="DERMAGA_CAMPURAN">Dermaga Campuran</option>
-                  </select>
+                    <span className="font-mono text-[11px] text-slate-400">{port.code}</span>
+                    <span>{port.name}</span>
+                    <span className="text-[11px] text-slate-400">({berthCount})</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* FULL-WIDTH SELECTED PORT DETAILS & BERTHS TABLE */}
+        {!selectedPort ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center text-slate-400">
+            <Anchor className="w-8 h-8 mb-2 text-slate-300" />
+            <p className="text-xs font-medium">Pilih pelabuhan di atas untuk melihat daftar dermaga.</p>
+          </div>
+        ) : (
+          <div>
+            {/* Selected Port Header + Berth Filters */}
+            <div className="px-5 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/40">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-sm font-bold text-slate-900">{selectedPort.name}</h2>
+                  <span className="text-xs text-slate-400">•</span>
+                  <span className="text-xs text-slate-600">
+                    {formatLabel(selectedPort.portCategory)}
+                  </span>
                 </div>
+                {selectedPort.location && (
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>{selectedPort.location}</span>
+                  </p>
+                )}
               </div>
 
-              {/* Berths Table */}
-              {(() => {
-                const filteredBerths = (port.berths || []).filter((b) => {
-                  const matchQ =
-                    !searchBerthQuery ||
-                    b.name.toLowerCase().includes(searchBerthQuery.toLowerCase()) ||
-                    b.code.toLowerCase().includes(searchBerthQuery.toLowerCase());
-                  const matchCat =
-                    !berthCategoryFilter || b.berthServiceCategory === berthCategoryFilter;
-                  return matchQ && matchCat;
-                });
-                const totalBerthPages = Math.ceil(filteredBerths.length / berthItemsPerPage) || 1;
-                const pagedBerths = filteredBerths.slice(
-                  (berthPage - 1) * berthItemsPerPage,
-                  berthPage * berthItemsPerPage
-                );
-
-                return (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-[#E2E8F0] text-xs font-semibold text-[#64748B] bg-white">
-                            <th className="py-3.5 px-5">Dermaga</th>
-                            <th className="py-3.5 px-4">Jenis & Konstruksi</th>
-                            <th className="py-3.5 px-4">Pengelola</th>
-                            <th className="py-3.5 px-4">Ukuran Maksimal</th>
-                            <th className="py-3.5 px-4">Status</th>
-                            <th className="py-3.5 px-5 text-right">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                          {pagedBerths.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="py-8 text-center text-[#94A3B8]">
-                                Belum ada dermaga yang sesuai dengan pencarian atau filter.
-                              </td>
-                            </tr>
-                          ) : (
-                            pagedBerths.map((berth) => (
-                              <tr key={berth.id} className="hover:bg-[#F8FAFC] transition-colors">
-                                <td className="py-4 px-5">
-                                  <div className="font-bold text-[#0B241E] text-sm">
-                                    {berth.name}
-                                  </div>
-                                  <span className="inline-block font-mono text-[11px] text-[#64748B] mt-0.5">
-                                    Kode: {berth.code}
-                                  </span>
-                                </td>
-                                <td className="py-4 px-4">
-                                  <span
-                                    className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${SERVICE_CATEGORY_BADGE[berth.berthServiceCategory]
-                                      }`}
-                                  >
-                                    {formatLabel(berth.berthServiceCategory)}
-                                  </span>
-                                  <div className="text-[11px] text-[#64748B] mt-1">
-                                    {formatLabel(berth.berthType)}
-                                  </div>
-                                </td>
-                                <td className="py-4 px-4">
-                                  <div className="text-[#1E293B] font-semibold">
-                                    {formatLabel(berth.authorityType)}
-                                  </div>
-                                  <span
-                                    className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${BILLING_ELIGIBILITY_BADGE[berth.billingEligibility]
-                                      }`}
-                                  >
-                                    {formatLabel(berth.billingEligibility)}
-                                  </span>
-                                </td>
-                                <td className="py-4 px-4">
-                                  <div className="font-semibold text-[#334155]">
-                                    Panjang {berth.maxLengthMeters ?? "-"} m
-                                  </div>
-                                  <div className="text-[11px] text-[#64748B] mt-0.5">
-                                    Kedalaman {berth.maxDraftMeters ?? "-"} m
-                                  </div>
-                                </td>
-                                <td className="py-4 px-4">
-                                  <span
-                                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${BERTH_STATUS_BADGE[berth.operationalStatus]
-                                      }`}
-                                  >
-                                    {formatLabel(berth.operationalStatus)}
-                                  </span>
-                                </td>
-                                <td className="py-4 px-5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditBerth(berth)}
-                                    className="px-3 py-1.5 rounded-xl border border-[#CBD5E1] hover:bg-[#F1F5F9] text-xs font-semibold text-[#0B241E] cursor-pointer"
-                                  >
-                                    Ubah
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    <TablePagination
-                      currentPage={berthPage}
-                      totalPages={totalBerthPages}
-                      totalItems={filteredBerths.length}
-                      itemsPerPage={berthItemsPerPage}
-                      onPageChange={setBerthPage}
-                      onItemsPerPageChange={setBerthItemsPerPage}
-                    />
-                  </>
-                );
-              })()}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <div className="relative w-full sm:w-52">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchBerthQuery}
+                    onChange={(e) => {
+                      setSearchBerthQuery(e.target.value);
+                      setBerthPage(1);
+                    }}
+                    placeholder="Cari dermaga..."
+                    className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B241E]"
+                  />
+                </div>
+                <select
+                  value={berthCategoryFilter}
+                  onChange={(e) => {
+                    setBerthCategoryFilter(e.target.value);
+                    setBerthPage(1);
+                  }}
+                  className="py-1.5 px-2.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700"
+                >
+                  <option value="">Semua Jenis</option>
+                  <option value="DERMAGA_BARANG">Dermaga Barang</option>
+                  <option value="DERMAGA_PENUMPANG">Dermaga Penumpang</option>
+                  <option value="DERMAGA_CAMPURAN">Dermaga Campuran</option>
+                </select>
+                {isSuperadmin && (
+                  <button
+                    type="button"
+                    onClick={() => openEditPort(selectedPort)}
+                    title="Ubah Info Pelabuhan"
+                    className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openCreateBerth(selectedPort.id)}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#D97706]" />
+                  <span>Tambah Dermaga</span>
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Spacious Modal Port */}
+            {/* Full-Width Spacious Berths Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-white">
+                    <th className="py-3 px-5">Dermaga</th>
+                    <th className="py-3 px-4">Jenis & Konstruksi</th>
+                    <th className="py-3 px-4 hidden md:table-cell">Pengelola</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">Ukuran Maksimal</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-5 text-right w-16">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {pagedBerths.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        Belum ada dermaga pada pelabuhan ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedBerths.map((berth) => (
+                      <tr key={berth.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 px-5">
+                          <div className="font-semibold text-slate-900">{berth.name}</div>
+                          <div className="font-mono text-[11px] text-slate-400 mt-0.5">
+                            {berth.code}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-medium text-slate-800">
+                            {formatLabel(berth.berthServiceCategory)}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {formatLabel(berth.berthType)}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 hidden md:table-cell">
+                          <div className="font-medium text-slate-800">
+                            {formatLabel(berth.authorityType)}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {formatLabel(berth.billingEligibility)}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 hidden sm:table-cell whitespace-nowrap">
+                          <div className="font-medium text-slate-800">
+                            Panjang {berth.maxLengthMeters ?? "-"} m
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            Kedalaman {berth.maxDraftMeters ?? "-"} m
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusDot status={berth.operationalStatus} />
+                        </td>
+                        <td className="py-3.5 px-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEditBerth(berth)}
+                            title="Ubah Dermaga"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <TablePagination
+              currentPage={berthPage}
+              totalPages={totalBerthPages}
+              totalItems={filteredBerths.length}
+              itemsPerPage={berthItemsPerPage}
+              onPageChange={setBerthPage}
+              onItemsPerPageChange={setBerthItemsPerPage}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Create / Edit Port Modal */}
       {isPortModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleSavePort}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
+            className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 shadow-xl"
           >
-            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#F1F5F9]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-[#0B241E]">
-                    {editingPort ? "Ubah Data Pelabuhan" : "Tambah Pelabuhan Baru"}
-                  </h3>
-                  <p className="text-xs text-[#64748B]">
-                    Atur identitas, lokasi kawasan, dan fungsi layanan utama pelabuhan.
-                  </p>
-                </div>
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {editingPort ? `Ubah Pelabuhan: ${editingPort.name}` : "Tambah Pelabuhan Baru"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Lengkapi kode, nama, lokasi, dan kategori layanan pelabuhan.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPortModalOpen(false)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Kode Pelabuhan
                 </label>
                 <input
@@ -588,8 +646,8 @@ export default function PelabuhanPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Kategori Layanan Pelabuhan
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kategori Pelabuhan
                 </label>
                 <select
                   value={portForm.portCategory}
@@ -644,56 +702,51 @@ export default function PelabuhanPage() {
               <button
                 type="button"
                 onClick={() => setIsPortModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+                className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Simpan Pelabuhan
+                Simpan
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Spacious Modal Berth */}
+      {/* Create / Edit Berth Modal */}
       {isBerthModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleSaveBerth}
-            className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-8 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto"
           >
-            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#F1F5F9]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0B241E] text-[#D97706] flex items-center justify-center">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-[#0B241E]">
-                    {editingBerth ? "Kelola Spesifikasi & Status Dermaga" : "Tambah Dermaga Baru"}
-                  </h3>
-                  <p className="text-xs text-[#64748B]">
-                    Tentukan fungsi layanan dermaga, konstruksi, kewenangan retribusi, dan kapasitas teknis kapal.
-                  </p>
-                </div>
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {editingBerth ? `Ubah Dermaga: ${editingBerth.name}` : "Tambah Dermaga Baru"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Atur spesifikasi teknis, kewenangan retribusi, dan status operasional dermaga.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsBerthModalOpen(false)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:bg-[#F1F5F9] cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Kode Dermaga
                 </label>
                 <input
@@ -709,9 +762,9 @@ export default function PelabuhanPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-mono disabled:bg-slate-100"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Nama Dermaga / Tambatan
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Dermaga
                 </label>
                 <input
                   type="text"
@@ -725,12 +778,9 @@ export default function PelabuhanPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Peruntukan Layanan Dermaga
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kategori Layanan Dermaga
                 </label>
                 <select
                   value={berthForm.berthServiceCategory}
@@ -740,7 +790,7 @@ export default function PelabuhanPage() {
                       berthServiceCategory: e.target.value as BerthServiceCategory,
                     }))
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
                 >
                   <option value="DERMAGA_BARANG">Dermaga Barang / Kargo</option>
                   <option value="DERMAGA_PENUMPANG">Dermaga Penumpang &amp; Ro-Ro</option>
@@ -748,8 +798,8 @@ export default function PelabuhanPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Kondisi Operasional Saat Ini
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Status Operasional
                 </label>
                 <select
                   value={berthForm.operationalStatus}
@@ -759,17 +809,16 @@ export default function PelabuhanPage() {
                       operationalStatus: e.target.value as BerthOperationalStatus,
                     }))
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-semibold"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
                 >
-                  <option value="OPEN">Aktif Beroperasi (Siap Sandar)</option>
-                  <option value="MAINTENANCE">Dalam Pemeliharaan / Perbaikan</option>
-                  <option value="CLOSED">Ditutup Sementara</option>
+                  <option value="OPEN">Aktif</option>
+                  <option value="MAINTENANCE">Perbaikan</option>
+                  <option value="CLOSED">Tutup</option>
                 </select>
               </div>
-            </div>
 
             {!editingBerth && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#334155] mb-1.5">
                     Tipe Konstruksi
@@ -836,14 +885,12 @@ export default function PelabuhanPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Panjang Maksimal Kapal / LOA (Meter)
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Panjang Maksimal (Meter)
                 </label>
                 <input
                   type="number"
-                  min={1}
                   step="0.1"
                   value={berthForm.maxLengthMeters}
                   onChange={(e) =>
@@ -857,12 +904,11 @@ export default function PelabuhanPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#334155] mb-1.5">
-                  Kedalaman Air / Draft Maksimal (Meter)
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kedalaman Maksimal / Draft (Meter)
                 </label>
                 <input
                   type="number"
-                  min={0.5}
                   step="0.1"
                   value={berthForm.maxDraftMeters}
                   onChange={(e) =>
@@ -877,21 +923,21 @@ export default function PelabuhanPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-[#F1F5F9]">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsBerthModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#475569] cursor-pointer"
+                className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Simpan Dermaga
+                Simpan
               </button>
             </div>
           </form>

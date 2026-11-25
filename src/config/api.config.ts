@@ -42,7 +42,9 @@ export const API_CONFIG = {
     },
     VESSELS: {
       LIST: "/vessels",
-      OPERATORS: "/operators",
+      CATALOG: "/vessels/catalog",
+      OPERATORS: "/vessels/operators",
+      OPERATORS_BASE: "/operators",
       VISITS: "/visits",
     },
     OPERATORS: {
@@ -121,8 +123,14 @@ export const API_CONFIG = {
       SUBMIT: (id: number | string) => `/tasks/${id}/submit`,
       SUBMISSIONS: "/task-submissions",
     },
+    TASK_REVIEWS: {
+      ADMIN_DASHBOARD: "/task-reviews/admin/dashboard",
+      ADMIN_BASE: "/task-reviews/admin",
+      HEAD_QUEUE: "/task-reviews/head/queue",
+    },
     USERS: {
       BASE: "/users",
+      RBAC_ROLES: "/users/rbac/roles",
     },
     PORTS: {
       BASE: "/ports",

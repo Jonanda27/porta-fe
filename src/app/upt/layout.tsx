@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -22,11 +22,14 @@ import {
   LogOut,
   FileSignature,
   ClipboardList,
+  ClipboardCheck,
+  FileCheck2,
   Bell,
   CheckCircle2,
   MapPin,
   Video,
 } from "lucide-react";
+import { AccountSettingsModal } from "@/components/ui/account-settings-modal";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
 import {
   AppSidebar,
@@ -41,6 +44,7 @@ import { formatLabel } from "@/lib/format-labels";
 
 const ALLOWED_UPT_ROLES: UserRole[] = [
   "SUPERADMIN",
+  "KEPALA_PELABUHAN",
   "ADMIN_PELABUHAN",
   "PETUGAS_REGISTRASI_KONTRAK",
   "PETUGAS_DERMAGA",
@@ -48,11 +52,9 @@ const ALLOWED_UPT_ROLES: UserRole[] = [
   "PETUGAS_DERMAGA_PENUMPANG",
   "PETUGAS_RUANGAN",
   "PETUGAS_TAGIHAN",
-  "KEPALA_PELABUHAN",
   "PETUGAS_PELABUHAN",
   "BENDAHARA",
 ];
-
 export default function UptLayout({
   children,
 }: {
@@ -62,7 +64,6 @@ export default function UptLayout({
   const router = useRouter();
   const {
     user,
-    isAuthenticated,
     initialize: initAuth,
     logout: storeLogout,
   } = useAuthStore();
@@ -109,6 +110,15 @@ export default function UptLayout({
       !pathname.startsWith("/upt/master")
     ) {
       router.replace("/upt/pelabuhan");
+      return;
+    }
+
+    if (
+      storedUser.role === "ADMIN_PELABUHAN" &&
+      !pathname.startsWith("/upt/checker") &&
+      !pathname.startsWith("/upt/users")
+    ) {
+      router.replace("/upt/checker/tugas");
     }
   }, [initAuth, pathname, router]);
 
@@ -121,6 +131,7 @@ export default function UptLayout({
 
   const role = user?.role;
   const isSuperadmin = role === "SUPERADMIN";
+  const isKepalaPelabuhan = role === "KEPALA_PELABUHAN";
   const isAdminPelabuhan = role === "ADMIN_PELABUHAN";
   const isPetugasRegistrasiKontrak = role === "PETUGAS_REGISTRASI_KONTRAK";
   const isPetugasDermaga =
@@ -128,7 +139,6 @@ export default function UptLayout({
     role === "PETUGAS_DERMAGA_BARANG" ||
     role === "PETUGAS_DERMAGA_PENUMPANG";
   const isPetugasRuangan = role === "PETUGAS_RUANGAN";
-  const isKepalaPelabuhan = role === "KEPALA_PELABUHAN";
 
   const rawDisplayName = user?.fullName || "Pengguna PORTA";
   const displayName = rawDisplayName.replace(/\s*\([^)]*\)/g, "").trim() || rawDisplayName;
@@ -145,27 +155,27 @@ export default function UptLayout({
   const portScopeLabel = isSuperadmin
     ? "Admin Pusat Mimika"
     : !user?.portId
-      ? "UPTD Semua Pelabuhan"
-      : "Pelabuhan Poumako";
+    ? "UPTD Semua Pelabuhan"
+    : "Pelabuhan Poumako";
 
-  const getNavGroups = (): NavGroup[] => {
+  const navGroups: NavGroup[] = useMemo(() => {
     if (isSuperadmin) {
       return [
         {
-          title: "Master Data PORTA",
+          title: "Master Data",
           items: [
-            { href: "/upt/pelabuhan", label: "Pelabuhan & Dermaga", icon: Anchor },
-            { href: "/upt/master/kapal", label: "Master Kapal", icon: Ship },
-            { href: "/upt/master/operator", label: "Master Operator Kapal", icon: Building2 },
-            { href: "/upt/master/tenant", label: "Master Tenant & Mitra", icon: Store },
-            { href: "/upt/master/aset", label: "Master Aset & Fasilitas", icon: Warehouse },
-            { href: "/upt/tarif", label: "Tarif & Dasar Hukum", icon: Receipt },
+            { href: "/upt/pelabuhan", label: "Pelabuhan & Dermaga", icon: Anchor, keywords: "port berth dermaga" },
+            { href: "/upt/master/kapal", label: "Master Kapal", icon: Ship, keywords: "vessel armada kapal merge" },
+            { href: "/upt/master/operator", label: "Operator Kapal", icon: Building2, keywords: "perusahaan pelayaran agen" },
+            { href: "/upt/master/tenant", label: "Tenant & Mitra", icon: Store, keywords: "penyewa kios" },
+            { href: "/upt/master/aset", label: "Aset & Fasilitas", icon: Warehouse, keywords: "gudang lahan" },
+            { href: "/upt/tarif", label: "Tarif & Gateway", icon: Receipt, keywords: "perda usd midtrans" },
           ],
         },
         {
-          title: "Manajemen Sistem",
+          title: "Tata Kelola",
           items: [
-            { href: "/upt/users", label: "Organisasi & Petugas", icon: Users },
+            { href: "/upt/users", label: "Pengguna & RBAC", icon: Users, keywords: "akun password role permission audit" },
           ],
         },
       ];
@@ -174,9 +184,44 @@ export default function UptLayout({
     if (isAdminPelabuhan) {
       return [
         {
+          title: "Checker Pelabuhan",
+          items: [
+            {
+              href: "/upt/checker/tugas",
+              label: "Checker Tugas Petugas",
+              icon: ClipboardCheck,
+              keywords: "tugas checker petugas overdue",
+            },
+            {
+              href: "/upt/checker/laporan",
+              label: "Rekap Laporan Harian",
+              icon: FileCheck2,
+              keywords: "laporan harian shift kepala pelabuhan",
+            },
+          ],
+        },
+        {
+          title: "Tim Pelabuhan",
+          items: [
+            {
+              href: "/upt/users",
+              label: "Akun Petugas Pelabuhan",
+              icon: Users,
+              keywords: "akun petugas reset password",
+            },
+          ],
+        },
+      ];
+    }
+
+    if (isKepalaPelabuhan) {
+      return [
+        {
           title: "Manajemen Pelabuhan",
           items: [
-            { href: "/upt/dashboard", label: "Ringkasan Pelabuhan", icon: Radio },
+            { href: "/upt/dashboard", label: "Ringkasan", icon: Radio },
+            { href: "/upt/checker/tugas", label: "Verifikasi Tugas", icon: ClipboardCheck },
+            { href: "/upt/checker/laporan", label: "Laporan Harian", icon: FileCheck2 },
             { href: "/upt/verifikasi", label: "Verifikasi Mitra", icon: ShieldCheck },
             { href: "/upt/alokasi", label: "Izin Sandar & Sewa", icon: CalendarCheck2 },
             { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
@@ -190,7 +235,7 @@ export default function UptLayout({
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
             { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
-            { href: "/upt/pemeliharaan", label: "Pemeliharaan & Aset", icon: Wrench },
+            { href: "/upt/pemeliharaan", label: "Pemeliharaan", icon: Wrench },
             { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
           ],
         },
@@ -261,49 +306,8 @@ export default function UptLayout({
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
             { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
-            { href: "/upt/pemeliharaan", label: "Pemeliharaan & Aset", icon: Wrench },
+            { href: "/upt/pemeliharaan", label: "Pemeliharaan", icon: Wrench },
             { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
-          ],
-        },
-      ];
-    }
-
-    if (isPetugasRuangan) {
-      return [
-        {
-          title: "Pengawasan Aset & Ruangan",
-          items: [
-            { href: "/upt/verifikasi", label: "Verifikasi PKS Ruangan", icon: ShieldCheck },
-            { href: "/upt/master/aset", label: "Master Aset & Ruangan", icon: Warehouse },
-            { href: "/upt/pemeliharaan", label: "Pemeliharaan Fasilitas", icon: Wrench },
-          ],
-        },
-      ];
-    }
-
-    if (isKepalaPelabuhan) {
-      return [
-        {
-          title: "Ringkasan Eksekutif",
-          items: [
-            { href: "/upt/dashboard", label: "Dashboard Eksekutif", icon: Radio },
-          ],
-        },
-        {
-          title: "Pengesahan & Fasilitas",
-          items: [
-            { href: "/upt/verifikasi/pks-sandar", label: "Persetujuan PKS Sandar", icon: FileSignature },
-            { href: "/upt/verifikasi/pks-ruangan", label: "Persetujuan PKS Ruangan", icon: Warehouse },
-            { href: "/upt/alokasi", label: "Izin Sandar & Sewa", icon: CalendarCheck2 },
-            { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
-          ],
-        },
-        {
-          title: "Monitoring & Pengawasan",
-          items: [
-            { href: "/upt/gis", label: "Peta GIS Pelabuhan", icon: MapPin },
-            { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
-            { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
           ],
         },
       ];
@@ -314,16 +318,30 @@ export default function UptLayout({
       {
         title: "Keuangan & Sif",
         items: [
-          { href: "/upt/dashboard", label: "Ringkasan Pelabuhan", icon: Radio },
+          { href: "/upt/dashboard", label: "Ringkasan", icon: Radio },
           { href: "/upt/tarif", label: "Daftar Tarif", icon: Receipt },
           { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
           { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
         ],
       },
     ];
-  };
+  }, [isSuperadmin, isAdminPelabuhan, isKepalaPelabuhan, isPetugasDermaga]);
+
+  const quickJumpResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return navGroups
+      .flatMap((g) => g.items)
+      .filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          item.href.toLowerCase().includes(q)
+      );
+  }, [navGroups, searchQuery]);
 
   const getPageTitle = () => {
+    if (pathname.includes("/upt/checker/tugas")) return "Checker Tugas Petugas";
+    if (pathname.includes("/upt/checker/laporan")) return "Rekap Laporan Harian";
     if (pathname.includes("/upt/tugas-saya")) return "Tugas & Penugasan Saya";
     if (pathname.includes("/upt/master/kapal")) return "Master Kapal & Armada";
     if (pathname.includes("/upt/master/operator")) return "Master Operator Kapal";
@@ -357,17 +375,19 @@ export default function UptLayout({
   };
 
   const getBreadcrumbLabel = () => {
+    if (pathname.includes("/upt/checker/tugas")) return "Checker Tugas Petugas";
+    if (pathname.includes("/upt/checker/laporan")) return "Rekap Laporan Harian";
     if (pathname.includes("/upt/tugas-saya")) return "Tugas & Penugasan Saya";
     if (pathname.includes("/upt/master/kapal")) return "Master Kapal";
-    if (pathname.includes("/upt/master/operator")) return "Master Operator";
-    if (pathname.includes("/upt/master/tenant")) return "Master Tenant";
-    if (pathname.includes("/upt/master/aset")) return "Master Aset";
+    if (pathname.includes("/upt/master/operator")) return "Operator Kapal";
+    if (pathname.includes("/upt/master/tenant")) return "Tenant & Mitra Usaha";
+    if (pathname.includes("/upt/master/aset")) return "Aset & Fasilitas";
     if (pathname.includes("/upt/pelabuhan"))
-      return isSuperadmin ? "Master Pelabuhan" : "Data Dermaga";
+      return isSuperadmin ? "Pelabuhan & Dermaga" : "Data Dermaga";
     if (pathname.includes("/upt/users"))
-      return isSuperadmin ? "Pengguna & Petugas" : "Tim Pelabuhan";
+      return isSuperadmin ? "Pengguna & RBAC" : "Tim Pelabuhan";
     if (pathname.includes("/upt/tarif"))
-      return isSuperadmin ? "Tarif & Gateway" : "Daftar Tarif";
+      return isSuperadmin ? "Tarif & Payment Gateway" : "Daftar Tarif";
     if (pathname.includes("/upt/alokasi")) return "Izin Sandar & Sewa";
     if (pathname.includes("/upt/verifikasi/kapal")) return "Verifikasi Armada Kapal";
     if (pathname.includes("/upt/verifikasi/tenant")) return "Verifikasi Tenant Mitra";
@@ -386,6 +406,10 @@ export default function UptLayout({
   };
 
   const getPageDescription = () => {
+    if (pathname.includes("/upt/checker/tugas"))
+      return "Pastikan seluruh petugas menyelesaikan dan mengumpulkan bukti tugas sebelum diteruskan ke Kepala Pelabuhan.";
+    if (pathname.includes("/upt/checker/laporan"))
+      return "Pantau kepatuhan laporan harian petugas dan serahkan laporan lengkap ke Kepala Pelabuhan.";
     if (pathname.includes("/upt/tugas-saya"))
       return "Pelaksanaan lembar tugas pemeriksaan SOP, surat penugasan aktif, dan pelaporan harian petugas.";
     if (pathname.includes("/upt/gis"))
@@ -393,21 +417,17 @@ export default function UptLayout({
     if (pathname.includes("/upt/pengaturan"))
       return "Kelola identitas profil kedinasan, email, username login, serta pembaruan kata sandi akun petugas UPT.";
     if (pathname.includes("/upt/master/kapal"))
-      return "Data induk identitas seluruh kapal yang terdaftar di sistem PORTA Kabupaten Mimika.";
+      return "Registri kapal global independen, relasi operator, dan penggabungan duplikat.";
     if (pathname.includes("/upt/master/operator"))
-      return "Data induk perusahaan pelayaran dan agen operator kapal resmi di PORTA.";
+      return "Daftar perusahaan pelayaran dan agen kapal terdaftar di Kabupaten Mimika.";
     if (pathname.includes("/upt/master/tenant"))
-      return "Data induk penyewa tempat usaha, kios, gudang, dan lahan komersial pelabuhan.";
+      return "Daftar penyewa kios, gudang, dan lahan komersial pelabuhan.";
     if (pathname.includes("/upt/master/aset"))
-      return "Data induk seluruh fasilitas, bangunan, kios, lahan, dan utilitas pelabuhan.";
+      return "Inventaris fasilitas, bangunan, dan tarif sewa aset pelabuhan.";
     if (pathname.includes("/upt/pelabuhan"))
-      return isSuperadmin
-        ? "Kelola data pelabuhan di Kabupaten Mimika beserta daftar dermaga dan spesifikasinya."
-        : "Kelola daftar dermaga, kapasitas sandar, dan kondisi operasional di pelabuhan Anda.";
+      return "Pilih pelabuhan untuk mengelola daftar dermaga dan spesifikasi teknisnya.";
     if (pathname.includes("/upt/users"))
-      return isSuperadmin
-        ? "Kelola akun pengguna lintas instansi, hak akses, dan pantau log aktivitas sistem."
-        : "Kelola akun petugas dermaga dan bendahara yang bertugas di pelabuhan Anda.";
+      return "Kelola akun lintas peran, kredensial sementara, dan matriks hak akses RBAC.";
     if (pathname.includes("/upt/tarif"))
       return isSuperadmin
         ? "Atur tarif resmi Perda No. 4/2023, kurs konversi USD, dan integrasi Payment Gateway Midtrans."
@@ -439,8 +459,6 @@ export default function UptLayout({
       : "Pantau aktivitas kapal, ketersediaan dermaga, pendapatan, dan tagihan pelabuhan.";
   };
 
-  const navGroups = getNavGroups();
-
   useEffect(() => {
     if (!mounted) return;
     navGroups.forEach((group) => {
@@ -452,10 +470,10 @@ export default function UptLayout({
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-[#F4F6F8] flex items-center justify-center">
-        <div className="flex items-center gap-3 text-sm font-medium text-[#133D31]">
-          <div className="w-5 h-5 border-2 border-[#133D31] border-t-transparent rounded-full animate-spin" />
-          <span>Memuat sistem PORTA...</span>
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <div className="flex items-center gap-2.5 text-xs font-medium text-slate-600">
+          <div className="w-4 h-4 border-2 border-[#0B241E] border-t-transparent rounded-full animate-spin" />
+          <span>Memuat PORTA...</span>
         </div>
       </div>
     );
@@ -491,19 +509,41 @@ export default function UptLayout({
         onLogout={() => setShowLogoutModal(true)}
       />
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="h-16 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-6 text-white sticky top-0 z-20">
-          <div className="flex items-center flex-1 max-w-md gap-3">
+      {/* MAIN WORKSPACE */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Sticky Top Bar */}
+        <header className="h-14 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20 gap-3 text-white">
+          <div className="flex items-center gap-3 flex-1 min-w-0 max-w-md">
             <div className="relative w-full">
-              <Search className="w-4 h-4 text-[#85A69B] absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#85A69B] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari data pelabuhan, kapal, atau pengguna..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#12362C] border border-[#1C4D3F] rounded-lg text-white placeholder-[#85A69B] focus:outline-none focus:border-[#D97706]"
+                placeholder="Lompat cepat ke menu (mis. kapal, tarif, rbac)..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#12362C] border border-[#1C4D3F] rounded-lg text-white placeholder-[#85A69B] focus:outline-none focus:border-[#D97706]"
               />
+              {quickJumpResults.length > 0 && (
+                <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50 text-slate-800">
+                  {quickJumpResults.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.href}
+                        type="button"
+                        onMouseDown={() => {
+                          router.push(item.href);
+                          setSearchQuery("");
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <Icon className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -660,7 +700,8 @@ export default function UptLayout({
           </div>
         </section>
 
-        <main className="max-w-7xl mx-auto px-6 sm:px-8 -mt-10 sm:-mt-12 pb-16 w-full flex-1 z-10 space-y-6">
+        {/* Main Content */}
+        <main className="px-4 sm:px-6 lg:px-8 pb-12 max-w-[1440px] w-full mx-auto flex-1">
           {children}
         </main>
       </div>
@@ -673,6 +714,13 @@ export default function UptLayout({
         userName={user?.fullName || "Petugas Operasional UPT"}
         userRole={user?.role || "ADMIN_PELABUHAN"}
         userEmail={user?.email || "upt.pomako@porta.mimikakab.go.id"}
+      />
+
+      <AccountSettingsModal
+        isOpen={Boolean(user?.mustChangePassword)}
+        onClose={() => {}}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleConfirmLogout}
       />
     </div>
   );

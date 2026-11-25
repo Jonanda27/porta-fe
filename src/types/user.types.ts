@@ -1,9 +1,16 @@
 import { UserRole } from "./auth.types";
 
 /**
- * Definisi Tipe & Kontrak Data untuk Manajemen Pengguna (Users Management)
- * Selaras dengan DTO porta-be (src/modules/users/dto/users.dto.ts)
+ * Definisi Tipe & Kontrak Data untuk Manajemen Pengguna & RBAC (Users Management)
+ * Selaras dengan DTO & Controller porta-be (src/modules/users)
  */
+
+export interface GeneratedCredentials {
+  username: string;
+  temporaryPassword: string;
+  mustChangePassword: boolean;
+  note: string;
+}
 
 export interface UserAccountItem {
   id: number;
@@ -20,10 +27,14 @@ export interface UserAccountItem {
   createdAt?: string;
 }
 
+export interface UserMutationResponse extends UserAccountItem {
+  generatedCredentials?: GeneratedCredentials;
+}
+
 export interface CreateUserPayload {
   email: string;
   username?: string;
-  password: string;
+  password?: string;
   fullName: string;
   role: UserRole;
   portId?: number;
@@ -46,6 +57,19 @@ export interface UpdateUserStatusPayload {
 }
 
 export interface ResetUserPasswordPayload {
-  newPassword: string;
+  newPassword?: string;
   mustChangePassword?: boolean;
+}
+
+export interface RbacRoleMatrixItem {
+  role: UserRole;
+  roleLabel: string;
+  operationalDomain: string;
+  allowedBerthCategories: string[];
+  handledTaskTypes: string[];
+  uiCapabilities: string[];
+  defaultPermissions: string[];
+  databasePermissions: string[];
+  effectivePermissions: string[];
+  activeUsersCount: number;
 }

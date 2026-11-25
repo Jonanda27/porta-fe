@@ -2,11 +2,14 @@ import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
   CreateUserPayload,
+  RbacRoleMatrixItem,
   ResetUserPasswordPayload,
   UpdateUserPayload,
   UpdateUserStatusPayload,
   UserAccountItem,
+  UserMutationResponse,
 } from "@/types/user.types";
+import { UserRole } from "@/types/auth.types";
 
 /**
  * Service untuk mengelola Akun Pengguna & RBAC (Users Management)
@@ -19,8 +22,8 @@ export const UserService = {
     );
   },
 
-  createUser(payload: CreateUserPayload): Promise<UserAccountItem> {
-    return apiClient.post<UserAccountItem>(API_CONFIG.ENDPOINTS.USERS.BASE, payload);
+  createUser(payload: CreateUserPayload): Promise<UserMutationResponse> {
+    return apiClient.post<UserMutationResponse>(API_CONFIG.ENDPOINTS.USERS.BASE, payload);
   },
 
   updateUser(userId: number, payload: UpdateUserPayload): Promise<UserAccountItem> {
@@ -43,10 +46,29 @@ export const UserService = {
   resetUserPassword(
     userId: number,
     payload: ResetUserPasswordPayload
-  ): Promise<UserAccountItem> {
-    return apiClient.patch<UserAccountItem>(
+  ): Promise<UserMutationResponse> {
+    return apiClient.patch<UserMutationResponse>(
       `${API_CONFIG.ENDPOINTS.USERS.BASE}/${userId}/reset-password`,
       payload
+    );
+  },
+
+  async getRbacRoles(): Promise<RbacRoleMatrixItem[]> {
+    const res = await apiClient.get<
+      RbacRoleMatrixItem[] | { totalRoles?: number; roles?: RbacRoleMatrixItem[] }
+    >(API_CONFIG.ENDPOINTS.USERS.RBAC_ROLES);
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.roles)) return res.roles;
+    return [];
+  },
+
+  updateRolePermissions(
+    role: UserRole,
+    permissionCodes: string[]
+  ): Promise<{ role: UserRole; permissionCodes: string[] }> {
+    return apiClient.put<{ role: UserRole; permissionCodes: string[] }>(
+      `${API_CONFIG.ENDPOINTS.USERS.RBAC_ROLES}/${role}/permissions`,
+      { permissionCodes }
     );
   },
 };

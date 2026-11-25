@@ -386,8 +386,10 @@ export default function TenantLayout({
 
       {/* Modal Pengaturan Akun & Sandi */}
       <AccountSettingsModal
-        isOpen={isAccountModalOpen}
+        isOpen={isAccountModalOpen || Boolean(user?.mustChangePassword)}
         onClose={() => setIsAccountModalOpen(false)}
+        forcePasswordChange={Boolean(user?.mustChangePassword)}
+        onLogout={handleConfirmLogout}
       />
 
       {/* Modal Validasi Logout */}
