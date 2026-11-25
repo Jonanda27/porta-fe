@@ -191,8 +191,10 @@ export class AuthService {
         return "/upt/dashboard";
 
       case "PETUGAS_RUANGAN":
-      case "KEPALA_PELABUHAN":
         return "/upt/verifikasi";
+
+      case "KEPALA_PELABUHAN":
+        return "/upt/dashboard";
 
       default:
         return "/upt/dashboard";

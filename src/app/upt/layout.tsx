@@ -24,6 +24,8 @@ import {
   ClipboardList,
   Bell,
   CheckCircle2,
+  MapPin,
+  Video,
 } from "lucide-react";
 import { LogoutConfirmModal } from "@/components/ui/LogoutConfirmModal";
 import {
@@ -186,6 +188,7 @@ export default function UptLayout({
           title: "Pengawasan Lapangan",
           items: [
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
+            { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
             { href: "/upt/pemeliharaan", label: "Pemeliharaan & Aset", icon: Wrench },
             { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
@@ -256,6 +259,7 @@ export default function UptLayout({
           title: "Tugas Lapangan",
           items: [
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
+            { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
             { href: "/upt/pemeliharaan", label: "Pemeliharaan & Aset", icon: Wrench },
             { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
@@ -280,12 +284,24 @@ export default function UptLayout({
     if (isKepalaPelabuhan) {
       return [
         {
-          title: "Pengawasan & Pengesahan PKS",
+          title: "Ringkasan Eksekutif",
+          items: [
+            { href: "/upt/dashboard", label: "Dashboard Eksekutif", icon: Radio },
+          ],
+        },
+        {
+          title: "Pengesahan & Fasilitas",
           items: [
             { href: "/upt/verifikasi", label: "Persetujuan PKS & Mitra", icon: ShieldCheck },
-            { href: "/upt/dashboard", label: "Ringkasan Pelabuhan", icon: Radio },
             { href: "/upt/alokasi", label: "Izin Sandar & Sewa", icon: CalendarCheck2 },
             { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
+          ],
+        },
+        {
+          title: "Monitoring & Pengawasan",
+          items: [
+            { href: "/upt/gis", label: "Peta GIS Pelabuhan", icon: MapPin },
+            { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
           ],
         },
@@ -328,9 +344,11 @@ export default function UptLayout({
         ? "Verifikasi Operator Kapal"
         : "Verifikasi Mitra & Kapal";
     if (pathname.includes("/upt/kapal")) return "Operasional Kapal & Utilitas";
+    if (pathname.includes("/upt/cctv")) return "Monitoring CCTV Pelabuhan";
     if (pathname.includes("/upt/tiket")) return "Tiket & Manifes Penumpang";
     if (pathname.includes("/upt/pemeliharaan")) return "Pemeliharaan & Aset";
     if (pathname.includes("/upt/shift")) return "Laporan Sif Harian";
+    if (pathname.includes("/upt/gis")) return "Peta GIS Pelabuhan Poumako";
     if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun & Keamanan Petugas";
     return isPetugasRegistrasiKontrak
       ? "Dashboard Registrasi & Kontrak Mitra"
@@ -357,9 +375,11 @@ export default function UptLayout({
     if (pathname.includes("/upt/verifikasi"))
       return isPetugasRegistrasiKontrak ? "Verifikasi Operator Kapal" : "Verifikasi Mitra";
     if (pathname.includes("/upt/kapal")) return "Operasional Kapal";
+    if (pathname.includes("/upt/cctv")) return "Monitoring CCTV";
     if (pathname.includes("/upt/tiket")) return "Tiket & Manifes";
     if (pathname.includes("/upt/pemeliharaan")) return "Pemeliharaan & Aset";
     if (pathname.includes("/upt/shift")) return "Laporan Sif";
+    if (pathname.includes("/upt/gis")) return "Peta GIS Pelabuhan";
     if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun";
     return isPetugasRegistrasiKontrak ? "Dashboard Registrasi" : "Ringkasan";
   };
@@ -367,6 +387,8 @@ export default function UptLayout({
   const getPageDescription = () => {
     if (pathname.includes("/upt/tugas-saya"))
       return "Pelaksanaan lembar tugas pemeriksaan SOP, surat penugasan aktif, dan pelaporan harian petugas.";
+    if (pathname.includes("/upt/gis"))
+      return "Pemantauan geospasial kawasan Pelabuhan Umum Poumako dengan multi-layer peta (Google Satelit, Google Jalan, Esri HD, OpenStreetMap, Topografi, dan OpenSeaMap).";
     if (pathname.includes("/upt/pengaturan"))
       return "Kelola identitas profil kedinasan, email, username login, serta pembaruan kata sandi akun petugas UPT.";
     if (pathname.includes("/upt/master/kapal"))
@@ -403,6 +425,8 @@ export default function UptLayout({
       return "Verifikasi kelengkapan dokumen legalitas SIUPAL, NIB, dan NPWP perusahaan operator kapal.";
     if (pathname.includes("/upt/kapal"))
       return "Catat waktu tiba, sandar, dan berangkat kapal, serta aktivitas bongkar muat dan utilitas.";
+    if (pathname.includes("/upt/cctv"))
+      return "Pemantauan kamera pengawas (CCTV) dermaga, alur masuk muara, terminal, dan fasilitas Pelabuhan Poumako (Mode Simulasi).";
     if (pathname.includes("/upt/tiket"))
       return "Kelola buku karcis masuk pelabuhan, rute penyeberangan, dan data manifes penumpang.";
     if (pathname.includes("/upt/pemeliharaan"))
@@ -434,6 +458,16 @@ export default function UptLayout({
         </div>
       </div>
     );
+  }
+
+  // Halaman GIS & CCTV memakai kanvas penuh layar (100vw x 100vh) tanpa sidebar dan header
+  if (
+    pathname === "/upt/gis" ||
+    pathname.startsWith("/upt/gis/") ||
+    pathname === "/upt/cctv" ||
+    pathname.startsWith("/upt/cctv/")
+  ) {
+    return <>{children}</>;
   }
 
   return (
@@ -586,7 +620,11 @@ export default function UptLayout({
             <>
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-[1.01]"
-                style={{ backgroundImage: "url('/port-hero.jpg')" }}
+                style={{
+                  backgroundImage: isKepalaPelabuhan
+                    ? "url('/images/kepala-pelabuhan-hero.jpg')"
+                    : "url('/port-hero.jpg')",
+                }}
                 aria-hidden="true"
               />
               <div

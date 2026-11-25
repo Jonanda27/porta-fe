@@ -152,5 +152,8 @@ export const API_CONFIG = {
       MY: "/complaints/my",
       STAFF: "/complaints",
     },
+    AIS: {
+      STREAM: "/ais/stream",
+    },
   },
 } as const;

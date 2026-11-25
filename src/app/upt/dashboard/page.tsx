@@ -30,6 +30,7 @@ import { usePortStore } from "@/store/port.store";
 import { formatLabel } from "@/lib/format-labels";
 import { DocumentItem } from "@/types/upt.types";
 import { IssueWarningModal } from "@/components/upt/dashboard/IssueWarningModal";
+import { KepalaPelabuhanDashboard } from "@/components/upt/dashboard/KepalaPelabuhanDashboard";
 
 const VESSEL_ONLY_DOC_TYPES = new Set([
   "SURAT_UKUR",
@@ -81,6 +82,7 @@ export default function UptDashboardPage() {
   const { ports, fetchPorts } = usePortStore();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
+  const isKepalaPelabuhan = user?.role === "KEPALA_PELABUHAN";
   const isPetugasRegistrasi = user?.role === "PETUGAS_REGISTRASI_KONTRAK";
   const canIssueWarning = isSuperadmin || user?.role === "ADMIN_PELABUHAN";
 
@@ -106,12 +108,17 @@ export default function UptDashboardPage() {
       fetchVerificationData();
       fetchOfficerWorkspaceData(activePortId);
       fetchPorts();
+    } else if (isKepalaPelabuhan) {
+      fetchDashboardData(numericPortId);
+      fetchVerificationData();
+      fetchPorts();
     } else {
       fetchDashboardData(numericPortId);
       fetchPorts();
     }
   }, [
     isPetugasRegistrasi,
+    isKepalaPelabuhan,
     activePortId,
     numericPortId,
     fetchVerificationData,
@@ -857,7 +864,26 @@ export default function UptDashboardPage() {
   }
 
   // ============================================================================
-  // DASHBOARD STANDAR: ADMIN_PELABUHAN / SUPERADMIN / KEPALA_PELABUHAN
+  // DASHBOARD EKSEKUTIF: KEPALA_PELABUHAN
+  // ============================================================================
+  if (isKepalaPelabuhan) {
+    return (
+      <KepalaPelabuhanDashboard
+        revenueSummary={revenueSummary}
+        visits={visits}
+        unbilledVisits={unbilledVisits}
+        leases={leases}
+        pendingBerthingContracts={pendingBerthingContracts}
+        invoices={invoices}
+        warnings={warnings}
+        ports={ports}
+        error={error}
+      />
+    );
+  }
+
+  // ============================================================================
+  // DASHBOARD STANDAR: ADMIN_PELABUHAN / SUPERADMIN
   // ============================================================================
   const activeVisits = visits.filter((v) =>
     ["APPROVED", "ANCHORED", "BERTHED"].includes(v.status)
