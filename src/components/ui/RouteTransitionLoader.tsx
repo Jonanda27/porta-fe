@@ -128,8 +128,11 @@ function RouteTransitionLoaderInner() {
   };
 
   // Akhiri loading secara otomatis setiap kali route/query selesai berpindah
-  const routeKey = `${pathname}?${searchParams?.toString() || ""}`;
+  const searchStr = searchParams?.toString();
+  const routeKey = `${pathname}${searchStr ? `?${searchStr}` : ""}`;
+  const lastPathQueryRef = useRef(routeKey);
   useEffect(() => {
+    lastPathQueryRef.current = routeKey;
     endLoading();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey]);
@@ -187,6 +190,8 @@ function RouteTransitionLoaderInner() {
     };
 
     const handlePopState = () => {
+      const nextKey = `${window.location.pathname}${window.location.search}`;
+      if (nextKey === lastPathQueryRef.current) return;
       beginLoading("Memuat Halaman...");
     };
 

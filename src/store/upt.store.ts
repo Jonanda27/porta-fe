@@ -61,7 +61,8 @@ interface UptState {
   verifyBerthingContract: (
     contractId: number,
     status: "ACTIVE" | "REJECTED",
-    reason?: string
+    reason?: string,
+    signatureData?: string
   ) => Promise<void>;
   reviewBerthingContractByOfficer: (
     contractId: number,
@@ -234,13 +235,15 @@ export const useUptStore = create<UptState>((set, get) => ({
   verifyBerthingContract: async (
     contractId: number,
     status: "ACTIVE" | "REJECTED",
-    reason?: string
+    reason?: string,
+    signatureData?: string
   ) => {
     set({ isSubmitting: true, error: null });
     try {
       await UptService.verifyBerthingContract(contractId, {
         status,
         rejectionReason: reason,
+        signatureData,
       });
       await get().fetchVerificationData(true);
       set({ isSubmitting: false });

@@ -48,6 +48,10 @@ interface KapalState {
     payload: CreateBerthingContractPayload,
     file?: File | Blob
   ) => Promise<OperatorBerthingContract>;
+  uploadSignedContract: (
+    contractId: number | string,
+    file: File | Blob
+  ) => Promise<OperatorBerthingContract>;
   fetchPortAssets: () => Promise<void>;
   fetchAssetLeases: () => Promise<void>;
   requestAssetLease: (payload: RequestAssetLeaseDto) => Promise<AssetLease>;
@@ -161,6 +165,28 @@ export const useKapalStore = create<KapalState>((set, get) => ({
           : err instanceof Error
           ? err.message
           : "Gagal mengajukan PKS Sandar baru.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  uploadSignedContract: async (
+    contractId: number | string,
+    file: File | Blob
+  ): Promise<OperatorBerthingContract> => {
+    set({ isLoading: true, error: null });
+    try {
+      const updated = await KapalService.uploadSignedContract(contractId, file);
+      await get().fetchDashboardData();
+      set({ isLoading: false });
+      return updated;
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiException
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Gagal mengunggah scan kontrak bertanda tangan basah.";
       set({ isLoading: false, error: message });
       throw err;
     }

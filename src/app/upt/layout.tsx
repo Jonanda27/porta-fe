@@ -292,7 +292,8 @@ export default function UptLayout({
         {
           title: "Pengesahan & Fasilitas",
           items: [
-            { href: "/upt/verifikasi", label: "Persetujuan PKS & Mitra", icon: ShieldCheck },
+            { href: "/upt/verifikasi/pks-sandar", label: "Persetujuan PKS Sandar", icon: FileSignature },
+            { href: "/upt/verifikasi/pks-ruangan", label: "Persetujuan PKS Ruangan", icon: Warehouse },
             { href: "/upt/alokasi", label: "Izin Sandar & Sewa", icon: CalendarCheck2 },
             { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
           ],

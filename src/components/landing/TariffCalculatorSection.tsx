@@ -74,7 +74,7 @@ export function TariffCalculatorSection() {
   return (
     <section
       id="kalkulator-tarif"
-      className="py-20 px-4 sm:px-8 bg-white border-b border-slate-200"
+      className="scroll-mt-24 py-20 px-4 sm:px-8 bg-white border-b border-slate-200"
     >
       <div className="max-w-7xl mx-auto space-y-10">
         <div className="text-center max-w-3xl mx-auto space-y-2">
@@ -136,15 +136,42 @@ export function TariffCalculatorSection() {
           {calcTab === "kapal" && (
             <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
-                <h4 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">
-                  Parameter Armada &amp; Slot Waktu
-                </h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">
+                    Parameter Armada &amp; Slot Waktu
+                  </h4>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { label: "Pelra 480 GT", gt: 480, loa: 32, hours: 8 },
+                      { label: "Penumpang 1.500 GT", gt: 1500, loa: 65, hours: 12 },
+                      { label: "Kargo 4.200 GT", gt: 4200, loa: 98, hours: 24 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          setVesselGt(preset.gt);
+                          setLoaLength(preset.loa);
+                          setBerthHours(preset.hours);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-[#D97706] text-[10.5px] font-semibold text-[#0B241E] transition-colors cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label
+                    htmlFor="calc-vessel-gt"
+                    className="text-xs font-bold text-slate-700 block mb-1"
+                  >
                     Tonase Kotor Kapal (Gross Tonnage / GT)
                   </label>
                   <input
+                    id="calc-vessel-gt"
+                    name="vesselGt"
                     type="number"
                     value={vesselGt}
                     onChange={(e) => setVesselGt(Math.max(10, Number(e.target.value)))}
@@ -156,10 +183,15 @@ export function TariffCalculatorSection() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label
+                    htmlFor="calc-vessel-loa"
+                    className="text-xs font-bold text-slate-700 block mb-1"
+                  >
                     Panjang Kapal (LOA - Length Over All dalam Meter)
                   </label>
                   <input
+                    id="calc-vessel-loa"
+                    name="loaLength"
                     type="number"
                     value={loaLength}
                     onChange={(e) => setLoaLength(Math.max(5, Number(e.target.value)))}
@@ -168,10 +200,15 @@ export function TariffCalculatorSection() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label
+                    htmlFor="calc-berth-hours"
+                    className="text-xs font-bold text-slate-700 block mb-1"
+                  >
                     Durasi Sandar Tambat di Dermaga (Jam)
                   </label>
                   <input
+                    id="calc-berth-hours"
+                    name="berthHours"
                     type="number"
                     value={berthHours}
                     onChange={(e) => setBerthHours(Math.max(1, Number(e.target.value)))}
@@ -387,10 +424,10 @@ export function TariffCalculatorSection() {
                   </h5>
 
                   <div className="mt-4 space-y-2.5 text-xs text-[#BED2CA]">
-                    <div className="flex justify-between">
-                      <span>Lokasi Zonasi:</span>
-                      <span className="font-medium text-white text-right max-w-[180px] truncate">
-                        {sewaFee.zoneName.split(":")[0]}
+                    <div className="flex justify-between gap-4">
+                      <span className="shrink-0">Lokasi Zonasi:</span>
+                      <span className="font-medium text-white text-right">
+                        {sewaFee.zoneName}
                       </span>
                     </div>
                     <div className="flex justify-between">

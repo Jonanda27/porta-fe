@@ -213,6 +213,21 @@ export class KapalService {
   }
 
   /**
+   * Mengunggah ulang hasil scan kontrak PKS Sandar yang sudah ditandatangani basah oleh operator
+   */
+  public static async uploadSignedContract(
+    contractId: number | string,
+    file: File | Blob
+  ): Promise<OperatorBerthingContract> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post<OperatorBerthingContract>(
+      API_CONFIG.ENDPOINTS.OPERATORS.UPLOAD_SIGNED_CONTRACT(contractId),
+      formData
+    );
+  }
+
+  /**
    * Mengambil daftar PKS Sandar yang menunggu verifikasi Kepala Pelabuhan
    */
   public static async getPendingBerthingContracts(): Promise<OperatorBerthingContract[]> {

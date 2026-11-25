@@ -53,6 +53,8 @@ export const API_CONFIG = {
       CONTRACTS: (id: number | string) => `/operators/${id}/contracts`,
       PENDING_CONTRACTS: "/operators/contracts/pending",
       REVIEW_CONTRACT: (contractId: number | string) => `/operators/contracts/${contractId}/review`,
+      UPLOAD_SIGNED_CONTRACT: (contractId: number | string) =>
+        `/operators/contracts/${contractId}/upload-signed`,
       VERIFY_CONTRACT: (contractId: number | string) => `/operators/contracts/${contractId}/verify`,
     },
     BILLING: {

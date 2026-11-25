@@ -17,8 +17,11 @@ import {
   ExternalLink,
   Calendar,
   Anchor,
+  Printer,
+  Upload,
 } from "lucide-react";
 import { API_CONFIG } from "@/config/api.config";
+import { BerthingContractPrintModal } from "@/components/contracts/BerthingContractPrintModal";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { usePortStore } from "@/store/port.store";
@@ -37,6 +40,7 @@ export default function KapalPksSandarPage() {
     error,
     fetchDashboardData,
     createContract,
+    uploadSignedContract,
   } = useKapalStore();
 
   const { ports, berths, fetchPorts, fetchBerths } = usePortStore();
@@ -44,6 +48,8 @@ export default function KapalPksSandarPage() {
   const [statusFilter, setStatusFilter] = useState<ContractFilter>("ALL");
   const [isAddContractModalOpen, setIsAddContractModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [uploadingContractId, setUploadingContractId] = useState<number | null>(null);
+  const [previewContract, setPreviewContract] = useState<OperatorBerthingContract | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [contractFormData, setContractFormData] = useState({
@@ -87,7 +93,18 @@ export default function KapalPksSandarPage() {
   );
 
   const pendingContractsCount = useMemo(
-    () => contracts.filter((c) => c.status === "PENDING_VERIFICATION").length,
+    () =>
+      contracts.filter(
+        (c) =>
+          c.status === "PENDING_VERIFICATION" ||
+          c.status === "WAITING_OPERATOR_SIGNATURE" ||
+          c.status === "PENDING_HEAD_OF_PORT"
+      ).length,
+    [contracts]
+  );
+
+  const waitingSignatureCount = useMemo(
+    () => contracts.filter((c) => c.status === "WAITING_OPERATOR_SIGNATURE").length,
     [contracts]
   );
 
@@ -95,10 +112,39 @@ export default function KapalPksSandarPage() {
     return contracts.filter((c) => {
       if (statusFilter === "ALL") return true;
       if (statusFilter === "ACTIVE") return c.status === "ACTIVE";
-      if (statusFilter === "PENDING_VERIFICATION") return c.status === "PENDING_VERIFICATION";
+      if (statusFilter === "WAITING_OPERATOR_SIGNATURE") {
+        return c.status === "WAITING_OPERATOR_SIGNATURE";
+      }
+      if (statusFilter === "PENDING_VERIFICATION") {
+        return (
+          c.status === "PENDING_VERIFICATION" ||
+          c.status === "WAITING_OPERATOR_SIGNATURE" ||
+          c.status === "PENDING_HEAD_OF_PORT"
+        );
+      }
       return c.status === "REJECTED" || c.status === "EXPIRED";
     });
   }, [contracts, statusFilter]);
+
+  const handleUploadSignedScan = async (contractId: number, file?: File) => {
+    if (!file) return;
+    setUploadingContractId(contractId);
+    try {
+      await uploadSignedContract(contractId, file);
+      toast.success(
+        "Scan Kontrak Diunggah",
+        "Scan kontrak bertanda tangan basah berhasil dikirim ke Kepala Pelabuhan untuk pengesahan TTE."
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Gagal mengunggah scan kontrak bertanda tangan basah.";
+      toast.error("Gagal Upload", msg);
+    } finally {
+      setUploadingContractId(null);
+    }
+  };
 
   const getDaysRemaining = (endDate: string): number => {
     const diffMs = new Date(endDate).getTime() - Date.now();
@@ -200,7 +246,15 @@ export default function KapalPksSandarPage() {
           {[
             { id: "ALL", label: `Semua (${contracts.length})` },
             { id: "ACTIVE", label: `Aktif (${activeContractsCount})` },
-            { id: "PENDING_VERIFICATION", label: `Menunggu Verifikasi (${pendingContractsCount})` },
+            ...(waitingSignatureCount > 0
+              ? [
+                  {
+                    id: "WAITING_OPERATOR_SIGNATURE",
+                    label: `Perlu TTD Basah (${waitingSignatureCount})`,
+                  },
+                ]
+              : []),
+            { id: "PENDING_VERIFICATION", label: `Dalam Proses (${pendingContractsCount})` },
             { id: "INACTIVE", label: "Ditolak / Kedaluwarsa" },
           ].map((tab) => {
             const isActive = statusFilter === tab.id;
@@ -344,6 +398,10 @@ export default function KapalPksSandarPage() {
                       className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
                         contract.status === "ACTIVE"
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : contract.status === "WAITING_OPERATOR_SIGNATURE"
+                          ? "bg-sky-100 text-sky-900 border border-sky-200"
+                          : contract.status === "PENDING_HEAD_OF_PORT"
+                          ? "bg-indigo-100 text-indigo-900 border border-indigo-200"
                           : contract.status === "PENDING_VERIFICATION"
                           ? "bg-amber-100 text-amber-900 border border-amber-200"
                           : contract.status === "REJECTED"
@@ -352,9 +410,13 @@ export default function KapalPksSandarPage() {
                       }`}
                     >
                       {contract.status === "ACTIVE"
-                        ? "Aktif & Disahkan"
+                        ? "Aktif & Disahkan TTE"
+                        : contract.status === "WAITING_OPERATOR_SIGNATURE"
+                        ? "Perlu TTD Basah"
+                        : contract.status === "PENDING_HEAD_OF_PORT"
+                        ? "Menunggu TTE Ka. Pelabuhan"
                         : contract.status === "PENDING_VERIFICATION"
-                        ? "Menunggu Verifikasi"
+                        ? "Verifikasi Petugas"
                         : contract.status === "REJECTED"
                         ? "Ditolak"
                         : "Kedaluwarsa"}
@@ -423,6 +485,48 @@ export default function KapalPksSandarPage() {
                     </div>
                   </div>
 
+                  {contract.status === "WAITING_OPERATOR_SIGNATURE" && (
+                    <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 space-y-2.5">
+                      <p className="text-[11px] font-semibold text-sky-950 leading-relaxed">
+                        Permohonan lolos verifikasi petugas! Cetak surat kontrak PKS, bubuhkan{" "}
+                        <strong>tanda tangan basah + materai</strong>, lalu scan &amp; upload ulang di sini.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewContract(contract)}
+                          className="px-3 py-1.5 rounded-xl bg-[#0B241E] hover:bg-[#143E33] text-white text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-[#F59E0B]" />
+                          Cetak / Unduh Surat Kontrak
+                        </button>
+                        <label className="px-3 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer">
+                          {uploadingContractId === contract.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {uploadingContractId === contract.id
+                              ? "Mengunggah..."
+                              : "Upload Scan TTD Basah"}
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,image/*"
+                            disabled={uploadingContractId === contract.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              handleUploadSignedScan(contract.id, file);
+                              e.target.value = "";
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   {contract.status === "REJECTED" && contract.rejectionReason && (
                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px]">
                       <strong>Alasan Penolakan:</strong> {contract.rejectionReason}
@@ -452,6 +556,17 @@ export default function KapalPksSandarPage() {
                   )}
 
                   <div className="flex items-center gap-2">
+                    {(contract.status === "PENDING_HEAD_OF_PORT" ||
+                      contract.status === "ACTIVE") && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewContract(contract)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0B241E] text-[11px] font-bold rounded-xl inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Surat Kontrak
+                      </button>
+                    )}
                     {contract.status === "ACTIVE" && (
                       <Link
                         href="/kapal/permohonan"
@@ -677,6 +792,12 @@ export default function KapalPksSandarPage() {
           </div>
         </div>
       )}
+
+      <BerthingContractPrintModal
+        contract={previewContract}
+        operatorNameFallback={operator?.name}
+        onClose={() => setPreviewContract(null)}
+      />
     </div>
   );
 }

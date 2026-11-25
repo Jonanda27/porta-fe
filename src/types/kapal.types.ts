@@ -252,6 +252,7 @@ export interface VesselRegistrationAttachment {
 
 export type ContractStatus =
   | "PENDING_VERIFICATION"
+  | "WAITING_OPERATOR_SIGNATURE"
   | "PENDING_HEAD_OF_PORT"
   | "ACTIVE"
   | "REJECTED"
@@ -270,6 +271,13 @@ export interface OperatorBerthingContract {
   dockAllocation?: string | null;
   filePath?: string | null;
   fileName?: string | null;
+  draftContractGeneratedAt?: string | null;
+  signedFilePath?: string | null;
+  signedFileName?: string | null;
+  signedUploadedAt?: string | null;
+  headSignatureData?: string | null;
+  headSignatureHash?: string | null;
+  headSignedAt?: string | null;
   status: ContractStatus;
   rejectionReason?: string | null;
   reviewedByOfficerId?: number | null;
@@ -313,10 +321,12 @@ export interface CreateBerthingContractPayload {
 export interface VerifyBerthingContractPayload {
   status: "ACTIVE" | "REJECTED";
   rejectionReason?: string;
+  signatureData?: string;
 }
 
 export type BerthingContractFilter =
   | "ALL"
   | "ACTIVE"
   | "PENDING_VERIFICATION"
+  | "WAITING_OPERATOR_SIGNATURE"
   | "INACTIVE";

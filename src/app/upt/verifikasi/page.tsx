@@ -20,9 +20,14 @@ import {
   Lock,
   Plus,
   Upload,
+  PenTool,
+  Printer,
 } from "lucide-react";
 import { API_CONFIG } from "@/config/api.config";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { BerthingContractPrintModal } from "@/components/contracts/BerthingContractPrintModal";
+import { ElectronicSignatureModal } from "@/components/contracts/ElectronicSignatureModal";
+import { OperatorBerthingContract } from "@/types/kapal.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { toast } from "@/store/toast.store";
@@ -43,6 +48,7 @@ import {
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-800 border-amber-200",
   PENDING_VERIFICATION: "bg-amber-50 text-amber-800 border-amber-200",
+  WAITING_OPERATOR_SIGNATURE: "bg-sky-50 text-sky-800 border-sky-200",
   REQUESTED: "bg-amber-50 text-amber-800 border-amber-200",
   PENDING_ROOM_OFFICER: "bg-amber-50 text-amber-800 border-amber-200",
   PENDING_HEAD_OF_PORT: "bg-blue-50 text-blue-800 border-blue-200",
@@ -85,7 +91,9 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
     user?.role === "SUPERADMIN";
 
   const isSinglePageMode =
-    Boolean(forcedTab) || user?.role === "PETUGAS_REGISTRASI_KONTRAK";
+    Boolean(forcedTab) ||
+    user?.role === "PETUGAS_REGISTRASI_KONTRAK" ||
+    user?.role === "KEPALA_PELABUHAN";
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (forcedTab) return forcedTab;
@@ -104,6 +112,10 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
 
   // Inspect Documents modal state
   const [inspectDocsTarget, setInspectDocsTarget] = useState<InspectDocsTarget | null>(null);
+
+  // TTE & Print Contract modal state
+  const [tteContractTarget, setTteContractTarget] = useState<OperatorBerthingContract | null>(null);
+  const [printContractTarget, setPrintContractTarget] = useState<OperatorBerthingContract | null>(null);
 
   // Create Berthing Contract modal state (POST /operators/:id/contracts)
   const [isCreatePksModalOpen, setIsCreatePksModalOpen] = useState(false);
@@ -207,7 +219,12 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   const pendingOps = operators.filter((o) => o.verificationStatus === "PENDING").length;
   const pendingVessels = vessels.filter((v) => v.verificationStatus === "PENDING").length;
   const pendingTenants = tenants.filter((t) => t.verificationStatus === "PENDING").length;
-  const pendingBerthing = pendingBerthingContracts.filter((c) => c.status === "PENDING_VERIFICATION").length;
+  const pendingBerthing = pendingBerthingContracts.filter(
+    (c) =>
+      c.status === "PENDING_VERIFICATION" ||
+      c.status === "WAITING_OPERATOR_SIGNATURE" ||
+      c.status === "PENDING_HEAD_OF_PORT"
+  ).length;
   const pendingRoomLeases = leases.filter(
     (l) => l.status === "REQUESTED" || l.status === "PENDING_ROOM_OFFICER" || l.status === "PENDING_HEAD_OF_PORT"
   ).length;
@@ -243,7 +260,9 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
   const filteredBerthingContracts = pendingBerthingContracts.filter((c) => {
     const matchStatus = statusFilter
       ? statusFilter === "PENDING"
-        ? c.status === "PENDING_VERIFICATION" || c.status === "PENDING_HEAD_OF_PORT"
+        ? c.status === "PENDING_VERIFICATION" ||
+          c.status === "WAITING_OPERATOR_SIGNATURE" ||
+          c.status === "PENDING_HEAD_OF_PORT"
         : statusFilter === "VERIFIED"
         ? c.status === "ACTIVE"
         : c.status === statusFilter
@@ -319,15 +338,12 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
         await reviewBerthingContractByOfficer(
           id,
           "APPROVE",
-          "Prasyarat legalitas & draf kontrak PKS Sandar dinyatakan lengkap oleh Petugas Registrasi & Kontrak."
+          "Prasyarat legalitas & permohonan PKS Sandar dinyatakan lengkap. Surat kontrak otomatis dikirim ke operator kapal untuk TTD basah."
         );
         toast.success(
-          "Prasyarat PKS Disetujui",
-          `Tahap 1 Prasyarat PKS Sandar (${name}) berhasil disetujui Petugas Registrasi & Kontrak dan diteruskan ke Kepala Pelabuhan!`
+          "Surat Kontrak Dikirim",
+          `Tahap 1 PKS Sandar (${name}) disetujui. Surat kontrak otomatis digenerate & dikirim ke operator kapal untuk tanda tangan basah!`
         );
-      } else {
-        await verifyBerthingContract(id, "ACTIVE");
-        toast.success("PKS Sandar Disahkan", `PKS Sandar Kapal (${name}) berhasil disahkan Kepala Pelabuhan (ACTIVE)!`);
       }
     }
   };
@@ -1066,10 +1082,22 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
                               href={getBackendFileUrl(c.filePath) || "#"}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0284C7] hover:underline mt-0.5"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0284C7] hover:underline mt-0.5 mr-2"
                             >
                               <FileText className="w-3 h-3 shrink-0" />
-                              <span className="truncate">Berkas PKS</span>
+                              <span className="truncate">Permohonan</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          )}
+                          {c.signedFilePath && (
+                            <a
+                              href={getBackendFileUrl(c.signedFilePath) || "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline mt-0.5"
+                            >
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span className="truncate">Scan TTD Basah</span>
                               <ExternalLink className="w-3 h-3 shrink-0" />
                             </a>
                           )}
@@ -1106,9 +1134,11 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
                             }`}
                           >
                             {c.status === "ACTIVE"
-                              ? "Aktif"
+                              ? "Aktif (TTE)"
                               : c.status === "PENDING_HEAD_OF_PORT"
-                              ? "Tahap 2"
+                              ? "Tahap 3 (TTE)"
+                              : c.status === "WAITING_OPERATOR_SIGNATURE"
+                              ? "Tahap 2 (TTD)"
                               : c.status === "PENDING_VERIFICATION"
                               ? "Tahap 1"
                               : c.status === "REJECTED"
@@ -1118,49 +1148,96 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
                         </td>
                         <td className="py-3.5 px-3.5 text-right align-middle whitespace-nowrap">
                           <div className="inline-flex items-center justify-end gap-1.5">
-                            {(c.status === "PENDING_VERIFICATION" ||
-                              (c.status === "PENDING_HEAD_OF_PORT" &&
-                                user?.role !== "PETUGAS_REGISTRASI_KONTRAK")) && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={isSubmitting}
-                                  onClick={() => handleApprove("pks_sandar", c.id, c.contractNumber)}
-                                  className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                                >
-                                  <ShieldCheck className="w-3 h-3 shrink-0" />
-                                  <span>
-                                    {user?.role === "PETUGAS_REGISTRASI_KONTRAK"
-                                      ? "Verifikasi"
-                                      : "Sahkan"}
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isSubmitting}
-                                  onClick={() =>
-                                    setRejectTarget({
-                                      type: "pks_sandar",
-                                      id: c.id,
-                                      name: c.contractNumber,
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                                >
-                                  <XCircle className="w-3 h-3 shrink-0" />
-                                  <span>Tolak</span>
-                                </button>
-                              </>
+                            {c.status === "PENDING_VERIFICATION" &&
+                              user?.role !== "KEPALA_PELABUHAN" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => handleApprove("pks_sandar", c.id, c.contractNumber)}
+                                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  >
+                                    <ShieldCheck className="w-3 h-3 shrink-0" />
+                                    <span>Verifikasi</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() =>
+                                      setRejectTarget({
+                                        type: "pks_sandar",
+                                        id: c.id,
+                                        name: c.contractNumber,
+                                      })
+                                    }
+                                    className="px-2 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  >
+                                    <XCircle className="w-3 h-3 shrink-0" />
+                                    <span>Tolak</span>
+                                  </button>
+                                </>
+                              )}
+                            {c.status === "PENDING_HEAD_OF_PORT" &&
+                              user?.role !== "PETUGAS_REGISTRASI_KONTRAK" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => setTteContractTarget(c)}
+                                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  >
+                                    <PenTool className="w-3 h-3 shrink-0" />
+                                    <span>TTE &amp; Sahkan</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() =>
+                                      setRejectTarget({
+                                        type: "pks_sandar",
+                                        id: c.id,
+                                        name: c.contractNumber,
+                                      })
+                                    }
+                                    className="px-2 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  >
+                                    <XCircle className="w-3 h-3 shrink-0" />
+                                    <span>Tolak</span>
+                                  </button>
+                                </>
+                              )}
+                            {c.status === "PENDING_VERIFICATION" &&
+                              user?.role === "KEPALA_PELABUHAN" && (
+                                <span className="text-[11px] text-amber-700 font-bold">
+                                  Menunggu Verifikasi Petugas
+                                </span>
+                              )}
+                            {c.status === "WAITING_OPERATOR_SIGNATURE" && (
+                              <span className="text-[11px] text-sky-700 font-bold">
+                                Menunggu Upload TTD Operator
+                              </span>
                             )}
                             {c.status === "PENDING_HEAD_OF_PORT" &&
                               user?.role === "PETUGAS_REGISTRASI_KONTRAK" && (
                                 <span className="text-[11px] text-blue-700 font-bold">
-                                  Menunggu Ka. UPT
+                                  Menunggu TTE Ka. UPT
                                 </span>
                               )}
+                            {(c.status === "WAITING_OPERATOR_SIGNATURE" ||
+                              c.status === "PENDING_HEAD_OF_PORT" ||
+                              c.status === "ACTIVE") && (
+                              <button
+                                type="button"
+                                onClick={() => setPrintContractTarget(c)}
+                                title="Lihat / Cetak Surat Kontrak"
+                                className="p-1 rounded-lg border border-slate-200 text-[#0B241E] hover:bg-slate-100 cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {c.status === "ACTIVE" && (
                               <span className="text-[11px] text-emerald-700 font-bold">
-                                ✓ Disahkan
+                                ✓ Disahkan TTE
                               </span>
                             )}
                           </div>
@@ -1417,6 +1494,39 @@ export function VerifikasiModuleView({ forcedTab }: VerifikasiPageProps) {
         isSubmitting={isSubmitting}
         onSubmit={handleConfirmReject}
         onClose={() => setRejectTarget(null)}
+      />
+
+      {/* Tanda Tangan Elektronik (TTE) Kepala Pelabuhan Modal */}
+      <ElectronicSignatureModal
+        contract={tteContractTarget}
+        signedFileUrl={getBackendFileUrl(tteContractTarget?.signedFilePath)}
+        isSubmitting={isSubmitting}
+        onClose={() => setTteContractTarget(null)}
+        onConfirm={async (signatureData) => {
+          if (!tteContractTarget) return;
+          clearError();
+          try {
+            await verifyBerthingContract(
+              tteContractTarget.id,
+              "ACTIVE",
+              undefined,
+              signatureData
+            );
+            toast.success(
+              "PKS Sandar Disahkan (TTE)",
+              `PKS Sandar (${tteContractTarget.contractNumber}) resmi ditandatangani secara elektronik oleh Kepala Pelabuhan dan berstatus AKTIF!`
+            );
+            setTteContractTarget(null);
+          } catch {
+            // handled in store
+          }
+        }}
+      />
+
+      {/* Pratinjau & Cetak Surat Kontrak PKS Sandar */}
+      <BerthingContractPrintModal
+        contract={printContractTarget}
+        onClose={() => setPrintContractTarget(null)}
       />
     </div>
   );
