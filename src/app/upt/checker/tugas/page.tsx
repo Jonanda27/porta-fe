@@ -29,6 +29,7 @@ import { StatusDot } from "@/components/ui/status-indicator";
 import { ConfirmActionModal } from "@/components/ui/confirm-action-modal";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatLabel } from "@/lib/format-labels";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 type QueueTab = "head_queue" | "waiting" | "unsubmitted" | "overdue" | "returned";
 
@@ -562,7 +563,8 @@ export default function CheckerTugasPage() {
 
       {/* Task Detail Modal */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
@@ -830,6 +832,7 @@ export default function CheckerTugasPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       <ConfirmActionModal

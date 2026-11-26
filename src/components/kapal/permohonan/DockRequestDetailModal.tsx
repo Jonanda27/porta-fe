@@ -4,6 +4,7 @@ import React from "react";
 import { FileText, X, Clock, Anchor, Loader2, DollarSign } from "lucide-react";
 import { DockRequest } from "@/types/kapal.types";
 import { formatRupiah } from "@/lib/kapal-billing";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface DockRequestDetailModalProps {
   request: DockRequest | null;
@@ -21,7 +22,8 @@ export function DockRequestDetailModal({
   if (!request) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
           <div className="flex items-center gap-2.5">
@@ -230,5 +232,6 @@ export function DockRequestDetailModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

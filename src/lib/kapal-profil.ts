@@ -1,4 +1,80 @@
-import { LegalDocSlotSpec } from "@/types/kapal.types";
+import {
+  LegalDocSlotSpec,
+  OperatorDocument,
+  VesselFormState,
+} from "@/types/kapal.types";
+
+export const DEFAULT_VESSEL_FORM: VesselFormState = {
+  name: "",
+  registrationNumber: "",
+  imoNumber: "",
+  grossTonnage: 500,
+  shipType: "NIAGA",
+  vesselCategory: "BARANG",
+  shippingCategory: "DALAM_NEGERI",
+  lengthMeters: 65,
+  draftMeters: 4.2,
+  flag: "Indonesia",
+};
+
+export function isVesselPhotoDoc(doc: OperatorDocument): boolean {
+  return (
+    doc.notes === "FOTO_KAPAL" ||
+    doc.documentNumber === "FOTO-KAPAL" ||
+    (doc.category === "LAINNYA" && Boolean(doc.mimeType?.startsWith("image/")))
+  );
+}
+
+export function computeMatchedSlotDocs(
+  documents?: OperatorDocument[]
+): Record<string, OperatorDocument | null> {
+  const companyOnlyDocuments = (documents || []).filter(
+    (doc) =>
+      !doc.vesselId &&
+      doc.category !== "SURAT_UKUR" &&
+      doc.category !== "PAS_BESAR_KECIL" &&
+      !isVesselPhotoDoc(doc)
+  );
+
+  const map: Record<string, OperatorDocument | null> = {};
+  const usedDocIds = new Set<number>();
+
+  for (const slot of COMPANY_LEGAL_DOC_SLOTS) {
+    const exactMatch = [...companyOnlyDocuments]
+      .reverse()
+      .find((d) => d.notes?.startsWith(`SLOT:${slot.slotKey}`) && !usedDocIds.has(d.id));
+    if (exactMatch) {
+      map[slot.slotKey] = exactMatch;
+      usedDocIds.add(exactMatch.id);
+    } else {
+      map[slot.slotKey] = null;
+    }
+  }
+
+  for (const slot of COMPANY_LEGAL_DOC_SLOTS) {
+    if (map[slot.slotKey]) continue;
+    const fallbackMatch = [...companyOnlyDocuments].reverse().find((d) => {
+      if (usedDocIds.has(d.id)) return false;
+      if (slot.slotKey === "SIUPAL" && d.category === "SIUPAL_NIB") {
+        const isNibOnly =
+          d.documentNumber?.toUpperCase().startsWith("NIB") &&
+          !d.documentNumber?.toUpperCase().includes("SIUP");
+        return !isNibOnly;
+      }
+      if (slot.slotKey === "NIB" && d.category === "SIUPAL_NIB") return true;
+      if (slot.slotKey === "NPWP" && d.category === "NPWP") return true;
+      if (slot.category === "LAINNYA" && d.category === "LAINNYA") return true;
+      return false;
+    });
+
+    if (fallbackMatch) {
+      map[slot.slotKey] = fallbackMatch;
+      usedDocIds.add(fallbackMatch.id);
+    }
+  }
+
+  return map;
+}
 
 export function formatVesselType(
   shipType?: string | null,

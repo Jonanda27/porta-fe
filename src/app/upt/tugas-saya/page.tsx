@@ -17,14 +17,16 @@ import {
   ExternalLink,
   Award,
 } from "lucide-react";
-import { API_CONFIG, getUploadedFileUrl } from "@/config/api.config";
+import { getUploadedFileUrl } from "@/config/api.config";
 import { TaskService } from "@/services/task.service";
+import { getBackendFileUrl } from "@/lib/file-url";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
 import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { OfficerTaskItem } from "@/types/upt.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function UptTugasSayaPage() {
   const { user } = useAuthStore();
@@ -82,13 +84,6 @@ export default function UptTugasSayaPage() {
     fetchOfficerWorkspaceData(activePortId);
     fetchDailyReportsOnly(activePortId);
   }, [activePortId, fetchOfficerWorkspaceData, fetchDailyReportsOnly]);
-
-  const backendOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/, "");
-  const getBackendFileUrl = (filePath?: string | null): string | null => {
-    if (!filePath) return null;
-    if (filePath.startsWith("http://") || filePath.startsWith("https://")) return filePath;
-    return `${backendOrigin}/${filePath.replace(/^\/+/, "")}`;
-  };
 
   const openTaskModal = (task: OfficerTaskItem) => {
     setSelectedTask(task);
@@ -608,7 +603,8 @@ export default function UptTugasSayaPage() {
 
       {/* MODAL CHECKLIST & SUBMIT TUGAS */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 space-y-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3.5">
               <div>
@@ -804,11 +800,13 @@ export default function UptTugasSayaPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* MODAL BUAT LEMBAR TUGAS BARU (POST /tasks) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateTask}
             className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-lg p-6 sm:p-7 space-y-4 shadow-2xl text-xs"
@@ -919,6 +917,7 @@ export default function UptTugasSayaPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

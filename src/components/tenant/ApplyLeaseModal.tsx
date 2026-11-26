@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTenantStore } from "@/store/tenant.store";
 import { toast } from "@/store/toast.store";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export function ApplyLeaseModal() {
   const {
@@ -90,7 +91,8 @@ export function ApplyLeaseModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-lg p-6 sm:p-8 space-y-5 shadow-2xl relative animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
@@ -244,5 +246,6 @@ export function ApplyLeaseModal() {
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }

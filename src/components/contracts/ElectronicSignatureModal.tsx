@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PenTool, Eraser, ShieldCheck, X, Loader2, ExternalLink, FileText } from "lucide-react";
 import { OperatorBerthingContract } from "@/types/kapal.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface ElectronicSignatureModalProps {
   contract: OperatorBerthingContract | null;
@@ -108,7 +109,8 @@ export function ElectronicSignatureModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
         className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-lg p-6 space-y-4 shadow-2xl"
@@ -223,5 +225,6 @@ export function ElectronicSignatureModal({
         </div>
       </form>
     </div>
+    </ModalPortal>
   );
 }

@@ -32,6 +32,7 @@ import { UserRole } from "@/types/auth.types";
 import { useNotificationStore } from "@/store/notification.store";
 import { PortService } from "@/services/port.service";
 import { PortItem } from "@/types/port.types";
+import { toast } from "@/store/toast.store";
 
 function DinasHeaderFilters({
   ports,
@@ -106,7 +107,12 @@ function DinasHeaderFilters({
       {/* Export Button */}
       <button
         type="button"
-        onClick={() => alert("Mengunduh Laporan Eksekutif PAD Pelabuhan Kab. Mimika (Format PDF Rekonsiliasi)...")}
+        onClick={() =>
+          toast.info(
+            "Unduh Laporan Eksekutif",
+            "Menyiapkan Laporan Eksekutif PAD Pelabuhan Kab. Mimika (Format PDF Rekonsiliasi)."
+          )
+        }
         className="bg-[#D97706] hover:bg-[#B45309] text-[#0B241E] font-bold px-3.5 py-2 sm:py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0 w-full sm:w-auto"
       >
         <Download className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -494,7 +500,7 @@ export default function DinasLayout({
         </header>
 
         {/* B. HERO BANNER (Top Colored Band from Able Pro) */}
-        <section className="bg-[#0B241E] text-white pt-5 pb-16 sm:pt-6 sm:pb-24 px-4 sm:px-6 lg:px-8 border-b border-[#143E33] relative overflow-hidden">
+        <section className="bg-[#0B241E] text-white pt-7 pb-28 sm:pb-32 px-6 lg:px-8 border-b border-[#143E33] relative overflow-hidden">
           {/* Subtle Nautical Coordinate Lines */}
           <div className="absolute right-0 top-0 translate-x-20 -translate-y-12 w-96 h-96 rounded-full border border-[#164336]/40 pointer-events-none" />
           <div className="absolute right-12 top-0 translate-x-32 -translate-y-8 w-[420px] h-[420px] rounded-full border border-[#164336]/20 pointer-events-none" />
@@ -508,7 +514,7 @@ export default function DinasLayout({
                 <span>/</span>
                 <span className="text-white font-semibold">{getBreadcrumbLabel()}</span>
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight">
                 {getPageTitle()}
               </h1>
               <p className="text-xs sm:text-sm text-[#BED2CA] mt-1.5 max-w-xl leading-relaxed">
@@ -530,7 +536,7 @@ export default function DinasLayout({
         </section>
 
         {/* C. SUBPAGE CHILDREN CONTAINER (Overlaps Hero Banner with luxurious breathing room) */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 sm:-mt-14 pb-12 sm:pb-16 w-full flex-1 z-10 space-y-5 sm:space-y-6">
+        <main className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12 w-full flex-1 space-y-5 sm:space-y-6">
           {children}
         </main>
       </div>

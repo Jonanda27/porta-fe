@@ -56,8 +56,128 @@ export default function BendaharaDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Header Ringkasan & Tombol Sinkronisasi Kasda */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#CBD5E1] shadow-xs">
+      {/* 1. Empat Kartu KPI Utama Finansial (Overlapping Hero Banner) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Total PAD Masuk */}
+        <div className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 truncate">
+                {verifiedCount} SSRD Lunas
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Total PAD Masuk Kasda
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {formatRupiah(totalVerifiedPAD)}
+            </p>
+          </div>
+          <p className="text-xs text-[#64748B] mt-3 pt-2.5 border-t border-[#F1F5F9] flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">Setoran Sah RKUD Bank Papua</span>
+          </p>
+        </div>
+
+        {/* KPI 2: Piutang e-SKRD Berjalan */}
+        <Link
+          href="/bendahara/skrd"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <Clock className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 truncate">
+                {revenueSummary?.outstandingInvoiceCount ?? invoices.length} SKRD Aktif
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Piutang e-SKRD Aktif
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {formatRupiah(totalReceivables)}
+            </p>
+          </div>
+          <p className="text-xs text-[#D97706] font-semibold mt-3 pt-2.5 border-t border-[#F1F5F9] flex items-center justify-between">
+            <span>Menunggu Pelunasan Operator</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </p>
+        </Link>
+
+        {/* KPI 3: Kunjungan Belum Ditagih (Anti-Kebocoran PAD) */}
+        <Link
+          href="/bendahara/skrd"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
+                  unbilledCount > 0
+                    ? "bg-rose-50 border-rose-100 text-rose-700"
+                    : "bg-emerald-50 border-emerald-100 text-emerald-700"
+                }`}
+              >
+                <AlertTriangle className="w-4.5 h-4.5" />
+              </div>
+              <span
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border truncate ${
+                  unbilledCount > 0
+                    ? "bg-rose-50 text-rose-700 border-rose-200/80"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200/80"
+                }`}
+              >
+                {unbilledCount > 0 ? "Perlu Terbit SKRD" : "Aman Terkendali"}
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Belum Diterbitkan SKRD
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {unbilledCount} Kapal
+            </p>
+          </div>
+          <p className="text-xs text-rose-700 font-semibold mt-3 pt-2.5 border-t border-[#F1F5F9] flex items-center justify-between">
+            <span>Terbitkan Tagihan Rampung</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </p>
+        </Link>
+
+        {/* KPI 4: Antrean Verifikasi Bukti Setor */}
+        <Link
+          href="/bendahara/verifikasi"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <CreditCard className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 truncate">
+                Validasi Bank
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Loket Verifikasi Bayar
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {pendingVerificationInvoices.length} Berkas
+            </p>
+          </div>
+          <p className="text-xs text-[#0B241E] font-semibold mt-3 pt-2.5 border-t border-[#F1F5F9] flex items-center justify-between">
+            <span>Buka Loket Verifikasi</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </p>
+        </Link>
+      </div>
+
+      {/* 2. Header Ringkasan & Tombol Sinkronisasi Kasda */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
         <div>
           <h2 className="text-sm font-extrabold text-[#0B241E] flex items-center gap-2">
             <Landmark className="w-4 h-4 text-[#D97706]" />
@@ -81,119 +201,6 @@ export default function BendaharaDashboardPage() {
           <RefreshCw className={`w-3.5 h-3.5 text-[#D97706] ${isLoading ? "animate-spin" : ""}`} />
           <span>Sinkronisasi Data Real</span>
         </button>
-      </div>
-
-      {/* 2. Empat Kartu KPI Utama Finansial */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total PAD Masuk */}
-        <div className="bg-white p-5 rounded-2xl border border-[#CBD5E1] shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-bold text-[#64748B] uppercase tracking-wider">
-                Total PAD Masuk Kasda
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-emerald-800 mt-2">
-              {formatRupiah(totalVerifiedPAD)}
-            </p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Setoran Sah RKUD Bank Papua
-            </p>
-          </div>
-          <div className="pt-3 border-t border-[#F1F5F9] mt-3 text-[11px] text-emerald-700 font-bold flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>{verifiedCount} Transaksi Lunas Terbit SSRD</span>
-          </div>
-        </div>
-
-        {/* Piutang e-SKRD Berjalan */}
-        <div className="bg-white p-5 rounded-2xl border border-[#CBD5E1] shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-bold text-[#64748B] uppercase tracking-wider">
-                Piutang e-SKRD Aktif
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center">
-                <Clock className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-amber-900 mt-2">
-              {formatRupiah(totalReceivables)}
-            </p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Menunggu Pelunasan Operator
-            </p>
-          </div>
-          <div className="pt-3 border-t border-[#F1F5F9] mt-3">
-            <Link
-              href="/bendahara/skrd"
-              className="text-[11px] text-[#D97706] hover:underline font-bold flex items-center justify-between"
-            >
-              <span>{revenueSummary?.outstandingInvoiceCount ?? invoices.length} Dokumen SKRD Aktif</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Peringatan Kunjungan Belum Ditagih (Anti-Kebocoran PAD) */}
-        <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-xs flex flex-col justify-between bg-gradient-to-br from-white to-rose-50/30">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                <span>Anti-Bocor: Belum Diterbitkan SKRD</span>
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 border border-rose-300 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-rose-800 mt-2">
-              {unbilledCount} Kapal Selesai
-            </p>
-            <p className="text-[11px] text-rose-600 mt-1">
-              Selesai Sandar Tapi Belum Terbit SKRD
-            </p>
-          </div>
-          <div className="pt-3 border-t border-rose-100 mt-3">
-            <Link
-              href="/bendahara/skrd"
-              className="text-[11px] text-rose-700 hover:underline font-bold flex items-center justify-between"
-            >
-              <span>Terbitkan Tagihan Rampung &rarr;</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Antrean Verifikasi Bukti Setor */}
-        <div className="bg-white p-5 rounded-2xl border border-[#CBD5E1] shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-bold text-[#64748B] uppercase tracking-wider">
-                Loket Verifikasi Bayar
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center">
-                <CreditCard className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-[#0B241E] mt-2">
-              {pendingVerificationInvoices.length} Berkas
-            </p>
-            <p className="text-[11px] text-[#64748B] mt-1">
-              Bukti Transfer Perlu Validasi Bank
-            </p>
-          </div>
-          <div className="pt-3 border-t border-[#F1F5F9] mt-3">
-            <Link
-              href="/bendahara/verifikasi"
-              className="text-[11px] text-[#0B241E] hover:underline font-bold flex items-center justify-between"
-            >
-              <span>Buka Loket Verifikasi &rarr;</span>
-            </Link>
-          </div>
-        </div>
       </div>
 
       {/* 3. Breakdown Penerimaan Berdasarkan Objek Retribusi (Perda 4/2023) */}

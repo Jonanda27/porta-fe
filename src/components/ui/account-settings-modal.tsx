@@ -12,6 +12,7 @@ import {
 import { AuthService } from "@/services/auth.service";
 import { useAuthStore } from "@/store/auth.store";
 import { toast } from "@/store/toast.store";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface AccountSettingsModalProps {
   isOpen: boolean;
@@ -121,7 +122,8 @@ export function AccountSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs">
       <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#E2E8F0]">
         <div className="flex items-start justify-between p-6 border-b border-[#E2E8F0]">
           <div className="flex items-center gap-3">
@@ -367,5 +369,6 @@ export function AccountSettingsModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -6,6 +6,7 @@ import {
   CreateGateTicketBookPayload,
   GateHandoverItem,
 } from "@/types/field-ops.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export interface HandoverCloseFormState {
   lastReturnedSerial: number;
@@ -43,7 +44,8 @@ export function HandoverCloseModal({
   if (!handover) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between pb-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -224,6 +226,7 @@ export function HandoverCloseModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -249,7 +252,8 @@ export function CreateTicketBookModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
       <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl max-w-lg w-full p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-2">
@@ -408,5 +412,6 @@ export function CreateTicketBookModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }

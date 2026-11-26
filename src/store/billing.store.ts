@@ -15,6 +15,7 @@ import {
   SubmitPaymentProofDto,
   UnbilledVisit,
   WarningRecord,
+  AutoEscalateWarningsResponse,
 } from "@/types/billing.types";
 import {
   AssetLease,
@@ -107,6 +108,7 @@ interface BillingState {
   issueInvoice: (invoiceId: number) => Promise<void>;
   voidInvoice: (invoiceId: number, reason: string) => Promise<void>;
   issueWarning: (dto: CreateWarningDto) => Promise<WarningRecord>;
+  autoEscalateWarnings: () => Promise<AutoEscalateWarningsResponse>;
 }
 
 export const useBillingStore = create<BillingState>((set, get) => ({
@@ -462,6 +464,21 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Gagal menerbitkan surat teguran.";
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  autoEscalateWarnings: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await BillingService.autoEscalateWarnings();
+      await Promise.all([get().fetchWarnings(), get().fetchInvoices()]);
+      set({ isLoading: false });
+      return result;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Gagal menjalankan eskalasi STRD otomatis.";
       set({ isLoading: false, error: message });
       throw err;
     }

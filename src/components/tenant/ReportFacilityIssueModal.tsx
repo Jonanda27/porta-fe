@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 import {
   X,
   Wrench,
@@ -192,7 +193,8 @@ export function ReportFacilityIssueModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 bg-[#0B241E] text-white flex items-center justify-between shrink-0">
@@ -461,5 +463,6 @@ export function ReportFacilityIssueModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

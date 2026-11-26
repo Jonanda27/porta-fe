@@ -23,6 +23,7 @@ import {
   OfficialRetribusiDocumentData,
   OfficialRetribusiDocumentModal,
 } from "@/components/billing/OfficialRetribusiDocumentModal";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function BendaharaVerifikasiPage() {
   const {
@@ -591,7 +592,8 @@ export default function BendaharaVerifikasiPage() {
 
       {/* 5. Modal Rincian Invoice */}
       {selectedInvoice && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#CBD5E1] space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div>
@@ -648,11 +650,13 @@ export default function BendaharaVerifikasiPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Modal Link / QRIS Pembayaran Digital (POST /payments/checkout) */}
       {activeCheckoutSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div className="flex items-center gap-2">
@@ -728,6 +732,7 @@ export default function BendaharaVerifikasiPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Modal Cetak Resmi e-SSRD (Lampiran III Perbup Mimika 25/2024) */}

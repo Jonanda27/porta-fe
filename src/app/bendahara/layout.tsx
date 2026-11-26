@@ -89,7 +89,7 @@ export default function BendaharaLayout({
     if (pathname.includes("/bendahara/skrd"))
       return "Penerbitan surat ketetapan retribusi uang muka (Advance) dan rampung (Final) berdasarkan durasi sandar aktual kapal di dermaga aset Pemkab Mimika.";
     if (pathname.includes("/bendahara/tunggakan"))
-      return "Monitoring piutang retribusi daerah yang melewati tanggal jatuh tempo, simulasi denda administratif 1-2%, dan penerbitan Surat Teguran resmi (STRD).";
+      return "Monitoring piutang retribusi daerah yang melewati tanggal jatuh tempo, simulasi denda administratif 1%/bulan, dan penerbitan Surat Teguran resmi (STRD).";
     if (pathname.includes("/bendahara/rekonsiliasi"))
       return "Pencocokan penerimaan kas loket tiket gerbang, pendapatan sandar kapal, dan pembukuan Buku Kas Umum (BKU) Penerimaan Pelabuhan Poumako.";
     if (pathname.includes("/bendahara/kios-utilitas"))
@@ -326,7 +326,7 @@ export default function BendaharaLayout({
         </header>
 
         {/* Hero Section Banner */}
-        <div className="bg-gradient-to-r from-[#0B241E] via-[#10382D] to-[#16493B] text-white pt-7 pb-24 sm:pb-28 px-6 lg:px-8 border-b border-[#1E5748] shrink-0">
+        <div className="bg-gradient-to-r from-[#0B241E] via-[#10382D] to-[#16493B] text-white pt-7 pb-28 sm:pb-32 px-6 lg:px-8 border-b border-[#1E5748] shrink-0">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="max-w-3xl">
               <div className="flex items-center gap-2 text-xs font-mono text-[#D97706] mb-1.5">
@@ -347,7 +347,7 @@ export default function BendaharaLayout({
         </div>
 
         {/* Page Children Content Area */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
+        <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
           {children}
         </main>
       </div>

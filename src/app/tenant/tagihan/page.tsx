@@ -19,6 +19,7 @@ import { usePaymentStore } from "@/store/payment.store";
 import { formatLabel } from "@/lib/format-labels";
 import { TenantService } from "@/services/tenant.service";
 import { BillingService } from "@/services/billing.service";
+import { PaymentService } from "@/services/payment.service";
 import {
   ReceiptModalData,
   TenantLeaseItem,
@@ -27,7 +28,10 @@ import {
 } from "@/types/tenant.types";
 import { UtilityReadingItem } from "@/types/field-ops.types";
 import { WarningRecord } from "@/types/billing.types";
+import { CheckoutPaymentResponse } from "@/types/payment.types";
 import { PrintReceiptModal } from "@/components/tenant/PrintReceiptModal";
+import { PaymentSideDrawer } from "@/components/ui/PaymentSideDrawer";
+import { EmbeddedMidtransPanel } from "@/components/ui/EmbeddedMidtransPanel";
 
 export default function TenantTagihanPage() {
   const { leases, utilities, isLoading, error, fetchTenantData } =
@@ -41,6 +45,7 @@ export default function TenantTagihanPage() {
   } = usePaymentStore();
 
   const [checkoutInfo, setCheckoutInfo] = useState<string | null>(null);
+  const [activeSnapSession, setActiveSnapSession] = useState<CheckoutPaymentResponse | null>(null);
   const [warnings, setWarnings] = useState<WarningRecord[]>([]);
   const [paymentPage, setPaymentPage] = useState(1);
   const [paymentItemsPerPage, setPaymentItemsPerPage] = useState(5);
@@ -70,9 +75,7 @@ export default function TenantTagihanPage() {
     setCheckoutInfo(
       `Sesi pembayaran ${res.orderId} siap (Rp ${res.amountIdr.toLocaleString("id-ID")}).`
     );
-    if (res.redirectUrl) {
-      window.open(res.redirectUrl, "_blank", "noopener,noreferrer");
-    }
+    setActiveSnapSession(res);
   };
 
   const handleOpenLeaseReceipt = async (paymentId: number, fallback: LeasePaymentTableRow) => {
@@ -273,7 +276,7 @@ export default function TenantTagihanPage() {
                   </span>
                 </div>
                 <p className="text-[#475569] text-[11px] leading-relaxed">
-                  Keterlambatan penyetoran retribusi daerah melewati tanggal jatuh tempo dikenakan sanksi administratif berupa bunga/denda sebesar <strong>2% (dua persen) per bulan</strong>. Wajib Retribusi yang menunggak akan diterbitkan <strong>Surat Teguran (STRD) I, II, dan III</strong> sebelum penindakan penertiban fasilitas tempat usaha.
+                  Keterlambatan penyetoran retribusi daerah melewati tanggal jatuh tempo dikenakan sanksi administratif berupa bunga/denda sebesar <strong>1% (satu persen) per bulan</strong>. Wajib Retribusi yang menunggak akan diterbitkan <strong>Surat Teguran (STRD) I, II, dan III</strong> sebelum penindakan penertiban fasilitas tempat usaha.
                 </p>
                 {warnings.length > 0 && (
                   <div className="pt-2">
@@ -488,6 +491,78 @@ export default function TenantTagihanPage() {
         isOpen={isReceiptModalOpen}
         onClose={() => setIsReceiptModalOpen(false)}
         receipt={selectedReceipt}
+      />
+
+      <PaymentSideDrawer
+        isOpen={Boolean(activeSnapSession)}
+        title="Pembayaran Retribusi Tenant (Midtrans)"
+        subtitle={activeSnapSession ? `Order ID: ${activeSnapSession.orderId}` : undefined}
+        icon={<CreditCard className="w-5 h-5 text-[#D97706]" />}
+        onClose={() => setActiveSnapSession(null)}
+        leftColumn={
+          activeSnapSession ? (
+            <div className="space-y-4 text-xs">
+              <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs space-y-2.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block">
+                  Ringkasan Pembayaran
+                </span>
+                <div className="flex justify-between">
+                  <span className="text-[#64748B]">Order ID</span>
+                  <span className="font-mono font-bold text-[#0B241E]">
+                    {activeSnapSession.orderId}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline border-t border-[#E2E8F0] pt-3">
+                  <span className="font-extrabold text-[#0B241E]">Total Tagihan</span>
+                  <span className="font-mono font-black text-lg text-[#D97706]">
+                    Rp {Number(activeSnapSession.amountIdr).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 bg-white rounded-2xl border border-[#E2E8F0] text-[11px] text-[#64748B] leading-relaxed">
+                Selesaikan pembayaran melalui QRIS, Virtual Account, atau E-Wallet di
+                panel sebelah kanan. Kuitansi e-SSRD akan tersedia otomatis setelah
+                pembayaran terkonfirmasi.
+              </div>
+            </div>
+          ) : null
+        }
+        rightColumn={
+          activeSnapSession ? (
+            <EmbeddedMidtransPanel
+              session={activeSnapSession}
+              clientKey={paymentConfig?.midtransClientKey}
+              isProduction={paymentConfig?.isProduction}
+              isCheckingStatus={isLoading}
+              onSuccess={() => {
+                const orderId = activeSnapSession.orderId;
+                void (async () => {
+                  await PaymentService.syncStatus(orderId).catch(() => null);
+                  setCheckoutInfo(`Pembayaran ${orderId} berhasil diselesaikan.`);
+                  setActiveSnapSession(null);
+                  await fetchTenantData();
+                })();
+              }}
+              onPending={() => {
+                const orderId = activeSnapSession.orderId;
+                void (async () => {
+                  await PaymentService.syncStatus(orderId).catch(() => null);
+                  setCheckoutInfo(
+                    `Pembayaran ${orderId} menunggu penyelesaian di Midtrans.`,
+                  );
+                  await fetchTenantData();
+                })();
+              }}
+              onCheckStatus={() => {
+                const orderId = activeSnapSession.orderId;
+                void (async () => {
+                  await PaymentService.syncStatus(orderId).catch(() => null);
+                  await fetchTenantData();
+                })();
+              }}
+            />
+          ) : null
+        }
       />
     </div>
   );

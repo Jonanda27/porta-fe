@@ -14,6 +14,7 @@ import { usePortStore } from "@/store/port.store";
 import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import type { UptShiftTabType as TabType } from "@/types/upt.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function UptShiftPage() {
   const { user } = useAuthStore();
@@ -411,7 +412,8 @@ export default function UptShiftPage() {
 
       {/* Close Handover Modal */}
       {closingId && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCloseHandover}
             className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
@@ -456,6 +458,7 @@ export default function UptShiftPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

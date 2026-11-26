@@ -28,6 +28,7 @@ import {
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
 import { VesselVisit } from "@/types/kapal.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function KapalRiwayatPage() {
   const { user } = useAuthStore();
@@ -416,7 +417,8 @@ export default function KapalRiwayatPage() {
       {/* 4. MODAL DETAIL BUKU LOG KUNJUNGAN REALISASI                              */}
       {/* ========================================================================= */}
       {isDetailModalOpen && activeVisit && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#CBD5E1] overflow-hidden my-8">
             <div className="bg-[#0B241E] text-white p-4 px-6 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -581,6 +583,7 @@ export default function KapalRiwayatPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -315,3 +315,32 @@ export interface UnpaidLeaseSummary {
 export type UnifiedPaidRecord =
   | { kind: "DERMAGA"; sortDate: number; invoice: BillingInvoice }
   | { kind: "RUANGAN"; sortDate: number; lease: AssetLease; payment: AssetLeasePayment };
+
+export interface OverdueInvoiceSummary {
+  invoiceId: number;
+  invoiceNumber: string;
+  operatorId: number;
+  operatorName: string;
+  dueDate: string;
+  status: InvoiceStatus;
+  penaltyRateMonthly: number;
+  daysOverdue: number;
+  monthsOverdue: number;
+  remainingPrincipalIdr: number;
+  penaltyIdr: number;
+  totalDueWithPenaltyIdr: number;
+  issuedWarningLevels: WarningLevel[];
+  pendingEscalationLevels: WarningLevel[];
+}
+
+export interface AutoEscalateWarningsResponse {
+  scannedCount: number;
+  escalatedCount: number;
+  issuedWarnings: Array<{
+    warningId: number;
+    warningNumber: string;
+    invoiceNumber: string;
+    warningLevel: WarningLevel;
+    penaltyIdr: number;
+  }>;
+}

@@ -134,8 +134,115 @@ export default function TenantDashboardPage() {
         </div>
       )}
 
+      {/* 1. OVERLAPPING OPERATIONAL KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link
+          href="/tenant/kontrak"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <FileText className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 truncate">
+                {activeLeases.length > 0 ? "PKS Aktif" : "Belum Aktif"}
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Kontrak PKS Aktif
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {activeLeases.length} Kontrak
+            </p>
+          </div>
+          <p className="text-xs text-[#64748B] mt-3 pt-2.5 border-t border-[#F1F5F9]">
+            Total {leases.length} riwayat pengajuan/kontrak
+          </p>
+        </Link>
+
+        <Link
+          href="/tenant/sewa"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <Store className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 truncate">
+                Katalog Aset
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Unit Aset Tersedia
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {availableAssets.length} Unit
+            </p>
+          </div>
+          <p className="text-xs text-[#D97706] font-semibold mt-3 pt-2.5 border-t border-[#F1F5F9] inline-flex items-center justify-between w-full">
+            <span>Lihat Katalog Aset</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </p>
+        </Link>
+
+        <Link
+          href="/tenant/utilitas"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <Zap className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 truncate">
+                {unpaidUtilities.length} Belum Lunas
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Catatan Utilitas
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              {utilities.length} Catatan
+            </p>
+          </div>
+          <p className="text-xs text-[#64748B] mt-3 pt-2.5 border-t border-[#F1F5F9]">
+            {unpaidUtilities.length} tagihan utilitas belum lunas
+          </p>
+        </Link>
+
+        <Link
+          href="/tenant/tagihan"
+          className="bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <Receipt className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 truncate">
+                Per Tahun Berjalan
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-4">
+              Total Nilai Kontrak Aktif
+            </p>
+            <p className="text-2xl font-extrabold text-[#0B241E] mt-1 tracking-tight">
+              Rp{" "}
+              {activeLeases
+                .reduce((sum, l) => sum + Number(l.totalAnnualAmountIdr), 0)
+                .toLocaleString("id-ID")}
+            </p>
+          </div>
+          <p className="text-xs text-[#64748B] mt-3 pt-2.5 border-t border-[#F1F5F9]">
+            Akumulasi kontrak sewa aktif
+          </p>
+        </Link>
+      </div>
+
       {/* Quick Action Header Bar: Layanan Terpadu & Kendala Fasilitas */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#0B241E]/10 flex items-center justify-center text-[#0B241E]">
             <Wrench className="w-5 h-5 text-[#D97706]" />
@@ -166,63 +273,6 @@ export default function TenantDashboardPage() {
             <Wrench className="w-3.5 h-3.5" />
             <span>Lapor Kendala Fasilitas</span>
           </button>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#0B241E] text-white rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-[#85A69B] text-xs font-bold">
-            <span>Kontrak PKS Aktif</span>
-            <FileText className="w-4 h-4 text-[#D97706]" />
-          </div>
-          <p className="text-2xl font-extrabold mt-2">{activeLeases.length}</p>
-          <p className="text-[11px] text-[#BED2CA] mt-1">
-            Total {leases.length} riwayat pengajuan/kontrak
-          </p>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
-            <span>Unit Aset Tersedia</span>
-            <Store className="w-4 h-4 text-[#0B241E]" />
-          </div>
-          <p className="text-2xl font-extrabold text-[#0B241E] mt-2">
-            {availableAssets.length}
-          </p>
-          <Link
-            href="/tenant/sewa"
-            className="text-[11px] text-[#D97706] font-bold mt-1 inline-flex items-center gap-1"
-          >
-            Lihat Katalog <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
-            <span>Catatan Utilitas</span>
-            <Zap className="w-4 h-4 text-amber-600" />
-          </div>
-          <p className="text-2xl font-extrabold text-[#0B241E] mt-2">
-            {utilities.length}
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-1">
-            {unpaidUtilities.length} tagihan utilitas belum lunas
-          </p>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-          <div className="flex items-center justify-between text-[#64748B] text-xs font-bold">
-            <span>Total Nilai Kontrak Aktif</span>
-            <Receipt className="w-4 h-4 text-emerald-600" />
-          </div>
-          <p className="text-lg font-extrabold text-[#0B241E] mt-2">
-            Rp{" "}
-            {activeLeases
-              .reduce((sum, l) => sum + Number(l.totalAnnualAmountIdr), 0)
-              .toLocaleString("id-ID")}
-          </p>
-          <p className="text-[11px] text-[#64748B] mt-1">Per tahun berjalan</p>
         </div>
       </div>
 

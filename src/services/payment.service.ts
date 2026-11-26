@@ -32,4 +32,16 @@ export const PaymentService = {
       payload
     );
   },
+
+  syncStatus(orderId: string): Promise<{
+    status: string;
+    orderId: string;
+    settled: boolean;
+  }> {
+    return apiClient.post<{
+      status: string;
+      orderId: string;
+      settled: boolean;
+    }>(API_CONFIG.ENDPOINTS.PAYMENTS.SYNC(orderId));
+  },
 };

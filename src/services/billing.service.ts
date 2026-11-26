@@ -1,4 +1,4 @@
-﻿import { API_CONFIG } from "@/config/api.config";
+import { API_CONFIG } from "@/config/api.config";
 import { apiClient } from "@/lib/api-client";
 import {
   BillingAdjustment,
@@ -19,6 +19,8 @@ import {
   UnbilledVisit,
   VoidInvoiceDto,
   WarningRecord,
+  OverdueInvoiceSummary,
+  AutoEscalateWarningsResponse,
 } from "@/types/billing.types";
 import {
   AssetLease,
@@ -228,6 +230,25 @@ export class BillingService {
    */
   public static async issueWarning(dto: CreateWarningDto): Promise<WarningRecord> {
     return apiClient.post<WarningRecord>("/warnings", dto);
+  }
+
+  /**
+   * Mengambil ringkasan piutang jatuh tempo beserta kalkulasi denda 1%/bulan
+   */
+  public static async getOverdueSummary(): Promise<OverdueInvoiceSummary[]> {
+    const response = await apiClient.get<OverdueInvoiceSummary[]>(
+      API_CONFIG.ENDPOINTS.WARNINGS.OVERDUE_SUMMARY
+    );
+    return Array.isArray(response) ? response : [];
+  }
+
+  /**
+   * Menjalankan eskalasi STRD I-III dan denda 1%/bulan otomatis untuk piutang lewat jatuh tempo
+   */
+  public static async autoEscalateWarnings(): Promise<AutoEscalateWarningsResponse> {
+    return apiClient.post<AutoEscalateWarningsResponse>(
+      API_CONFIG.ENDPOINTS.WARNINGS.AUTO_ESCALATE
+    );
   }
 
   /**

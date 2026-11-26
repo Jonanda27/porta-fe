@@ -28,6 +28,7 @@ import {
   OfficialRetribusiDocumentModal,
 } from "@/components/billing/OfficialRetribusiDocumentModal";
 import { BillingInvoice, UnbilledVisit } from "@/types/billing.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function BendaharaSkrdPage() {
   const {
@@ -373,6 +374,7 @@ export default function BendaharaSkrdPage() {
                     <th className="p-3.5">Nomor e-SKRD</th>
                     <th className="p-3.5">Armada Kapal</th>
                     <th className="p-3.5">Tahap</th>
+                    <th className="p-3.5">Rincian Tagihan</th>
                     <th className="p-3.5">Total Ketetapan</th>
                     <th className="p-3.5">Jatuh Tempo</th>
                     <th className="p-3.5">Status</th>
@@ -380,29 +382,81 @@ export default function BendaharaSkrdPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
-                  {filteredInvoices.map((inv) => (
+                  {filteredInvoices.map((inv) => {
+                    const verifiedPaid = (inv.payments || [])
+                      .filter((p) => p.isVerified)
+                      .reduce((sum, p) => sum + Number(p.amountIdr || 0), 0);
+                    const remainingDue = Math.max(
+                      0,
+                      Number(inv.totalAmountIdr || 0) - verifiedPaid
+                    );
+
+                    return (
                     <tr key={inv.id} className="hover:bg-[#F8FAFC] transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-[#0B241E]">
+                      <td className="p-3.5 font-mono font-bold text-[#0B241E] align-top">
                         {inv.invoiceNumber}
                       </td>
-                      <td className="p-3.5">
+                      <td className="p-3.5 align-top">
                         <div className="font-bold text-[#0B241E]">{inv.visit?.vessel?.name}</div>
                         <div className="text-[11px] text-[#64748B] font-mono">
                           {inv.visit?.vessel?.grossTonnage} GT
                         </div>
                       </td>
-                      <td className="p-3.5 font-mono text-[11px]">
+                      <td className="p-3.5 font-mono text-[11px] align-top">
                         <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">
                           {inv.billingStage}
                         </span>
                       </td>
-                      <td className="p-3.5 font-bold text-emerald-800">
-                        {formatRupiah(inv.totalAmountIdr)}
+                      <td className="p-3.5 align-top min-w-[230px]">
+                        {inv.items && inv.items.length > 0 ? (
+                          <div className="space-y-1">
+                            {inv.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-start justify-between gap-3 text-[11px]"
+                              >
+                                <div>
+                                  <span className="font-semibold text-[#0B241E] block">
+                                    {item.description}
+                                  </span>
+                                  {item.formulaNote && (
+                                    <span className="font-mono text-[10px] text-[#64748B] block">
+                                      {item.formulaNote}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-mono font-bold text-[#334155] shrink-0">
+                                  {formatRupiah(item.subtotalIdr)}
+                                </span>
+                              </div>
+                            ))}
+                            {verifiedPaid > 0 && (
+                              <div className="pt-1 mt-1 border-t border-dashed border-[#CBD5E1] flex items-center justify-between text-[10.5px] text-emerald-700 font-semibold">
+                                <span>Telah Dibayar / Uang Muka</span>
+                                <span className="font-mono">- {formatRupiah(verifiedPaid)}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[#64748B]">
+                            Retribusi Jasa Kepelabuhanan
+                          </span>
+                        )}
                       </td>
-                      <td className="p-3.5 text-[#64748B]">
-                        {new Date(inv.dueDate).toLocaleDateString("id-ID")}
+                      <td className="p-3.5 font-bold text-emerald-800 align-top whitespace-nowrap">
+                        <div>{formatRupiah(inv.totalAmountIdr)}</div>
+                        {verifiedPaid > 0 && remainingDue > 0 && (
+                          <div className="text-[10px] font-mono text-amber-700 mt-0.5">
+                            Sisa: {formatRupiah(remainingDue)}
+                          </div>
+                        )}
                       </td>
-                      <td className="p-3.5">
+                      <td className="p-3.5 text-[#64748B] align-top whitespace-nowrap">
+                        {inv.dueDate
+                          ? new Date(inv.dueDate).toLocaleDateString("id-ID")
+                          : "-"}
+                      </td>
+                      <td className="p-3.5 align-top">
                         <span
                           className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
                             inv.status === "PAID"
@@ -482,7 +536,8 @@ export default function BendaharaSkrdPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -492,7 +547,8 @@ export default function BendaharaSkrdPage() {
 
       {/* 4. Modal Konfirmasi Terbitkan e-SKRD (Rampung / Uang Muka) */}
       {selectedVisitForSkrd && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#CBD5E1] space-y-4">
             <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -630,11 +686,13 @@ export default function BendaharaSkrdPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* 5. Modal Batalkan / Void SKRD */}
       {selectedInvoiceForVoid && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-rose-200 space-y-4">
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
@@ -687,6 +745,7 @@ export default function BendaharaSkrdPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       <OfficialRetribusiDocumentModal

@@ -32,6 +32,7 @@ import {
   NotificationPriority,
   NotificationType,
 } from "@/types/notification.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 const NOTIFICATION_CATEGORIES: Array<{
   category: string;
@@ -623,7 +624,8 @@ export default function NotifikasiPage() {
       {/* MODAL: PENGATURAN PREFERENSI NOTIFIKASI (GET/PUT /notifications/preferences) */}
       {/* ===================================================================== */}
       {isPrefModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-auto">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -751,6 +753,7 @@ export default function NotifikasiPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );
