@@ -19,7 +19,12 @@ import {
   Eye,
   CheckSquare,
   Activity,
+  X,
+  Paperclip,
+  ExternalLink,
 } from "lucide-react";
+import { getUploadedFileUrl } from "@/config/api.config";
+import { StatusDot } from "@/components/ui/status-indicator";
 import { useDinasStore } from "@/store/dinas.store";
 
 function DinasOperasionalContent() {
@@ -47,6 +52,7 @@ function DinasOperasionalContent() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isProcessingAck, setIsProcessingAck] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [selectedReport, setSelectedReport] = useState<(typeof dailyReports)[number] | null>(null);
 
   useEffect(() => {
     fetchDailyReports(selectedPortFilter);
@@ -334,8 +340,12 @@ function DinasOperasionalContent() {
                   return (
                     <tr key={rep.id} className="hover:bg-gray-50/80 transition-colors">
                       <td className="py-3 px-4">
-                        <div className="font-bold text-[#0B241E] font-mono">
-                          {rep.reportDate}
+                        <div className="font-bold text-[#0B241E]">
+                          {new Date(rep.reportDate).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </div>
                         <div className="text-[11px] text-gray-400 mt-0.5">
                           {rep.createdAt.split("T")[1]?.slice(0, 5) || "20:00"} WIT
@@ -365,43 +375,36 @@ function DinasOperasionalContent() {
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        {isPending ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                            <Clock className="w-3 h-3" />
-                            Menunggu Disposisi
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Disahkan Pimpinan
-                          </span>
-                        )}
+                        <StatusDot
+                          status={
+                            (rep as { reviewStatus?: string }).reviewStatus || rep.status
+                          }
+                        />
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        {isPending ? (
+                        <div className="inline-flex items-center justify-center gap-1.5">
                           <button
-                            onClick={() => handleAcknowledge(rep.id)}
-                            disabled={isProcessingAck}
-                            className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer mx-auto disabled:opacity-50"
-                            title="Sahkan Laporan Tutup Hari"
-                          >
-                            <CheckSquare className="w-3.5 h-3.5 text-[#D97706]" />
-                            <span>Sahkan</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              alert(
-                                `Rincian Laporan Shift Tutup Hari:\nTanggal: ${rep.reportDate}\nPerwira: ${rep.officer?.fullName}\nCatatan: ${rep.generalNotes}\nStatus: Telah Disahkan`
-                              );
-                            }}
-                            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer mx-auto flex items-center gap-1"
+                            type="button"
+                            onClick={() => setSelectedReport(rep)}
+                            className="px-2.5 py-1.5 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold"
                           >
                             <Eye className="w-3.5 h-3.5 text-gray-500" />
-                            <span>Lihat Rincian</span>
+                            <span>Rincian</span>
                           </button>
-                        )}
+                          {isPending && (
+                            <button
+                              type="button"
+                              onClick={() => handleAcknowledge(rep.id)}
+                              disabled={isProcessingAck}
+                              className="px-3 py-1.5 bg-[#0B241E] hover:bg-[#133D31] text-white font-bold rounded-lg text-xs transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                              title="Sahkan Laporan Tutup Hari"
+                            >
+                              <CheckSquare className="w-3.5 h-3.5 text-[#D97706]" />
+                              <span>Sahkan</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -795,6 +798,125 @@ function DinasOperasionalContent() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rincian Laporan Shift Tutup Hari */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    LAP-{selectedReport.id}
+                  </span>
+                  <StatusDot
+                    status={
+                      (selectedReport as { reviewStatus?: string }).reviewStatus ||
+                      selectedReport.status
+                    }
+                  />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mt-2">
+                  Rincian Laporan Shift Tutup Hari
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {new Date(selectedReport.reportDate).toLocaleDateString("id-ID", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}{" "}
+                  • {selectedReport.officer?.fullName || "Petugas Jaga UPT"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">
+                Catatan Cuaca &amp; Operasional Shift
+              </span>
+              <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line">
+                {selectedReport.generalNotes || "Kondisi operasional normal dan aman."}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-slate-700 block">
+                Armada Sandar &amp; Bukti Lapangan ({selectedReport.items?.length ?? 0})
+              </span>
+              {selectedReport.items && selectedReport.items.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedReport.items.map((it, idx) => {
+                    const photo = (it as { evidencePhoto?: string | null }).evidencePhoto;
+                    const vesselName =
+                      it.vesselName ||
+                      (it as { vesselNameSnapshot?: string }).vesselNameSnapshot ||
+                      "Kapal Niaga";
+                    return (
+                      <div
+                        key={it.id ?? idx}
+                        className="rounded-xl border border-slate-200 p-3 text-xs flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="font-semibold text-slate-900">{vesselName}</div>
+                          {it.notes && <p className="text-slate-600 mt-0.5">{it.notes}</p>}
+                        </div>
+                        {photo && (
+                          <a
+                            href={getUploadedFileUrl(photo)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 shrink-0"
+                          >
+                            <Paperclip className="w-3 h-3" />
+                            Lihat Bukti
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400">
+                  {selectedReport.totalVesselsStaying} kapal menginap tercatat pada laporan ini.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Tutup
+              </button>
+              {selectedReport.status === "SUBMITTED" && (
+                <button
+                  type="button"
+                  disabled={isProcessingAck}
+                  onClick={() => {
+                    void handleAcknowledge(selectedReport.id).then(() =>
+                      setSelectedReport(null)
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0B241E] hover:bg-[#133D31] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-[#D97706]" />
+                  <span>Sahkan Laporan</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

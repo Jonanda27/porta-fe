@@ -30,7 +30,7 @@ import { ConfirmActionModal } from "@/components/ui/confirm-action-modal";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatLabel } from "@/lib/format-labels";
 
-type QueueTab = "waiting" | "unsubmitted" | "overdue" | "returned";
+type QueueTab = "head_queue" | "waiting" | "unsubmitted" | "overdue" | "returned";
 
 export default function CheckerTugasPage() {
   const { user } = useAuthStore();
@@ -41,8 +41,11 @@ export default function CheckerTugasPage() {
   const isAdminChecker = user?.role === "ADMIN_PELABUHAN";
 
   const [dashboard, setDashboard] = useState<AdminCheckerDashboardResponse | null>(null);
+  const [headQueue, setHeadQueue] = useState<CheckerTaskItem[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [activeQueue, setActiveQueue] = useState<QueueTab>("waiting");
+  const [activeQueue, setActiveQueue] = useState<QueueTab>(
+    user?.role === "KEPALA_PELABUHAN" ? "head_queue" : "waiting"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -98,20 +101,55 @@ export default function CheckerTugasPage() {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const data = await CheckerService.getAdminTaskDashboard(selectedDate || undefined);
+      const [data, headRes] = await Promise.all([
+        CheckerService.getAdminTaskDashboard(selectedDate || undefined),
+        isKepalaPelabuhan ? CheckerService.getHeadQueue() : Promise.resolve([]),
+      ]);
       setDashboard(data);
+      setHeadQueue(
+        (headRes || []).map((t) => ({
+          id: t.id,
+          taskCode: t.taskNumber,
+          title: t.title,
+          description: t.description,
+          taskType: t.taskType,
+          executionStatus: t.executionStatus as CheckerTaskItem["executionStatus"],
+          reviewStatus: t.reviewStatus as CheckerTaskItem["reviewStatus"],
+          priority: t.priority,
+          isOverdue: t.isOverdue,
+          hasIssue: t.hasIssue,
+          issueNotes: t.issueNotes,
+          dueDate: t.dueDate,
+          submittedAt: t.submittedAt,
+          assignee: t.assignee,
+          berth: t.berth,
+          visit: t.visit,
+          attachments: t.attachments,
+        }))
+      );
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal memuat dashboard checker tugas.");
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess, selectedDate]);
+  }, [canAccess, isKepalaPelabuhan, selectedDate]);
 
   useEffect(() => {
     void fetchDashboard();
   }, [fetchDashboard]);
 
   const activeList = useMemo(() => {
+    if (activeQueue === "head_queue") {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return headQueue;
+      return headQueue.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.taskCode.toLowerCase().includes(q) ||
+          (t.assignee?.fullName && t.assignee.fullName.toLowerCase().includes(q)) ||
+          (t.berth?.name && t.berth.name.toLowerCase().includes(q))
+      );
+    }
     if (!dashboard) return [];
     const base =
       activeQueue === "waiting"
@@ -131,7 +169,7 @@ export default function CheckerTugasPage() {
         (t.assignee?.fullName && t.assignee.fullName.toLowerCase().includes(q)) ||
         (t.berth?.name && t.berth.name.toLowerCase().includes(q))
     );
-  }, [dashboard, activeQueue, searchQuery]);
+  }, [dashboard, headQueue, activeQueue, searchQuery]);
 
   const totalPages = Math.ceil(activeList.length / itemsPerPage) || 1;
   const pagedTasks = useMemo(() => {
@@ -199,6 +237,18 @@ export default function CheckerTugasPage() {
       if (returnTarget.reviewStatus === "WAITING_ADMIN") {
         await CheckerService.startAdminReview(returnTarget.id);
       }
+      if (taskDetail && taskDetail.id === returnTarget.id && (taskDetail.checklistItems ?? []).length > 0) {
+        const itemsToSave = (taskDetail.checklistItems ?? [])
+          .filter((c) => c.isApplicable)
+          .map((c) => ({
+            code: c.code,
+            checkedByAdmin: adminChecklist[c.code]?.checkedByAdmin ?? c.checkedByAdmin,
+            adminNotes: adminChecklist[c.code]?.adminNotes ?? c.adminNotes ?? "",
+          }));
+        if (itemsToSave.length > 0) {
+          await CheckerService.updateAdminChecklist(returnTarget.id, itemsToSave);
+        }
+      }
       await CheckerService.returnTaskToOfficer(returnTarget.id, reason);
       setFeedback(`Tugas "${returnTarget.title}" dikembalikan ke petugas untuk dilengkapi.`);
       setReturnTarget(null);
@@ -206,6 +256,24 @@ export default function CheckerTugasPage() {
       await fetchDashboard();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal mengembalikan tugas ke petugas.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmHeadReturn = async (reason?: string) => {
+    if (!returnTarget || !reason) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await CheckerService.headReturnTask(returnTarget.id, reason);
+      setFeedback(`Tugas "${returnTarget.title}" dikembalikan oleh Kepala Pelabuhan untuk dilengkapi.`);
+      setReturnTarget(null);
+      setSelectedTask(null);
+      await fetchDashboard();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Gagal mengembalikan tugas.");
     } finally {
       setIsSubmitting(false);
     }
@@ -326,6 +394,15 @@ export default function CheckerTugasPage() {
 
           <div className="flex items-center gap-1 overflow-x-auto -mb-px">
             {[
+              ...(isKepalaPelabuhan
+                ? [
+                    {
+                      key: "head_queue" as const,
+                      label: "Siap Verifikasi Kepala",
+                      count: headQueue.length,
+                    },
+                  ]
+                : []),
               {
                 key: "waiting" as const,
                 label: "Menunggu Cek Admin",
@@ -520,10 +597,10 @@ export default function CheckerTugasPage() {
                   <p className="text-slate-700 mt-0.5">{selectedTask.description}</p>
                 </div>
               )}
-              {(taskDetail?.attachments ?? selectedTask.attachments ?? []).length > 0 && (
-                <div className="col-span-2 space-y-1.5">
-                  <span className="text-slate-400 block">Bukti Lampiran Petugas</span>
-                  {(taskDetail?.attachments ?? selectedTask.attachments ?? []).map((att) => (
+              <div className="col-span-2 space-y-1.5">
+                <span className="text-slate-400 block">Bukti Lampiran Petugas</span>
+                {(taskDetail?.attachments ?? selectedTask.attachments ?? []).length > 0 ? (
+                  (taskDetail?.attachments ?? selectedTask.attachments ?? []).map((att) => (
                     <a
                       key={att.id}
                       href={getUploadedFileUrl(att.filePath)}
@@ -537,9 +614,13 @@ export default function CheckerTugasPage() {
                       </span>
                       <ExternalLink className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                     </a>
-                  ))}
-                </div>
-              )}
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+                    Belum ada dokumen atau foto bukti yang dilampirkan petugas pada tugas ini.
+                  </div>
+                )}
+              </div>
             </div>
 
             {loadingDetail ? (
@@ -703,15 +784,25 @@ export default function CheckerTugasPage() {
               {isKepalaPelabuhan &&
                 (selectedTask.reviewStatus === "WAITING_HEAD_VERIFICATION" ||
                   selectedTask.reviewStatus === "ADMIN_APPROVED") && (
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => void handleHeadVerify(selectedTask)}
-                    className="px-4 py-2 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Verifikasi Kepala Pelabuhan</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setReturnTarget(selectedTask)}
+                      className="px-4 py-2 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer"
+                    >
+                      Kembalikan Revisi
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => void handleHeadVerify(selectedTask)}
+                      className="px-4 py-2 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Verifikasi Kepala Pelabuhan</span>
+                    </button>
+                  </>
                 )}
               {isAdminChecker &&
                 (selectedTask.reviewStatus === "WAITING_ADMIN" ||
@@ -751,7 +842,7 @@ export default function CheckerTugasPage() {
         reasonLabel="Catatan Kekurangan / Revisi"
         reasonPlaceholder="Contoh: Foto bukti sandar / berita acara belum terlampir..."
         isLoading={isSubmitting}
-        onConfirm={handleConfirmReturn}
+        onConfirm={isKepalaPelabuhan ? handleConfirmHeadReturn : handleConfirmReturn}
         onCancel={() => setReturnTarget(null)}
       />
     </div>

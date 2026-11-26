@@ -136,4 +136,15 @@ export const CheckerService = {
       { decision, notes }
     );
   },
+
+  headVerifyDailyReport(
+    reportId: number,
+    decision: "APPROVED" | "RETURNED",
+    notes?: string
+  ): Promise<CheckerDailyReportItem> {
+    return apiClient.post<CheckerDailyReportItem>(
+      `${API_CONFIG.ENDPOINTS.DAILY_REPORTS.BASE}/${reportId}/head-verify`,
+      { decision, notes }
+    );
+  },
 };

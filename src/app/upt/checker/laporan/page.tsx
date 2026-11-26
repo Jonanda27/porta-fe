@@ -11,7 +11,13 @@ import {
   ShieldAlert,
   FileCheck2,
   X,
+  Eye,
+  Paperclip,
+  ExternalLink,
+  Ship,
+  Calendar,
 } from "lucide-react";
+import { getUploadedFileUrl } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { CheckerService } from "@/services/checker.service";
 import {
@@ -29,6 +35,7 @@ export default function CheckerLaporanPage() {
     user?.role === "KEPALA_PELABUHAN" ||
     user?.role === "SUPERADMIN";
   const isAdminChecker = user?.role === "ADMIN_PELABUHAN";
+  const isKepalaPelabuhan = user?.role === "KEPALA_PELABUHAN";
 
   const [activeTab, setActiveTab] = useState<"obligations" | "reports">("obligations");
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -42,7 +49,9 @@ export default function CheckerLaporanPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [selectedReport, setSelectedReport] = useState<CheckerDailyReportItem | null>(null);
   const [returnReportTarget, setReturnReportTarget] = useState<CheckerDailyReportItem | null>(null);
+  const [verifyNotes, setVerifyNotes] = useState("");
 
   const fetchData = useCallback(async () => {
     if (!canAccess) return;
@@ -82,9 +91,10 @@ export default function CheckerLaporanPage() {
     if (!q) return reports;
     return reports.filter(
       (r) =>
-        r.reportNumber.toLowerCase().includes(q) ||
+        (r.reportNumber ?? `LAP-${r.id}`).toLowerCase().includes(q) ||
         (r.officer?.fullName && r.officer.fullName.toLowerCase().includes(q)) ||
-        r.shiftName.toLowerCase().includes(q)
+        (r.shiftName ?? "").toLowerCase().includes(q) ||
+        (r.generalNotes ?? "").toLowerCase().includes(q)
     );
   }, [reports, searchQuery]);
 
@@ -100,13 +110,37 @@ export default function CheckerLaporanPage() {
       await CheckerService.adminCheckDailyReport(report.id, decision, notes);
       setFeedback(
         decision === "APPROVED"
-          ? `Laporan ${report.reportNumber} telah dicek Admin dan diserahkan ke Kepala Pelabuhan.`
-          : `Laporan ${report.reportNumber} dikembalikan ke petugas untuk dilengkapi.`
+          ? `Laporan ${report.reportNumber ?? `#${report.id}`} telah dicek Admin dan diserahkan ke Kepala Pelabuhan.`
+          : `Laporan ${report.reportNumber ?? `#${report.id}`} dikembalikan ke petugas untuk dilengkapi.`
       );
       setReturnReportTarget(null);
       await fetchData();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal memproses pemeriksaan laporan.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleHeadVerifyReport = async (
+    report: CheckerDailyReportItem,
+    decision: "APPROVED" | "RETURNED",
+    notes?: string
+  ) => {
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await CheckerService.headVerifyDailyReport(report.id, decision, notes);
+      setFeedback(
+        decision === "APPROVED"
+          ? `Laporan ${report.reportNumber ?? `#${report.id}`} telah diverifikasi Kepala Pelabuhan.`
+          : `Laporan ${report.reportNumber ?? `#${report.id}`} dikembalikan oleh Kepala Pelabuhan.`
+      );
+      setReturnReportTarget(null);
+      await fetchData();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Gagal memverifikasi laporan.");
     } finally {
       setIsSubmitting(false);
     }
@@ -358,16 +392,21 @@ export default function CheckerLaporanPage() {
                   </tr>
                 ) : (
                   filteredReports.map((rep) => {
-                    const canCheck = isAdminChecker && rep.status === "SUBMITTED";
+                    const effectiveStatus = rep.reviewStatus || rep.status;
+                    const canCheck = isAdminChecker && effectiveStatus === "WAITING_ADMIN";
+                    const canHeadVerify =
+                      isKepalaPelabuhan &&
+                      (effectiveStatus === "WAITING_HEAD_VERIFICATION" ||
+                        effectiveStatus === "ADMIN_CHECKED");
                     return (
                       <tr key={rep.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3.5 px-5">
                           <div className="font-mono font-semibold text-slate-900">
-                            {rep.reportNumber}
+                            {rep.reportNumber ?? `LAP-${rep.id}`}
                           </div>
                           <div className="text-[11px] text-slate-400 mt-0.5">
-                            {new Date(rep.reportDate).toLocaleDateString("id-ID")} •{" "}
-                            {rep.shiftName}
+                            {new Date(rep.reportDate).toLocaleDateString("id-ID")}
+                            {rep.shiftName ? ` • ${rep.shiftName}` : ""}
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
@@ -381,40 +420,59 @@ export default function CheckerLaporanPage() {
                           )}
                         </td>
                         <td className="py-3.5 px-4 hidden md:table-cell text-slate-600 max-w-xs truncate">
-                          {rep.summaryNotes || "-"}
+                          {rep.generalNotes || rep.summaryNotes || "-"}
                         </td>
                         <td className="py-3.5 px-4">
-                          <StatusDot status={rep.status} />
+                          <StatusDot status={effectiveStatus} />
                         </td>
                         <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                          {canCheck && (
-                            <div className="inline-flex items-center justify-end gap-0.5">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedReport(rep);
+                                setVerifyNotes("");
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11px] font-semibold cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Detail
+                            </button>
+                            {(canCheck || canHeadVerify) && (
                               <button
                                 type="button"
                                 disabled={isSubmitting}
-                                onClick={() =>
-                                  void handleAdminCheckReport(
-                                    rep,
-                                    "APPROVED",
-                                    "Kelengkapan laporan harian telah diperiksa Admin dan diserahkan ke Kepala Pelabuhan."
-                                  )
-                                }
-                                title="Loloskan & Serahkan ke Kepala Pelabuhan"
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                                onClick={() => {
+                                  if (canHeadVerify) {
+                                    void handleHeadVerifyReport(
+                                      rep,
+                                      "APPROVED",
+                                      "Laporan harian telah diverifikasi dan diterima Kepala Pelabuhan."
+                                    );
+                                  } else {
+                                    void handleAdminCheckReport(
+                                      rep,
+                                      "APPROVED",
+                                      "Kelengkapan laporan harian telah diperiksa Admin dan diserahkan ke Kepala Pelabuhan."
+                                    );
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0F2A1D] text-white hover:bg-emerald-900 text-[11px] font-semibold cursor-pointer"
                               >
-                                <Send className="w-4 h-4" />
+                                {canHeadVerify ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                    Verifikasi
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5 text-amber-400" />
+                                    Teruskan
+                                  </>
+                                )}
                               </button>
-                              <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => setReturnReportTarget(rep)}
-                                title="Kembalikan ke Petugas"
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -425,6 +483,218 @@ export default function CheckerLaporanPage() {
           </div>
         )}
       </div>
+
+      {/* Detail Laporan Harian Modal */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    {selectedReport.reportNumber ?? `LAP-${selectedReport.id}`}
+                  </span>
+                  <StatusDot status={selectedReport.reviewStatus || selectedReport.status} />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mt-2">
+                  Laporan Sif Harian — {selectedReport.officer?.fullName || "Petugas"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{new Date(selectedReport.reportDate).toLocaleDateString("id-ID")}</span>
+                  {selectedReport.officer?.role && (
+                    <span>• {formatLabel(selectedReport.officer.role)}</span>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Ringkasan / Catatan Sif */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">
+                Catatan &amp; Ringkasan Operasional Sif
+              </span>
+              <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line">
+                {selectedReport.generalNotes || selectedReport.summaryNotes || "Tidak ada catatan."}
+              </p>
+            </div>
+
+            {/* Daftar Kapal & Bukti Foto dalam Laporan */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Ship className="w-4 h-4 text-slate-500" />
+                Daftar Kapal &amp; Bukti Lapangan ({selectedReport.items?.length ?? 0})
+              </span>
+              {selectedReport.items && selectedReport.items.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedReport.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-slate-200 p-3 text-xs flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {item.vesselNameSnapshot}{" "}
+                          <span className="font-mono text-[11px] text-slate-500">
+                            ({item.registrationNumberSnapshot})
+                          </span>
+                        </div>
+                        {item.notes && (
+                          <p className="text-slate-600 mt-0.5">{item.notes}</p>
+                        )}
+                      </div>
+                      {item.evidencePhoto && (
+                        <a
+                          href={getUploadedFileUrl(item.evidencePhoto)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 shrink-0"
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          Lihat Bukti
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                  Tidak ada lampiran kapal/foto spesifik pada laporan ini.
+                </div>
+              )}
+            </div>
+
+            {/* Domain Snapshot jika ada */}
+            {Array.isArray(selectedReport.domainSummaryJson) &&
+              selectedReport.domainSummaryJson.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-slate-700 block">
+                    Snapshot Kinerja Per Bidang Saat Laporan Dikirim
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedReport.domainSummaryJson.map((d) => (
+                      <div
+                        key={d.domainCode}
+                        className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-xs flex items-center justify-between"
+                      >
+                        <span className="font-medium text-slate-800">{d.domainLabel}</span>
+                        <span className="font-mono font-bold text-[#0F2A1D]">
+                          {d.headVerified}/{d.total}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            {/* Riwayat Catatan Checker & Kepala */}
+            {(selectedReport.adminNotes || selectedReport.adminCheckNotes || selectedReport.headNotes) && (
+              <div className="space-y-2 border-t border-slate-100 pt-3 text-xs">
+                {(selectedReport.adminNotes || selectedReport.adminCheckNotes) && (
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-blue-900">
+                    <span className="font-semibold block">Catatan Admin Checker:</span>
+                    <p className="mt-0.5">{selectedReport.adminNotes || selectedReport.adminCheckNotes}</p>
+                  </div>
+                )}
+                {selectedReport.headNotes && (
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-emerald-900">
+                    <span className="font-semibold block">Catatan Kepala Pelabuhan:</span>
+                    <p className="mt-0.5">{selectedReport.headNotes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Input catatan & tombol aksi untuk Admin / Kepala */}
+            {(() => {
+              const st = selectedReport.reviewStatus || selectedReport.status;
+              const modalCanAdmin = isAdminChecker && st === "WAITING_ADMIN";
+              const modalCanHead =
+                isKepalaPelabuhan &&
+                (st === "WAITING_HEAD_VERIFICATION" || st === "ADMIN_CHECKED");
+
+              return (
+                <div className="space-y-3 border-t border-slate-100 pt-4">
+                  {(modalCanAdmin || modalCanHead) && (
+                    <textarea
+                      rows={2}
+                      value={verifyNotes}
+                      onChange={(e) => setVerifyNotes(e.target.value)}
+                      placeholder={
+                        modalCanHead
+                          ? "Catatan verifikasi Kepala Pelabuhan (opsional)..."
+                          : "Catatan pemeriksaan Admin Checker (opsional)..."
+                      }
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:border-[#0F2A1D]"
+                    />
+                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReport(null)}
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Tutup
+                    </button>
+                    {(modalCanAdmin || modalCanHead) && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => {
+                            setReturnReportTarget(selectedReport);
+                            setSelectedReport(null);
+                          }}
+                          className="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer"
+                        >
+                          Kembalikan Revisi
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => {
+                            if (modalCanHead) {
+                              void handleHeadVerifyReport(
+                                selectedReport,
+                                "APPROVED",
+                                verifyNotes.trim() ||
+                                  "Laporan harian telah diverifikasi dan diterima Kepala Pelabuhan."
+                              ).then(() => setSelectedReport(null));
+                            } else {
+                              void handleAdminCheckReport(
+                                selectedReport,
+                                "APPROVED",
+                                verifyNotes.trim() ||
+                                  "Kelengkapan laporan harian telah diperiksa Admin dan diserahkan ke Kepala Pelabuhan."
+                              ).then(() => setSelectedReport(null));
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0F2A1D] hover:bg-emerald-900 text-white text-xs font-semibold cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>
+                            {modalCanHead
+                              ? "Verifikasi Kepala Pelabuhan"
+                              : "Loloskan & Teruskan ke Kepala"}
+                          </span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       <ConfirmActionModal
         isOpen={Boolean(returnReportTarget)}
@@ -438,7 +708,11 @@ export default function CheckerLaporanPage() {
         isLoading={isSubmitting}
         onConfirm={(reason) => {
           if (!returnReportTarget) return;
-          void handleAdminCheckReport(returnReportTarget, "RETURNED", reason);
+          if (isKepalaPelabuhan) {
+            void handleHeadVerifyReport(returnReportTarget, "RETURNED", reason);
+          } else {
+            void handleAdminCheckReport(returnReportTarget, "RETURNED", reason);
+          }
         }}
         onCancel={() => setReturnReportTarget(null)}
       />

@@ -253,6 +253,7 @@ export default function UptTiketPage() {
       {/* Tab 2: Manifests */}
       {activeTab === "manifests" && (
         <div className="space-y-6">
+          {user?.role !== "KEPALA_PELABUHAN" && (
           <form
             onSubmit={handleCreateManifest}
             className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4 shadow-2xs"
@@ -360,6 +361,7 @@ export default function UptTiketPage() {
               Terbitkan Manifes ke Operator
             </button>
           </form>
+          )}
 
           <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
             <table className="w-full text-left border-collapse">

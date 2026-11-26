@@ -27,6 +27,20 @@ export const TaskService = {
     );
   },
 
+  createTask(payload: {
+    taskType: string;
+    title: string;
+    description: string;
+    portId: number;
+    priority?: "LOW" | "MEDIUM" | "HIGH";
+    sourceType?: string;
+  }): Promise<TaskDetailItem> {
+    return apiClient.post<TaskDetailItem>(
+      API_CONFIG.ENDPOINTS.TASKS.BASE,
+      payload
+    );
+  },
+
   startTask(taskId: number): Promise<TaskDetailItem> {
     return apiClient.patch<TaskDetailItem>(
       `${API_CONFIG.ENDPOINTS.TASKS.BASE}/${taskId}/start`

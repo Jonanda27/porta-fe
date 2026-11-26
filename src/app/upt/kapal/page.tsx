@@ -34,6 +34,7 @@ import { UptKapalTabType } from "@/types/upt.types";
 
 export default function UptKapalPage() {
   const { user } = useAuthStore();
+  const isReadOnlyMonitoring = user?.role === "KEPALA_PELABUHAN";
   const {
     visits,
     utilities,
@@ -836,95 +837,112 @@ export default function UptKapalPage() {
                               </div>
 
                               <div className="flex items-center justify-end gap-2 flex-wrap">
-                                {/* Langkah 1: Catat Tiba (ATA) */}
-                                {v.status === "APPROVED" && (
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => handleArrival(v.id, v.visitNumber)}
-                                    className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#13382F] text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                                  >
-                                    1. Catat Tiba (ATA)
-                                  </button>
-                                )}
-
-                                {/* Langkah 2: Mulai Sandar (ATB) setelah kapal tiba / berlabuh */}
-                                {v.status === "ANCHORED" && !activeBerthing && pendingOverride && (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
-                                    Menunggu Persetujuan Override
-                                  </span>
-                                )}
-
-                                {v.status === "ANCHORED" && !activeBerthing && !pendingOverride && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={isSubmitting}
-                                      onClick={() => {
-                                        const allocatedBerthing =
-                                          v.berthingRecords?.[0] || v.berthings?.[0];
-                                        const allocatedBerthId = allocatedBerthing?.berthId;
-                                        setBerthingVisitId(v.id);
-                                        setBerthId(
-                                          allocatedBerthId
-                                            ? String(allocatedBerthId)
-                                            : activePortBerths[0]?.id
-                                            ? String(activePortBerths[0].id)
-                                            : ""
-                                        );
-                                        setIsBerthLocked(Boolean(allocatedBerthId));
-                                        if (allocatedBerthing?.berthCategory) {
-                                          setBerthCategory(allocatedBerthing.berthCategory);
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
-                                    >
-                                      <Anchor className="w-3 h-3" />
-                                      2. Mulai Sandar (ATB)
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isSubmitting}
-                                      onClick={() => handleDeparture(v.id, v.visitNumber)}
-                                      title="Gunakan hanya jika kapal langsung bertolak tanpa sandar di dermaga"
-                                      className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#475569] text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
-                                    >
-                                      Tanpa Sandar
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* Langkah 3: Lepas Sandar saat kapal sedang sandar */}
-                                {activeBerthing && (
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => handleEndBerthing(v.id, activeBerthing.id)}
-                                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                                  >
-                                    3. Lepas Sandar
-                                  </button>
-                                )}
-
-                                {/* Langkah 4: Catat Berangkat (ATD) setelah lepas sandar */}
-                                {v.status === "BERTHED" && !activeBerthing && (
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => handleDeparture(v.id, v.visitNumber)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                                  >
-                                    4. Catat Berangkat (ATD)
-                                  </button>
-                                )}
-
-                                {(v.status === "DEPARTED" ||
+                                {isReadOnlyMonitoring ? (
+                                  v.status === "DEPARTED" ||
                                   v.status === "BILLED" ||
-                                  v.status === "SETTLED") && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold whitespace-nowrap">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    Pelayaran Selesai
-                                  </span>
+                                  v.status === "SETTLED" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold whitespace-nowrap">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Pelayaran Selesai
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10.5px] font-semibold whitespace-nowrap">
+                                      Mode Monitoring
+                                    </span>
+                                  )
+                                ) : (
+                                  <>
+                                    {/* Langkah 1: Catat Tiba (ATA) */}
+                                    {v.status === "APPROVED" && (
+                                      <button
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => handleArrival(v.id, v.visitNumber)}
+                                        className="px-3 py-1.5 rounded-lg bg-[#0B241E] hover:bg-[#13382F] text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                                      >
+                                        1. Catat Tiba (ATA)
+                                      </button>
+                                    )}
+
+                                    {/* Langkah 2: Mulai Sandar (ATB) setelah kapal tiba / berlabuh */}
+                                    {v.status === "ANCHORED" && !activeBerthing && pendingOverride && (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
+                                        Menunggu Persetujuan Override
+                                      </span>
+                                    )}
+
+                                    {v.status === "ANCHORED" && !activeBerthing && !pendingOverride && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          disabled={isSubmitting}
+                                          onClick={() => {
+                                            const allocatedBerthing =
+                                              v.berthingRecords?.[0] || v.berthings?.[0];
+                                            const allocatedBerthId = allocatedBerthing?.berthId;
+                                            setBerthingVisitId(v.id);
+                                            setBerthId(
+                                              allocatedBerthId
+                                                ? String(allocatedBerthId)
+                                                : activePortBerths[0]?.id
+                                                ? String(activePortBerths[0].id)
+                                                : ""
+                                            );
+                                            setIsBerthLocked(Boolean(allocatedBerthId));
+                                            if (allocatedBerthing?.berthCategory) {
+                                              setBerthCategory(allocatedBerthing.berthCategory);
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+                                        >
+                                          <Anchor className="w-3 h-3" />
+                                          2. Mulai Sandar (ATB)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isSubmitting}
+                                          onClick={() => handleDeparture(v.id, v.visitNumber)}
+                                          title="Gunakan hanya jika kapal langsung bertolak tanpa sandar di dermaga"
+                                          className="px-2.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#475569] text-[11px] font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                                        >
+                                          Tanpa Sandar
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {/* Langkah 3: Lepas Sandar saat kapal sedang sandar */}
+                                    {activeBerthing && (
+                                      <button
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => handleEndBerthing(v.id, activeBerthing.id)}
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                                      >
+                                        3. Lepas Sandar
+                                      </button>
+                                    )}
+
+                                    {/* Langkah 4: Catat Berangkat (ATD) setelah lepas sandar */}
+                                    {v.status === "BERTHED" && !activeBerthing && (
+                                      <button
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => handleDeparture(v.id, v.visitNumber)}
+                                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                                      >
+                                        4. Catat Berangkat (ATD)
+                                      </button>
+                                    )}
+
+                                    {(v.status === "DEPARTED" ||
+                                      v.status === "BILLED" ||
+                                      v.status === "SETTLED") && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold whitespace-nowrap">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        Pelayaran Selesai
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>

@@ -121,17 +121,23 @@ export default function UptPemeliharaanPage() {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            clearError();
-            setIsModalOpen(true);
-          }}
-          className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 text-[#D97706]" />
-          Laporkan Kerusakan
-        </button>
+        {user?.role !== "KEPALA_PELABUHAN" ? (
+          <button
+            type="button"
+            onClick={() => {
+              clearError();
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#0B241E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-[#D97706]" />
+            Laporkan Kerusakan
+          </button>
+        ) : (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold">
+            Mode Monitoring (Read-Only)
+          </span>
+        )}
       </div>
 
       {error && (

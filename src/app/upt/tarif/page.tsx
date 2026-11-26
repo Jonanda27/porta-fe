@@ -47,6 +47,7 @@ export default function TarifPage() {
 
   const canAccess =
     user?.role === "SUPERADMIN" ||
+    user?.role === "KEPALA_PELABUHAN" ||
     user?.role === "ADMIN_PELABUHAN" ||
     user?.role === "BENDAHARA";
   const isSuperadmin = user?.role === "SUPERADMIN";

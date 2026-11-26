@@ -49,11 +49,12 @@ export default function AlokasiPage() {
     fetchBerthsSchedule,
   } = usePortStore();
 
-  const isMultiPortAdmin = user?.role === "ADMIN_PELABUHAN" && !user?.portId;
-  const canApproveAdminActions = user?.role === "ADMIN_PELABUHAN";
+  const isMultiPortAdmin = user?.role === "KEPALA_PELABUHAN" && !user?.portId;
+  const canApproveAdminActions = user?.role === "KEPALA_PELABUHAN";
   const canAccess =
-    user?.role === "ADMIN_PELABUHAN" ||
-    user?.role === "PETUGAS_REGISTRASI_KONTRAK";
+    user?.role === "KEPALA_PELABUHAN" ||
+    user?.role === "PETUGAS_REGISTRASI_KONTRAK" ||
+    user?.role === "PETUGAS_RUANGAN";
 
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<AlokasiTabType>("visits");

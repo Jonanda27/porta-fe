@@ -147,8 +147,23 @@ export interface CheckerDailyReportItem {
     | "RETURNED"
     | "ACKNOWLEDGED";
   summaryNotes?: string | null;
+  generalNotes?: string | null;
+  reviewStatus?: string;
+  adminNotes?: string | null;
   adminCheckNotes?: string | null;
+  headNotes?: string | null;
+  checkedAt?: string | null;
+  verifiedAt?: string | null;
+  totalVesselsStaying?: number;
   domainSummaryJson?: DomainBreakdownItem[] | null;
+  items?: Array<{
+    id: number;
+    vesselNameSnapshot: string;
+    registrationNumberSnapshot: string;
+    evidencePhoto?: string | null;
+    isAdhoc?: boolean;
+    notes?: string | null;
+  }>;
   officer?: {
     id: number;
     fullName: string;

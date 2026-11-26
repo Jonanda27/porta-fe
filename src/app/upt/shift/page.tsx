@@ -194,6 +194,7 @@ export default function UptShiftPage() {
       {/* Tab 1: Gate Handovers */}
       {activeTab === "handovers" && (
         <div className="space-y-6">
+          {user?.role !== "KEPALA_PELABUHAN" && (
           <form
             onSubmit={handleOpenHandover}
             className="bg-white border border-[#E2E8F0] rounded-2xl p-5 flex flex-wrap items-end gap-3 shadow-2xs"
@@ -238,6 +239,7 @@ export default function UptShiftPage() {
               Buka Sif Gerbang
             </button>
           </form>
+          )}
 
           <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
             <table className="w-full text-left border-collapse">
@@ -305,6 +307,7 @@ export default function UptShiftPage() {
       {/* Tab 2: Daily Reports */}
       {activeTab === "reports" && (
         <div className="space-y-6">
+          {user?.role !== "KEPALA_PELABUHAN" && (
           <form
             onSubmit={handleCreateReport}
             className="bg-white border border-[#E2E8F0] rounded-2xl p-5 flex flex-wrap items-end gap-3 shadow-2xs"
@@ -341,6 +344,7 @@ export default function UptShiftPage() {
               Kirim Laporan Harian
             </button>
           </form>
+          )}
 
           <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-2xs">
             <table className="w-full text-left border-collapse">

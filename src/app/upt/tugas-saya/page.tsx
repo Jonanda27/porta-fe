@@ -17,7 +17,8 @@ import {
   ExternalLink,
   Award,
 } from "lucide-react";
-import { API_CONFIG } from "@/config/api.config";
+import { API_CONFIG, getUploadedFileUrl } from "@/config/api.config";
+import { TaskService } from "@/services/task.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { useFieldOpsStore } from "@/store/field-ops.store";
@@ -59,6 +60,7 @@ export default function UptTugasSayaPage() {
   const [submissionNotes, setSubmissionNotes] = useState<string>("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentNotes, setAttachmentNotes] = useState<string>("");
+  const [uploadingItemId, setUploadingItemId] = useState<number | null>(null);
 
   // Create New Task Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -114,6 +116,7 @@ export default function UptTugasSayaPage() {
     }
   };
 
+
   const handleSaveChecklist = async () => {
     if (!selectedTask) return;
     clearError();
@@ -133,6 +136,7 @@ export default function UptTugasSayaPage() {
     }
   };
 
+
   const handleUploadAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask || !attachmentFile) return;
@@ -150,6 +154,32 @@ export default function UptTugasSayaPage() {
       // handled in store
     }
   };
+
+  const handleUploadItemAttachment = async (
+    checklistItemId: number,
+    checklistItemCode: string,
+    file: File | undefined
+  ) => {
+    if (!selectedTask || !file) return;
+    setUploadingItemId(checklistItemId);
+    clearError();
+    try {
+      await TaskService.uploadAttachment(selectedTask.id, file, {
+        checklistItemId,
+        checklistItemCode,
+        notes: `Bukti item ${checklistItemCode}`,
+      });
+      await fetchOfficerWorkspaceData(activePortId);
+      const updated = await TaskService.getTaskById(selectedTask.id);
+      setSelectedTask(updated as unknown as OfficerTaskItem);
+      toast.success("Bukti Item Diunggah", `Lampiran untuk ${checklistItemCode} berhasil diunggah.`);
+    } catch (err) {
+      toast.error("Gagal Unggah", err instanceof Error ? err.message : "Gagal mengunggah bukti item.");
+    } finally {
+      setUploadingItemId(null);
+    }
+  };
+
 
   const handleSubmitTask = async () => {
     if (!selectedTask) return;
@@ -173,6 +203,7 @@ export default function UptTugasSayaPage() {
       // handled in store
     }
   };
+
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +229,7 @@ export default function UptTugasSayaPage() {
     }
   };
 
+
   const handleSubmitDailyReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportNotes.trim()) return;
@@ -221,6 +253,7 @@ export default function UptTugasSayaPage() {
       // handled in store
     }
   };
+
 
   const filteredTasks = officerTasks.filter((t) => {
     const matchStatus = statusFilter ? t.executionStatus === statusFilter : true;
@@ -623,20 +656,59 @@ export default function UptTugasSayaPage() {
                       <span>
                         {item.label}{" "}
                         {item.isRequired && <span className="text-rose-600">*</span>}
+                        {item.requiresAttachment && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
+                            Wajib Bukti
+                          </span>
+                        )}
                       </span>
                     </label>
-                    <input
-                      type="text"
-                      value={st.notes}
-                      onChange={(e) =>
-                        setChecklistState((prev) => ({
-                          ...prev,
-                          [item.code]: { ...st, notes: e.target.value },
-                        }))
-                      }
-                      placeholder="Catatan hasil pemeriksaan item ini (opsional)..."
-                      className="w-full px-3 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-xs"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={st.notes}
+                        onChange={(e) =>
+                          setChecklistState((prev) => ({
+                            ...prev,
+                            [item.code]: { ...st, notes: e.target.value },
+                          }))
+                        }
+                        placeholder="Catatan hasil pemeriksaan item ini (opsional)..."
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-xs"
+                      />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.attachmentPath && (
+                          <a
+                            href={getUploadedFileUrl(item.attachmentPath)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[11px]"
+                          >
+                            <Paperclip className="w-3 h-3" />
+                            Lihat Bukti
+                          </a>
+                        )}
+                        <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-[#CBD5E1] text-[#0B241E] font-bold text-[11px] hover:bg-slate-50 cursor-pointer">
+                          {uploadingItemId === item.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Paperclip className="w-3 h-3" />
+                          )}
+                          <span>{item.attachmentPath ? "Ganti Bukti" : "Upload Bukti"}</span>
+                          <input
+                            type="file"
+                            accept=".pdf,.png,.jpg,.jpeg"
+                            className="hidden"
+                            disabled={uploadingItemId === item.id}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              void handleUploadItemAttachment(item.id, item.code, f);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
