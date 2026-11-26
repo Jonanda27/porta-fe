@@ -28,6 +28,7 @@ import {
   OfficialRetribusiDocumentModal,
 } from "@/components/billing/OfficialRetribusiDocumentModal";
 import { BillingInvoice, UnbilledVisit } from "@/types/billing.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function BendaharaSkrdPage() {
   const {
@@ -492,7 +493,8 @@ export default function BendaharaSkrdPage() {
 
       {/* 4. Modal Konfirmasi Terbitkan e-SKRD (Rampung / Uang Muka) */}
       {selectedVisitForSkrd && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#CBD5E1] space-y-4">
             <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -630,11 +632,13 @@ export default function BendaharaSkrdPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* 5. Modal Batalkan / Void SKRD */}
       {selectedInvoiceForVoid && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-rose-200 space-y-4">
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
@@ -687,6 +691,7 @@ export default function BendaharaSkrdPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       <OfficialRetribusiDocumentModal

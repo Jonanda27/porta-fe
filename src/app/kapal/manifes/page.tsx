@@ -19,6 +19,7 @@ import {
 import { useManifestStore } from "@/store/manifest.store";
 import { useKapalStore } from "@/store/kapal.store";
 import { VesselManifestItem } from "@/types/manifest.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function KapalManifesPage() {
   const { visits, fetchVisits, isLoading: isLoadingVisits } = useKapalStore();
@@ -390,7 +391,8 @@ export default function KapalManifesPage() {
 
       {/* Modal Detail Manifes */}
       {selectedManifest && (
-        <div className="fixed inset-0 z-50 bg-[#0B241E]/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-[#0B241E]/55 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xl max-w-lg w-full overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
               <div className="flex items-center gap-2.5">
@@ -527,6 +529,7 @@ export default function KapalManifesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

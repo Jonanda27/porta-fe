@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { LogOut, AlertTriangle, Loader2, ShieldCheck, User } from "lucide-react";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export interface LogoutConfirmModalProps {
   isOpen: boolean;
@@ -57,12 +58,13 @@ export function LogoutConfirmModal({
   const isBusy = isLoading || internalLoading;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="logout-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
-    >
+    <ModalPortal>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logout-dialog-title"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+      >
       {/* Backdrop */}
       <div
         onClick={() => {
@@ -161,5 +163,6 @@ export function LogoutConfirmModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -8,6 +8,7 @@ import {
   ShipOperatorItem,
 } from "@/types/upt.types";
 import { formatLabel } from "@/lib/format-labels";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface InspectDocumentsModalProps {
   target: InspectDocsTarget | null;
@@ -23,8 +24,9 @@ export function InspectDocumentsModal({
   if (!target) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-7 space-y-4 shadow-2xl">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-7 space-y-4 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3.5">
           <div>
             <h3 className="text-base font-extrabold text-[#0B241E]">{target.title}</h3>
@@ -105,6 +107,7 @@ export function InspectDocumentsModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -152,11 +155,12 @@ export function CreatePksContractModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-      <form
-        onSubmit={onSubmit}
-        className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-7 space-y-4 shadow-2xl"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <form
+          onSubmit={onSubmit}
+          className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-7 space-y-4 shadow-2xl"
+        >
         <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
           <div>
             <h3 className="text-base font-extrabold text-[#0B241E]">
@@ -294,6 +298,7 @@ export function CreatePksContractModal({
         </div>
       </form>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -317,11 +322,12 @@ export function RejectVerifikasiModal({
   if (!target) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-      <form
-        onSubmit={onSubmit}
-        className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <form
+          onSubmit={onSubmit}
+          className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
+        >
         <h3 className="text-base font-extrabold text-[#0B241E]">
           Tolak Verifikasi: {target.name}
         </h3>
@@ -357,5 +363,6 @@ export function RejectVerifikasiModal({
         </div>
       </form>
     </div>
+    </ModalPortal>
   );
 }

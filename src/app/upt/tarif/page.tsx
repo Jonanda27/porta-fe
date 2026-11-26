@@ -28,6 +28,7 @@ import {
   TariffUnitType,
 } from "@/types/tariff.types";
 import { BerthType } from "@/types/port.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function TarifPage() {
   const { user } = useAuthStore();
@@ -387,7 +388,8 @@ export default function TarifPage() {
 
       {/* Create Tariff Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateTariff}
             className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-2xl p-6 sm:p-8 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto"
@@ -591,6 +593,7 @@ export default function TarifPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -18,6 +18,7 @@ import {
   MaintenanceSeverity,
   MaintenanceStatus,
 } from "@/types/field-ops.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 const SEVERITY_BADGE: Record<MaintenanceSeverity, string> = {
   LOW: "bg-slate-100 text-slate-700",
@@ -264,7 +265,8 @@ export default function UptPemeliharaanPage() {
 
       {/* Modal Report Damage */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreate}
             className="bg-white rounded-3xl border border-[#E2E8F0] w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl"
@@ -349,6 +351,7 @@ export default function UptPemeliharaanPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

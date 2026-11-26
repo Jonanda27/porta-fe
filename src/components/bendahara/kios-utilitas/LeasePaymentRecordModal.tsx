@@ -3,6 +3,7 @@
 import React from "react";
 import { Coins, X, CheckCircle2 } from "lucide-react";
 import { AssetLease } from "@/types/asset.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export interface LeasePaymentFormState {
   periodYear: number;
@@ -35,7 +36,8 @@ export function LeasePaymentRecordModal({
   if (!selectedLease) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between pb-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -188,5 +190,6 @@ export function LeasePaymentRecordModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

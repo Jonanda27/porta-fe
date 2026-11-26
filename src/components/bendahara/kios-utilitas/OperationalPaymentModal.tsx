@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Coins, X, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export interface OperationalPayModalState {
   isOpen: boolean;
@@ -33,7 +34,8 @@ export function OperationalPaymentModal({
   if (!modal) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between pb-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -120,5 +122,6 @@ export function OperationalPaymentModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

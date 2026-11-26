@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface IssueWarningModalProps {
   warningInvoiceId: number | null;
@@ -26,7 +27,8 @@ export function IssueWarningModal({
   if (warningInvoiceId === null) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
         <h3 className="text-sm font-extrabold text-[#0B241E]">
           Terbitkan Surat Teguran Retribusi (SKRD #{warningInvoiceId})
@@ -83,5 +85,6 @@ export function IssueWarningModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

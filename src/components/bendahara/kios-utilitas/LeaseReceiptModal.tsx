@@ -3,6 +3,7 @@
 import React from "react";
 import { Receipt, X, Printer } from "lucide-react";
 import { LeasePaymentReceiptPayload } from "@/types/asset.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface LeaseReceiptModalProps {
   isOpen: boolean;
@@ -20,7 +21,8 @@ export function LeaseReceiptModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-2">
@@ -235,5 +237,6 @@ export function LeaseReceiptModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

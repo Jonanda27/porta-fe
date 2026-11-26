@@ -27,6 +27,8 @@ import {
   AdjustmentApprovalStatus,
   DecideBillingAdjustmentDto,
 } from "@/types/billing.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
+import { toast } from "@/store/toast.store";
 
 export default function KeberatanTarifPage() {
   const {
@@ -448,8 +450,9 @@ export default function KeberatanTarifPage() {
                         ) : (
                           <button
                             onClick={() => {
-                              alert(
-                                `Salinan Berita Acara Keputusan:\nNo: ${adj.requestNumber}\nStatus: ${adj.status}\nDisahkan Pejabat Kasda pada: ${adj.approvedAt || adj.updatedAt}`
+                              toast.info(
+                                "Berita Acara Keputusan",
+                                `No: ${adj.requestNumber} • Status: ${adj.status} • Disahkan pada: ${adj.approvedAt || adj.updatedAt}`
                               );
                             }}
                             className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer mx-auto flex items-center gap-1 text-[11px]"
@@ -473,7 +476,8 @@ export default function KeberatanTarifPage() {
       {/* 4. MODAL: SIDANG PENETAPAN PUTUSAN KEBERATAN TARIF        */}
       {/* ========================================================= */}
       {selectedAdjustment && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
@@ -619,6 +623,7 @@ export default function KeberatanTarifPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

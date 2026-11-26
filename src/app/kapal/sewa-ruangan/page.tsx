@@ -24,6 +24,7 @@ import { useKapalStore } from "@/store/kapal.store";
 import { formatLabel } from "@/lib/format-labels";
 import { formatRupiah } from "@/lib/kapal-billing";
 import { PortAsset, PortAssetType } from "@/types/asset.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 const ASSET_TYPE_OPTIONS: { value: "" | PortAssetType; label: string }[] = [
   { value: "", label: "Semua Jenis Aset" },
@@ -518,7 +519,8 @@ export default function KapalSewaRuanganPage() {
 
       {/* 5. MODAL PENGAJUAN SEWA RUANGAN / ASET */}
       {selectedAsset && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-lg p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
               <div className="flex items-center gap-2.5">
@@ -648,6 +650,7 @@ export default function KapalSewaRuanganPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

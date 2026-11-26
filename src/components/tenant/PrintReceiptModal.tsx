@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import { Printer, X, CheckCircle2, ShieldCheck, QrCode } from "lucide-react";
 import { ReceiptModalData } from "@/types/tenant.types";
 import { angkaTerbilang } from "@/lib/terbilang";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface PrintReceiptModalProps {
   isOpen: boolean;
@@ -54,7 +55,8 @@ export function PrintReceiptModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       {/* Container wrapper */}
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Toolbar (hidden during print) */}
@@ -372,5 +374,6 @@ export function PrintReceiptModal({
         }
       `}</style>
     </div>
+    </ModalPortal>
   );
 }

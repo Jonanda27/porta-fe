@@ -20,11 +20,13 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { toast } from "@/store/toast.store";
+import { ConfirmActionModal } from "@/components/ui/confirm-action-modal";
 import { UptService } from "@/services/upt.service";
 import { formatLabel } from "@/lib/format-labels";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { StatusDot } from "@/components/ui/status-indicator";
 import { TenantItem } from "@/types/upt.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function MasterTenantPage() {
   const { user } = useAuthStore();
@@ -115,13 +117,20 @@ export default function MasterTenantPage() {
     }
   };
 
-  const handleDeactivateTenant = async (tn: TenantItem) => {
-    if (!confirm(`Nonaktifkan tenant "${tn.name}" dari daftar aktif?`)) return;
+  const [deactivateTarget, setDeactivateTarget] = useState<TenantItem | null>(null);
+
+  const handleDeactivateTenant = (tn: TenantItem) => {
+    setDeactivateTarget(tn);
+  };
+
+  const confirmDeactivateTenant = async () => {
+    if (!deactivateTarget) return;
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await UptService.updateTenant(tn.id, { isActive: false });
-      toast.success("Tenant Dinonaktifkan", `Tenant "${tn.name}" telah dinonaktifkan.`);
+      await UptService.updateTenant(deactivateTarget.id, { isActive: false });
+      toast.success("Tenant Dinonaktifkan", `Tenant "${deactivateTarget.name}" telah dinonaktifkan.`);
+      setDeactivateTarget(null);
       await fetchVerificationData();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal menonaktifkan tenant.");
@@ -323,7 +332,8 @@ export default function MasterTenantPage() {
 
       {/* Create / Edit Modal */}
       {isFormModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <form
             onSubmit={handleSaveTenant}
             className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#E2E8F0] p-6 sm:p-8 space-y-5"
@@ -448,11 +458,13 @@ export default function MasterTenantPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
 
       {/* Detail Modal */}
       {selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl border border-[#E2E8F0]">
             <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0] sticky top-0 bg-white z-10">
               <div className="flex items-center gap-2.5">
@@ -559,7 +571,19 @@ export default function MasterTenantPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
+
+      <ConfirmActionModal
+        isOpen={Boolean(deactivateTarget)}
+        title={`Nonaktifkan Tenant "${deactivateTarget?.name ?? ""}"?`}
+        description="Tenant akan disembunyikan dari daftar aktif. Riwayat kontrak sewa dan tagihan sebelumnya tetap tersimpan aman."
+        confirmLabel="Nonaktifkan"
+        variant="danger"
+        isLoading={isSubmitting}
+        onConfirm={() => void confirmDeactivateTenant()}
+        onCancel={() => setDeactivateTarget(null)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 interface ConfirmActionModalProps {
   isOpen: boolean;
@@ -48,7 +49,8 @@ export function ConfirmActionModal({
       : "bg-[#0B241E] hover:bg-[#143E33] text-white";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -115,5 +117,6 @@ export function ConfirmActionModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

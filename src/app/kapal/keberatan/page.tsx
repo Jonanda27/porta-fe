@@ -28,6 +28,7 @@ import {
   WarningRecord,
   BillingInvoice,
 } from "@/types/billing.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function KapalKeberatanPage() {
   const { user } = useAuthStore();
@@ -527,7 +528,8 @@ export default function KapalKeberatanPage() {
       {/* MODAL: AJUKAN PERMOHONAN PENYESUAIAN e-SKRD BARU                          */}
       {/* ========================================================================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-8">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div className="flex items-center gap-2.5">
@@ -695,6 +697,7 @@ export default function KapalKeberatanPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

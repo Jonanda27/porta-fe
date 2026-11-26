@@ -21,6 +21,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useDinasStore } from "@/store/dinas.store";
+import { toast } from "@/store/toast.store";
 
 function DinasOperasionalContent() {
   const searchParams = useSearchParams();
@@ -392,8 +393,9 @@ function DinasOperasionalContent() {
                         ) : (
                           <button
                             onClick={() => {
-                              alert(
-                                `Rincian Laporan Shift Tutup Hari:\nTanggal: ${rep.reportDate}\nPerwira: ${rep.officer?.fullName}\nCatatan: ${rep.generalNotes}\nStatus: Telah Disahkan`
+                              toast.info(
+                                `Laporan Shift ${rep.reportDate}`,
+                                `Perwira: ${rep.officer?.fullName || "-"} • Catatan: ${rep.generalNotes || "-"} • Status: Telah Disahkan`
                               );
                             }}
                             className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer mx-auto flex items-center gap-1"

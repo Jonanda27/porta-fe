@@ -217,26 +217,32 @@ export default function UptLayout({
     if (isKepalaPelabuhan) {
       return [
         {
-          title: "Manajemen Pelabuhan",
+          title: "Utama & Persetujuan",
           items: [
-            { href: "/upt/dashboard", label: "Ringkasan", icon: Radio },
+            { href: "/upt/dashboard", label: "Dashboard", icon: Radio },
             { href: "/upt/checker/tugas", label: "Verifikasi Tugas", icon: ClipboardCheck },
             { href: "/upt/checker/laporan", label: "Laporan Harian", icon: FileCheck2 },
             { href: "/upt/verifikasi", label: "Verifikasi Mitra", icon: ShieldCheck },
             { href: "/upt/alokasi", label: "Izin Sandar & Sewa", icon: CalendarCheck2 },
-            { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
-            { href: "/upt/users", label: "Tim Pelabuhan", icon: Users },
-            { href: "/upt/tarif", label: "Daftar Tarif", icon: Receipt },
           ],
         },
         {
           title: "Pengawasan Lapangan",
           items: [
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
+            { href: "/upt/gis", label: "Peta GIS Pelabuhan", icon: MapPin },
             { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
             { href: "/upt/pemeliharaan", label: "Pemeliharaan", icon: Wrench },
             { href: "/upt/shift", label: "Laporan Sif", icon: Clock },
+          ],
+        },
+        {
+          title: "Administrasi & Tarif",
+          items: [
+            { href: "/upt/pelabuhan", label: "Data Dermaga", icon: Anchor },
+            { href: "/upt/users", label: "Tim Pelabuhan", icon: Users },
+            { href: "/upt/tarif", label: "Daftar Tarif", icon: Receipt },
           ],
         },
       ];
@@ -371,7 +377,7 @@ export default function UptLayout({
     if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun & Keamanan Petugas";
     return isPetugasRegistrasiKontrak
       ? "Dashboard Registrasi & Kontrak Mitra"
-      : "Ringkasan Operasional Pelabuhan";
+      : "Dashboard Operasional Pelabuhan";
   };
 
   const getBreadcrumbLabel = () => {
@@ -402,7 +408,7 @@ export default function UptLayout({
     if (pathname.includes("/upt/shift")) return "Laporan Sif";
     if (pathname.includes("/upt/gis")) return "Peta GIS Pelabuhan";
     if (pathname.includes("/upt/pengaturan")) return "Pengaturan Akun";
-    return isPetugasRegistrasiKontrak ? "Dashboard Registrasi" : "Ringkasan";
+    return isPetugasRegistrasiKontrak ? "Dashboard Registrasi" : "Dashboard";
   };
 
   const getPageDescription = () => {
@@ -512,7 +518,7 @@ export default function UptLayout({
       {/* MAIN WORKSPACE */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Sticky Top Bar */}
-        <header className="h-14 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20 gap-3 text-white">
+        <header className="h-16 bg-[#0B241E] border-b border-[#143E33] flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20 gap-3 text-white">
           <div className="flex items-center gap-3 flex-1 min-w-0 max-w-md">
             <div className="relative w-full">
               <Search className="w-3.5 h-3.5 text-[#85A69B] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -656,7 +662,7 @@ export default function UptLayout({
         </header>
 
         {/* HERO BANNER (Maritime Background Image ONLY on /upt/dashboard) */}
-        <section className="relative overflow-hidden bg-[#0B241E] text-white pt-7 pb-24 sm:pb-28 px-6 sm:px-8 border-b border-[#143E33]">
+        <section className="relative overflow-hidden bg-[#0B241E] text-white pt-7 pb-28 sm:pb-32 px-6 lg:px-8 border-b border-[#143E33]">
           {pathname === "/upt/dashboard" && (
             <>
               <div
@@ -690,7 +696,7 @@ export default function UptLayout({
                   {getBreadcrumbLabel()}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight drop-shadow-xs">
                 {getPageTitle()}
               </h1>
               <p className="text-xs sm:text-sm text-[#D1E3DD] mt-1.5 max-w-2xl leading-relaxed drop-shadow-2xs">
@@ -700,8 +706,8 @@ export default function UptLayout({
           </div>
         </section>
 
-        {/* Main Content */}
-        <main className="px-4 sm:px-6 lg:px-8 pb-12 max-w-[1440px] w-full mx-auto flex-1">
+        {/* Main Content (Overlapping Hero Banner like Operator Portal) */}
+        <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
           {children}
         </main>
       </div>

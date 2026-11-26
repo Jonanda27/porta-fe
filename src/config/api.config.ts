@@ -84,6 +84,8 @@ export const API_CONFIG = {
     },
     WARNINGS: {
       BASE: "/warnings",
+      OVERDUE_SUMMARY: "/warnings/overdue-summary",
+      AUTO_ESCALATE: "/warnings/auto-escalate",
     },
     CARGO_UTILITY: {
       CARGO: "/cargo-utility/cargo",
@@ -149,6 +151,7 @@ export const API_CONFIG = {
     PAYMENTS: {
       CONFIG: "/payments/config",
       CHECKOUT: "/payments/checkout",
+      SYNC: (orderId: string) => `/payments/sync/${encodeURIComponent(orderId)}`,
     },
     NOTIFICATIONS: {
       LIST: "/notifications",

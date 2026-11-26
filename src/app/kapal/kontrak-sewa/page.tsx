@@ -23,6 +23,7 @@ import { toast } from "@/store/toast.store";
 import { AssetLease } from "@/types/asset.types";
 import { formatLabel } from "@/lib/format-labels";
 import { formatRupiah } from "@/lib/kapal-billing";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function KapalKontrakSewaPage() {
   const {
@@ -435,7 +436,8 @@ export default function KapalKontrakSewaPage() {
 
       {/* 4. MODAL PERPANJANGAN KONTRAK */}
       {renewTarget && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleRenewSubmit}
             className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-xl p-6 space-y-5 shadow-2xl"
@@ -503,6 +505,7 @@ export default function KapalKontrakSewaPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

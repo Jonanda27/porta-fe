@@ -31,6 +31,7 @@ import {
   OfficialRetribusiDocumentModal,
 } from "@/components/billing/OfficialRetribusiDocumentModal";
 import { BillingInvoice, WarningLevel } from "@/types/billing.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function BendaharaTunggakanPage() {
   const {
@@ -40,7 +41,9 @@ export default function BendaharaTunggakanPage() {
     fetchInvoices,
     fetchWarnings,
     issueWarning,
+    autoEscalateWarnings,
   } = useBillingStore();
+  const [isEscalating, setIsEscalating] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"overdue" | "history" | "writeoff">("overdue");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -203,18 +206,54 @@ export default function BendaharaTunggakanPage() {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            fetchInvoices();
-            fetchWarnings();
-          }}
-          disabled={isLoading}
-          className="p-2.5 bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#64748B] hover:text-[#0B241E] transition-colors self-end md:self-auto cursor-pointer"
-          title="Segarkan data piutang"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-[#D97706]" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2 self-end md:self-auto">
+          <button
+            type="button"
+            onClick={async () => {
+              setIsEscalating(true);
+              try {
+                const res = await autoEscalateWarnings();
+                if (res.escalatedCount > 0) {
+                  toast.success(
+                    "Eskalasi STRD Selesai",
+                    `${res.escalatedCount} surat teguran (STRD) baru diterbitkan dari ${res.scannedCount} piutang jatuh tempo.`
+                  );
+                } else {
+                  toast.info(
+                    "Tidak Ada Eskalasi Baru",
+                    `Seluruh ${res.scannedCount} piutang jatuh tempo sudah memiliki STRD sesuai tahapannya.`
+                  );
+                }
+              } catch (err: unknown) {
+                toast.error(
+                  "Gagal Eskalasi STRD",
+                  err instanceof Error ? err.message : "Gagal menjalankan eskalasi STRD otomatis."
+                );
+              } finally {
+                setIsEscalating(false);
+              }
+            }}
+            disabled={isLoading || isEscalating}
+            className="px-3.5 py-2 bg-[#0B241E] hover:bg-[#143E33] text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Cek piutang lewat jatuh tempo & terbitkan STRD I-III otomatis (denda 1%/bulan)"
+          >
+            <Send className="w-3.5 h-3.5 text-[#D97706]" />
+            <span>{isEscalating ? "Memproses..." : "Eskalasi STRD Otomatis"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              fetchInvoices();
+              fetchWarnings();
+            }}
+            disabled={isLoading}
+            className="p-2.5 bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#64748B] hover:text-[#0B241E] transition-colors cursor-pointer"
+            title="Segarkan data piutang"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-[#D97706]" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* 3. TAB A: Daftar Piutang Menunggak */}
@@ -510,7 +549,8 @@ export default function BendaharaTunggakanPage() {
 
       {/* 5. Modal Penerbitan Surat Teguran (STRD) */}
       {selectedInvoice && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-rose-200 space-y-4">
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <h3 className="font-black text-sm text-rose-800 flex items-center gap-2">
@@ -597,6 +637,7 @@ export default function BendaharaTunggakanPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       <OfficialRetribusiDocumentModal

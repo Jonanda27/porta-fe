@@ -352,10 +352,10 @@ export default function TenantLayout({
           </div>
         </header>
 
-        <div className="bg-[#0B241E] text-white px-6 sm:px-8 pt-6 pb-24 sm:pb-28 border-b border-[#143E33]">
+        <div className="bg-[#0B241E] text-white px-6 lg:px-8 pt-7 pb-28 sm:pb-32 border-b border-[#143E33] shrink-0">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="max-w-3xl">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight">
                 {getPageTitle()}
               </h1>
               <p className="text-xs sm:text-sm text-[#BED2CA] mt-1.5 max-w-2xl leading-relaxed">
@@ -376,7 +376,7 @@ export default function TenantLayout({
           </div>
         </div>
 
-        <main className="flex-1 px-6 sm:px-8 pb-12 -mt-10 sm:-mt-12 max-w-7xl w-full mx-auto z-10">
+        <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 -mt-10 sm:-mt-12 pb-12">
           {children}
         </main>
       </div>

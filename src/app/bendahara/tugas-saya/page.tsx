@@ -16,12 +16,13 @@ import {
   ExternalLink,
   Search,
 } from "lucide-react";
-import { API_CONFIG } from "@/config/api.config";
+import { getBackendFileUrl } from "@/lib/file-url";
 import { useAuthStore } from "@/store/auth.store";
 import { useUptStore } from "@/store/upt.store";
 import { toast } from "@/store/toast.store";
 import { formatLabel } from "@/lib/format-labels";
 import { OfficerTaskItem } from "@/types/upt.types";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 const EXECUTION_STATUS_BADGE: Record<string, string> = {
   NOT_STARTED: "bg-slate-100 text-slate-700",
@@ -91,15 +92,6 @@ export default function BendaharaTugasSayaPage() {
       setNewTaskType(taskTemplates[0].taskType);
     }
   }, [newTaskType, taskTemplates]);
-
-  const backendOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/, "");
-  const getBackendFileUrl = (filePath?: string | null): string | null => {
-    if (!filePath) return null;
-    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-      return filePath;
-    }
-    return `${backendOrigin}/${filePath.replace(/^\/+/, "")}`;
-  };
 
   const filteredTasks = useMemo(() => {
     return officerTasks.filter((t) => {
@@ -441,7 +433,8 @@ export default function BendaharaTugasSayaPage() {
 
       {/* Modal Checklist & Submit */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
@@ -623,11 +616,13 @@ export default function BendaharaTugasSayaPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Modal Create New Task */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateTask}
             className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl w-full max-w-lg overflow-hidden"
@@ -740,6 +735,7 @@ export default function BendaharaTugasSayaPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

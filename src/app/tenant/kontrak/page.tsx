@@ -13,6 +13,7 @@ import { useTenantStore } from "@/store/tenant.store";
 import { toast } from "@/store/toast.store";
 import { TenantLeaseItem } from "@/types/tenant.types";
 import { formatLabel } from "@/lib/format-labels";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export default function TenantKontrakPage() {
   const {
@@ -221,7 +222,8 @@ export default function TenantKontrakPage() {
       </div>
 
       {renewTarget && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleRenewSubmit}
             className="bg-white rounded-2xl border border-[#E2E8F0] w-full max-w-xl p-6 space-y-5 shadow-2xl"
@@ -279,6 +281,7 @@ export default function TenantKontrakPage() {
             </div>
           </form>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

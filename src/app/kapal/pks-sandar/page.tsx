@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   FileSignature,
@@ -20,7 +21,7 @@ import {
   Printer,
   Upload,
 } from "lucide-react";
-import { API_CONFIG } from "@/config/api.config";
+import { getBackendFileUrl } from "@/lib/file-url";
 import { BerthingContractPrintModal } from "@/components/contracts/BerthingContractPrintModal";
 import { useKapalStore } from "@/store/kapal.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -50,6 +51,7 @@ export default function KapalPksSandarPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [uploadingContractId, setUploadingContractId] = useState<number | null>(null);
   const [previewContract, setPreviewContract] = useState<OperatorBerthingContract | null>(null);
+  const [renewalPortId, setRenewalPortId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [contractFormData, setContractFormData] = useState({
@@ -62,30 +64,42 @@ export default function KapalPksSandarPage() {
     file: null as File | null,
   });
 
-  const backendOrigin = useMemo(
-    () => API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/, ""),
-    []
-  );
-
-  const getBackendFileUrl = (filePath?: string | null): string | null => {
-    if (!filePath) return null;
-    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-      return filePath;
-    }
-    return `${backendOrigin}/${filePath.replace(/^\/+/, "")}`;
-  };
-
   useEffect(() => {
     fetchDashboardData();
     fetchPorts();
   }, [fetchDashboardData, fetchPorts]);
 
   useEffect(() => {
-    if (ports && ports.length > 0) {
-      const activePortId = contractFormData.portId || ports[0].id;
-      fetchBerths(activePortId);
+    if (ports && ports.length > 0 && contractFormData.portId > 0) {
+      fetchBerths(contractFormData.portId);
     }
   }, [ports, contractFormData.portId, fetchBerths]);
+
+  // Pelabuhan yang sudah memiliki kontrak PKS aktif atau sedang dalam proses pengajuan
+  const occupiedPortIds = useMemo(() => {
+    const activeOrPendingStatuses = new Set([
+      "ACTIVE",
+      "PENDING_VERIFICATION",
+      "WAITING_OPERATOR_SIGNATURE",
+      "PENDING_HEAD_OF_PORT",
+    ]);
+    return new Set(
+      contracts
+        .filter((c) => activeOrPendingStatuses.has(c.status))
+        .map((c) => Number(c.portId))
+        .filter((id) => !Number.isNaN(id))
+    );
+  }, [contracts]);
+
+  // Daftar pelabuhan yang tampil di dropdown pengajuan (hanya yang belum diajukan, atau pelabuhan asal saat perpanjangan)
+  const selectablePorts = useMemo(() => {
+    if (renewalPortId) {
+      return ports.filter(
+        (p) => Number(p.id) === Number(renewalPortId) || !occupiedPortIds.has(Number(p.id))
+      );
+    }
+    return ports.filter((p) => !occupiedPortIds.has(Number(p.id)));
+  }, [ports, occupiedPortIds, renewalPortId]);
 
   const activeContractsCount = useMemo(
     () => contracts.filter((c) => c.status === "ACTIVE").length,
@@ -152,7 +166,13 @@ export default function KapalPksSandarPage() {
   };
 
   const handleOpenAddContract = (prefillFrom?: OperatorBerthingContract) => {
-    const defaultPortId = prefillFrom?.portId || (ports.length > 0 ? ports[0].id : 1);
+    const firstAvailablePort = ports.find((p) => !occupiedPortIds.has(Number(p.id)));
+    const defaultPortId = prefillFrom?.portId
+      ? Number(prefillFrom.portId)
+      : firstAvailablePort
+      ? Number(firstAvailablePort.id)
+      : 0;
+    setRenewalPortId(prefillFrom?.portId ? Number(prefillFrom.portId) : null);
     const today = new Date();
     let start = today.toISOString().split("T")[0];
     let end = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().split("T")[0];
@@ -179,7 +199,9 @@ export default function KapalPksSandarPage() {
       dockAllocation: prefillFrom?.dockAllocation || "Semua Fasilitas Dermaga (Umum)",
       file: null,
     });
-    fetchBerths(defaultPortId);
+    if (defaultPortId > 0) {
+      fetchBerths(defaultPortId);
+    }
     setErrorMessage(null);
     setIsAddContractModalOpen(true);
   };
@@ -189,6 +211,18 @@ export default function KapalPksSandarPage() {
     const opId = operator?.id || user?.operatorId;
     if (!opId) {
       setErrorMessage("Profil operator tidak ditemukan.");
+      return;
+    }
+    if (!contractFormData.portId || selectablePorts.length === 0) {
+      setErrorMessage("Tidak ada pelabuhan tujuan yang tersedia untuk pengajuan baru.");
+      return;
+    }
+    if (
+      !contractFormData.startDate ||
+      !contractFormData.endDate ||
+      new Date(contractFormData.endDate) <= new Date(contractFormData.startDate)
+    ) {
+      setErrorMessage("Tanggal Berakhir harus lebih besar dari Tanggal Mulai Berlaku.");
       return;
     }
     setIsSubmitting(true);
@@ -593,9 +627,11 @@ export default function KapalPksSandarPage() {
       {/* ========================================================================= */}
       {/* MODAL: AJUKAN PERMOHONAN PKS SANDAR BARU (KONTRAK PAYUNG)                 */}
       {/* ========================================================================= */}
-      {isAddContractModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-8">
+      {isAddContractModalOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-5 border border-[#CBD5E1] shadow-2xl my-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#0B241E] text-[#D97706] flex items-center justify-center font-bold text-xs">
@@ -649,6 +685,7 @@ export default function KapalPksSandarPage() {
                   </label>
                   <select
                     value={contractFormData.portId}
+                    disabled={selectablePorts.length === 0}
                     onChange={(e) => {
                       const pId = Number(e.target.value);
                       setContractFormData({
@@ -656,18 +693,22 @@ export default function KapalPksSandarPage() {
                         portId: pId,
                         dockAllocation: "Semua Fasilitas Dermaga (Umum)",
                       });
-                      fetchBerths(pId);
+                      if (pId > 0) {
+                        fetchBerths(pId);
+                      }
                     }}
-                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E]"
+                    className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E] disabled:opacity-60"
                   >
-                    {ports && ports.length > 0 ? (
-                      ports.map((p) => (
+                    {selectablePorts.length > 0 ? (
+                      selectablePorts.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name} ({p.code})
                         </option>
                       ))
                     ) : (
-                      <option value={1}>Pelabuhan Umum Poumako (PMK)</option>
+                      <option value={0}>
+                        Semua pelabuhan sudah memiliki PKS aktif / dalam proses
+                      </option>
                     )}
                   </select>
                 </div>
@@ -720,6 +761,7 @@ export default function KapalPksSandarPage() {
                   <input
                     type="date"
                     required
+                    min={contractFormData.startDate}
                     value={contractFormData.endDate}
                     onChange={(e) =>
                       setContractFormData({ ...contractFormData, endDate: e.target.value })
@@ -729,10 +771,67 @@ export default function KapalPksSandarPage() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+                <span className="text-[11px] text-[#64748B] mr-1">Durasi cepat:</span>
+                {[
+                  { label: "6 Bulan", months: 6 },
+                  { label: "1 Tahun (Standar)", months: 12 },
+                  { label: "2 Tahun", months: 24 },
+                ].map((preset) => {
+                  const baseDate = contractFormData.startDate
+                    ? new Date(`${contractFormData.startDate}T00:00:00`)
+                    : new Date();
+                  const targetDate = new Date(baseDate);
+                  targetDate.setMonth(targetDate.getMonth() + preset.months);
+                  const targetIso = targetDate.toISOString().split("T")[0];
+                  const isActive = contractFormData.endDate === targetIso;
+
+                  return (
+                    <button
+                      key={preset.months}
+                      type="button"
+                      onClick={() =>
+                        setContractFormData({
+                          ...contractFormData,
+                          endDate: targetIso,
+                        })
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                        isActive
+                          ? "bg-[#0B241E] text-white border-[#0B241E]"
+                          : "bg-[#F8FAFC] text-[#334155] border-[#CBD5E1] hover:border-[#0B241E]"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div>
-                <label className="block text-xs font-bold text-[#0B241E] mb-1">
-                  Estimasi Kuota Kunjungan Bulanan (Slot Sandar/Bulan)
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-bold text-[#0B241E]">
+                    Estimasi Kuota Kunjungan Bulanan (Slot Sandar/Bulan)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    {[4, 8, 15, 30].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() =>
+                          setContractFormData({ ...contractFormData, monthlyQuota: val })
+                        }
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                          contractFormData.monthlyQuota === val
+                            ? "bg-[#0B241E] text-white border-[#0B241E]"
+                            : "bg-[#F8FAFC] text-[#475569] border-[#CBD5E1] hover:border-[#0B241E]"
+                        }`}
+                      >
+                        {val}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <input
                   type="number"
                   min={1}
@@ -745,6 +844,9 @@ export default function KapalPksSandarPage() {
                   }
                   className="w-full text-xs font-semibold p-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl focus:border-[#0B241E]"
                 />
+                <p className="text-[10px] text-[#64748B] mt-1 leading-relaxed">
+                  Isi sesuai perkiraan total sandar seluruh armada Anda per bulan (mis. 4–8 untuk kargo mingguan, 20–30 untuk rute harian). Petugas &amp; Kepala Pelabuhan akan memverifikasi kesesuaian kapasitas dermaga.
+                </p>
               </div>
 
               <div>
@@ -777,7 +879,7 @@ export default function KapalPksSandarPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || selectablePorts.length === 0}
                   className="px-5 py-2.5 bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-extrabold rounded-xl shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? (
@@ -790,7 +892,8 @@ export default function KapalPksSandarPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <BerthingContractPrintModal
