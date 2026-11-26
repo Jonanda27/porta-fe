@@ -27,6 +27,26 @@ export function UnpaidInvoiceCard({
     : "Segera";
 
   const isDraft = inv.status === "DRAFT";
+  const verifiedPaid = (inv.payments || [])
+    .filter((p) => p.isVerified)
+    .reduce((sum, p) => sum + Number(p.amountIdr || 0), 0);
+  const remainingPrincipal = Math.max(
+    0,
+    Number(inv.totalAmountIdr || 0) - verifiedPaid
+  );
+  const isOverdue =
+    !isDraft &&
+    Boolean(inv.dueDate) &&
+    new Date(inv.dueDate).getTime() < Date.now() &&
+    remainingPrincipal > 0;
+  const daysOverdue = isOverdue && inv.dueDate
+    ? Math.max(1, Math.floor((Date.now() - new Date(inv.dueDate).getTime()) / (24 * 60 * 60 * 1000)))
+    : 0;
+  const monthsOverdue = isOverdue ? Math.min(24, Math.max(1, Math.ceil(daysOverdue / 30))) : 0;
+  const penaltyIdr = isOverdue
+    ? Math.round(remainingPrincipal * 0.01 * monthsOverdue)
+    : 0;
+  const totalPayableIdr = remainingPrincipal + penaltyIdr;
 
   return (
     <div className="bg-white border border-[#CBD5E1] border-l-4 border-l-[#D97706] rounded-2xl p-6 shadow-xs hover:shadow-md transition-all space-y-5">
@@ -51,6 +71,11 @@ export function UnpaidInvoiceCard({
                 ? "Menunggu Pembayaran"
                 : formatLabel(inv.status)}
             </span>
+            {isOverdue && (
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                Masuk STRD • Terlambat {daysOverdue} Hari
+              </span>
+            )}
           </div>
 
           <h3 className="font-extrabold text-base text-[#0B241E] flex items-center gap-2">
@@ -83,10 +108,10 @@ export function UnpaidInvoiceCard({
 
         <div className="sm:text-right shrink-0 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2.5">
           <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
-            Total Tagihan
+            {isOverdue ? "Total Tagihan STRD" : "Total Tagihan"}
           </span>
           <p className="font-mono text-xl font-black text-[#0B241E] mt-0.5">
-            {formatRupiah(inv.totalAmountIdr)}
+            {formatRupiah(totalPayableIdr)}
           </p>
         </div>
       </div>
@@ -123,6 +148,22 @@ export function UnpaidInvoiceCard({
             </span>
             <span className="font-mono font-bold text-[#0B241E]">
               {formatRupiah(inv.totalAmountIdr)}
+            </span>
+          </div>
+        )}
+
+        {isOverdue && penaltyIdr > 0 && (
+          <div className="flex justify-between items-start gap-4 pt-2 border-t border-rose-200/70 text-rose-800">
+            <div>
+              <span className="font-bold block">
+                Sanksi Denda STRD (1% / bulan × {monthsOverdue} bulan)
+              </span>
+              <span className="font-mono text-[10px] text-rose-600 block">
+                Perbup Mimika No. 25/2024 • Terlambat {daysOverdue} hari
+              </span>
+            </div>
+            <span className="font-mono font-bold shrink-0">
+              + {formatRupiah(penaltyIdr)}
             </span>
           </div>
         )}
