@@ -160,6 +160,48 @@ export default function CheckerLaporanPage() {
         </div>
       </div>
 
+      {/* Domain Breakdown Summary */}
+      {recap?.domainBreakdown && recap.domainBreakdown.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Ringkasan Progres Per Bidang Tugas
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recap.domainBreakdown
+              .filter((d) => d.total > 0)
+              .map((d) => (
+                <div
+                  key={d.domainCode}
+                  className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-800">
+                      {d.domainLabel}
+                    </span>
+                    <span className="text-xs font-bold text-[#0F2A1D]">
+                      {d.headVerified}/{d.total}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+                    <span>Dikirim: {d.submitted}</span>
+                    <span>• Proses: {d.inProgress}</span>
+                    {d.returned > 0 && (
+                      <span className="text-amber-700 font-medium">
+                        • Retur: {d.returned}
+                      </span>
+                    )}
+                    {d.overdue > 0 && (
+                      <span className="text-rose-700 font-medium">
+                        • Overdue: {d.overdue}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {feedback && (
         <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">

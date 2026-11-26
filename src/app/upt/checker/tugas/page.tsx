@@ -13,13 +13,18 @@ import {
   ClipboardCheck,
   X,
   Paperclip,
+  ExternalLink,
+  FileCheck2,
+  Loader2,
 } from "lucide-react";
+import { getUploadedFileUrl } from "@/config/api.config";
 import { useAuthStore } from "@/store/auth.store";
 import { CheckerService } from "@/services/checker.service";
 import {
   AdminCheckerDashboardResponse,
   CheckerTaskItem,
 } from "@/types/checker.types";
+import { TaskDetailItem } from "@/types/task.types";
 import { StatusDot } from "@/components/ui/status-indicator";
 import { ConfirmActionModal } from "@/components/ui/confirm-action-modal";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -49,7 +54,45 @@ export default function CheckerTugasPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [selectedTask, setSelectedTask] = useState<CheckerTaskItem | null>(null);
+  const [taskDetail, setTaskDetail] = useState<TaskDetailItem | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [adminChecklist, setAdminChecklist] = useState<
+    Record<string, { checkedByAdmin: boolean; adminNotes: string }>
+  >({});
   const [returnTarget, setReturnTarget] = useState<CheckerTaskItem | null>(null);
+  const isKepalaPelabuhan = user?.role === "KEPALA_PELABUHAN";
+
+  useEffect(() => {
+    if (!selectedTask) {
+      setTaskDetail(null);
+      setAdminChecklist({});
+      return;
+    }
+    let cancelled = false;
+    setLoadingDetail(true);
+    CheckerService.getTaskDetail(selectedTask.id)
+      .then((detail) => {
+        if (cancelled) return;
+        setTaskDetail(detail);
+        const initial: Record<string, { checkedByAdmin: boolean; adminNotes: string }> = {};
+        for (const item of detail.checklistItems ?? []) {
+          initial[item.code] = {
+            checkedByAdmin: item.checkedByAdmin,
+            adminNotes: item.adminNotes ?? "",
+          };
+        }
+        setAdminChecklist(initial);
+      })
+      .catch(() => {
+        if (!cancelled) setTaskDetail(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetail(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTask]);
 
   const fetchDashboard = useCallback(async () => {
     if (!canAccess) return;
@@ -105,7 +148,18 @@ export default function CheckerTugasPage() {
       if (task.reviewStatus === "WAITING_ADMIN") {
         await CheckerService.startAdminReview(task.id);
       }
-      await CheckerService.approveTaskToHead(task.id);
+      const checklistPayload =
+        taskDetail && taskDetail.id === task.id
+          ? (taskDetail.checklistItems ?? [])
+              .filter((c) => c.isApplicable)
+              .map((c) => ({
+                code: c.code,
+                checkedByAdmin:
+                  adminChecklist[c.code]?.checkedByAdmin ?? c.checkedByAdmin,
+                adminNotes: adminChecklist[c.code]?.adminNotes ?? c.adminNotes ?? "",
+              }))
+          : undefined;
+      await CheckerService.approveTaskToHead(task.id, undefined, checklistPayload);
       setFeedback(
         `Tugas "${task.title}" (${task.taskCode}) lolos pengecekan Admin dan diteruskan ke Kepala Pelabuhan.`
       );
@@ -113,6 +167,25 @@ export default function CheckerTugasPage() {
       await fetchDashboard();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Gagal meneruskan tugas ke Kepala Pelabuhan.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleHeadVerify = async (task: CheckerTaskItem) => {
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    setFeedback(null);
+    try {
+      await CheckerService.headVerifyTask(
+        task.id,
+        "Hasil pekerjaan dan bukti dokumen telah diverifikasi Kepala Pelabuhan."
+      );
+      setFeedback(`Tugas "${task.title}" (${task.taskCode}) telah diverifikasi Kepala Pelabuhan.`);
+      setSelectedTask(null);
+      await fetchDashboard();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Gagal memverifikasi tugas.");
     } finally {
       setIsSubmitting(false);
     }
@@ -449,21 +522,177 @@ export default function CheckerTugasPage() {
                   <p className="text-slate-700 mt-0.5">{selectedTask.description}</p>
                 </div>
               )}
-              {selectedTask.attachments && selectedTask.attachments.length > 0 && (
+              {(taskDetail?.attachments ?? selectedTask.attachments ?? []).length > 0 && (
                 <div className="col-span-2 space-y-1.5">
                   <span className="text-slate-400 block">Bukti Lampiran Petugas</span>
-                  {selectedTask.attachments.map((att) => (
-                    <div
+                  {(taskDetail?.attachments ?? selectedTask.attachments ?? []).map((att) => (
+                    <a
                       key={att.id}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs"
+                      href={getUploadedFileUrl(att.filePath)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs hover:bg-emerald-50/50"
                     >
-                      <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-medium text-slate-800 truncate">{att.fileName}</span>
-                    </div>
+                      <span className="flex items-center gap-2 truncate">
+                        <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="font-medium text-slate-800 truncate">{att.fileName}</span>
+                      </span>
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    </a>
                   ))}
                 </div>
               )}
             </div>
+
+            {loadingDetail ? (
+              <div className="flex items-center justify-center py-6 text-xs text-slate-500">
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Memuat konteks objek & checklist detail...
+              </div>
+            ) : (
+              <>
+                {taskDetail?.sourceContext && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 uppercase">
+                      <span>Konteks Objek ({taskDetail.sourceContext.kind})</span>
+                      <span className="font-mono text-slate-700">
+                        {taskDetail.sourceContext.referenceCode}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">
+                      {taskDetail.sourceContext.title}
+                    </div>
+                    {taskDetail.sourceContext.subtitle && (
+                      <div className="text-xs text-slate-600">
+                        {taskDetail.sourceContext.subtitle}
+                      </div>
+                    )}
+                    {taskDetail.sourceContext.documents.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {taskDetail.sourceContext.documents.map((doc, idx) => (
+                          <a
+                            key={idx}
+                            href={getUploadedFileUrl(doc.filePath)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <FileCheck2 className="w-3 h-3" />
+                            {doc.label}
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {taskDetail?.checklistItems && taskDetail.checklistItems.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold text-slate-700 block">
+                      Pemeriksaan Checklist Per Item
+                    </span>
+                    {taskDetail.checklistItems
+                      .filter((c) => c.isApplicable)
+                      .map((item) => {
+                        const adminState = adminChecklist[item.code] ?? {
+                          checkedByAdmin: item.checkedByAdmin,
+                          adminNotes: item.adminNotes ?? "",
+                        };
+                        const boundAtt = (taskDetail.attachments ?? []).find(
+                          (a) => a.checklistItemId === item.id
+                        );
+                        const evidencePath = item.attachmentPath || boundAtt?.filePath;
+                        const canAdminEdit =
+                          isAdminChecker &&
+                          (selectedTask.reviewStatus === "WAITING_ADMIN" ||
+                            selectedTask.reviewStatus === "ADMIN_REVIEW");
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-xl border border-slate-200 p-3 text-xs space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-medium text-slate-900">{item.label}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-2">
+                                  <span>
+                                    Petugas:{" "}
+                                    <strong className={item.checkedByOfficer ? "text-emerald-700" : "text-rose-600"}>
+                                      {item.checkedByOfficer ? "Sudah" : "Belum"}
+                                    </strong>
+                                  </span>
+                                  {item.officerNotes && (
+                                    <span className="italic text-slate-600">
+                                      &ldquo;{item.officerNotes}&rdquo;
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {evidencePath && (
+                                <a
+                                  href={getUploadedFileUrl(evidencePath)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[11px] font-medium text-emerald-700 shrink-0"
+                                >
+                                  <Paperclip className="w-3 h-3" />
+                                  Bukti
+                                </a>
+                              )}
+                            </div>
+
+                            {canAdminEdit ? (
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1 border-t border-slate-100">
+                                <label className="inline-flex items-center gap-1.5 font-medium text-slate-800 cursor-pointer shrink-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={adminState.checkedByAdmin}
+                                    onChange={(e) =>
+                                      setAdminChecklist((prev) => ({
+                                        ...prev,
+                                        [item.code]: {
+                                          ...adminState,
+                                          checkedByAdmin: e.target.checked,
+                                        },
+                                      }))
+                                    }
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-[#0F2A1D]"
+                                  />
+                                  Cek Admin OK
+                                </label>
+                                <input
+                                  type="text"
+                                  value={adminState.adminNotes}
+                                  onChange={(e) =>
+                                    setAdminChecklist((prev) => ({
+                                      ...prev,
+                                      [item.code]: {
+                                        ...adminState,
+                                        adminNotes: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Catatan checker untuk item ini..."
+                                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#0F2A1D]"
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-500">
+                                Cek Admin:{" "}
+                                <strong className={item.checkedByAdmin ? "text-emerald-700" : "text-slate-600"}>
+                                  {item.checkedByAdmin ? "Sesuai" : "Belum Dicek"}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
@@ -473,6 +702,19 @@ export default function CheckerTugasPage() {
               >
                 Tutup
               </button>
+              {isKepalaPelabuhan &&
+                (selectedTask.reviewStatus === "WAITING_HEAD_VERIFICATION" ||
+                  selectedTask.reviewStatus === "ADMIN_APPROVED") && (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void handleHeadVerify(selectedTask)}
+                    className="px-4 py-2 rounded-lg bg-[#0B241E] hover:bg-[#143E33] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Verifikasi Kepala Pelabuhan</span>
+                  </button>
+                )}
               {isAdminChecker &&
                 (selectedTask.reviewStatus === "WAITING_ADMIN" ||
                   selectedTask.reviewStatus === "ADMIN_REVIEW") && (

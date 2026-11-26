@@ -129,6 +129,9 @@ export const API_CONFIG = {
       ADMIN_DASHBOARD: "/task-reviews/admin/dashboard",
       ADMIN_BASE: "/task-reviews/admin",
       HEAD_QUEUE: "/task-reviews/head/queue",
+      HEAD_PORT_STATUS: "/task-reviews/head/port-status",
+      HEAD_BOTTLENECKS: "/task-reviews/head/bottlenecks",
+      HEAD_BASE: "/task-reviews/head",
     },
     USERS: {
       BASE: "/users",
@@ -170,3 +173,16 @@ export const API_CONFIG = {
     },
   },
 } as const;
+
+export function getUploadedFileUrl(filePath?: string | null): string {
+  if (!filePath) return "#";
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    return filePath;
+  }
+  const backendOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1$/, "");
+  const cleanPath = filePath.startsWith("/") ? filePath : `/${filePath}`;
+  if (cleanPath.startsWith("/uploads/")) {
+    return `${backendOrigin}${cleanPath}`;
+  }
+  return `${backendOrigin}/uploads${cleanPath}`;
+}

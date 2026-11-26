@@ -5,9 +5,14 @@ import {
   CheckerDailyReportItem,
   DailyObligationRecapResponse,
 } from "@/types/checker.types";
+import {
+  HeadBottlenecksResponse,
+  TaskDetailItem,
+} from "@/types/task.types";
 
 /**
  * Service khusus Admin Pelabuhan (Pure Checker Tugas & Rekap Laporan Harian)
+ * serta Verifikasi & Bottleneck Radar Kepala Pelabuhan
  */
 export const CheckerService = {
   getAdminTaskDashboard(date?: string): Promise<AdminCheckerDashboardResponse> {
@@ -17,22 +22,86 @@ export const CheckerService = {
     );
   },
 
+  getTaskDetail(taskId: number): Promise<TaskDetailItem> {
+    return apiClient.get<TaskDetailItem>(
+      `${API_CONFIG.ENDPOINTS.TASKS.BASE}/${taskId}`
+    );
+  },
+
   startAdminReview(taskId: number): Promise<unknown> {
     return apiClient.post<unknown>(
       `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.ADMIN_BASE}/${taskId}/start-review`
     );
   },
 
-  approveTaskToHead(taskId: number, notes?: string): Promise<unknown> {
+  updateAdminChecklist(
+    taskId: number,
+    items: Array<{
+      code: string;
+      checkedByAdmin: boolean;
+      adminNotes?: string;
+    }>
+  ): Promise<TaskDetailItem> {
+    return apiClient.patch<TaskDetailItem>(
+      `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.ADMIN_BASE}/${taskId}/checklist`,
+      { items }
+    );
+  },
+
+  approveTaskToHead(
+    taskId: number,
+    notes?: string,
+    checklistItems?: Array<{
+      code: string;
+      checkedByAdmin: boolean;
+      adminNotes?: string;
+    }>
+  ): Promise<unknown> {
     return apiClient.post<unknown>(
       `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.ADMIN_BASE}/${taskId}/approve`,
-      { notes: notes || "Kelengkapan administrasi tugas telah diperiksa dan diteruskan ke Kepala Pelabuhan." }
+      {
+        notes:
+          notes ||
+          "Kelengkapan administrasi tugas telah diperiksa dan diteruskan ke Kepala Pelabuhan.",
+        ...(checklistItems ? { checklistItems } : {}),
+      }
     );
   },
 
   returnTaskToOfficer(taskId: number, reason: string): Promise<unknown> {
     return apiClient.post<unknown>(
       `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.ADMIN_BASE}/${taskId}/return`,
+      { reason }
+    );
+  },
+
+  async getHeadQueue(): Promise<TaskDetailItem[]> {
+    const res = await apiClient.get<TaskDetailItem[]>(
+      API_CONFIG.ENDPOINTS.TASK_REVIEWS.HEAD_QUEUE
+    );
+    return Array.isArray(res) ? res : [];
+  },
+
+  getHeadBottlenecks(filters?: {
+    stage?: string;
+    role?: string;
+  }): Promise<HeadBottlenecksResponse> {
+    return apiClient.get<HeadBottlenecksResponse>(
+      API_CONFIG.ENDPOINTS.TASK_REVIEWS.HEAD_BOTTLENECKS,
+      filters ? { params: filters } : undefined
+    );
+  },
+
+  headVerifyTask(taskId: number, notes?: string): Promise<unknown> {
+    return apiClient.post<unknown>(
+      `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.HEAD_BASE}/${taskId}/verify`,
+      { notes }
+    );
+  },
+
+  headReturnTask(taskId: number, reason: string): Promise<unknown> {
+    return apiClient.post<unknown>(
+      `${API_CONFIG.ENDPOINTS.TASK_REVIEWS.HEAD_BASE}/${taskId}/return`,
       { reason }
     );
   },

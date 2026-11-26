@@ -3,6 +3,8 @@
  * Selaras dengan porta-be TasksController (/task-reviews/admin/*) & DailyReportsController (/daily-reports/*)
  */
 
+import { DomainBreakdownItem } from "@/types/task.types";
+
 export interface CheckerOfficerSummary {
   id: number;
   fullName: string;
@@ -128,6 +130,7 @@ export interface DailyObligationRecapResponse {
     unsubmittedOfficersCount?: number;
   };
   officers: OfficerDailyObligationItem[];
+  domainBreakdown?: DomainBreakdownItem[];
 }
 
 export interface CheckerDailyReportItem {
@@ -145,6 +148,7 @@ export interface CheckerDailyReportItem {
     | "ACKNOWLEDGED";
   summaryNotes?: string | null;
   adminCheckNotes?: string | null;
+  domainSummaryJson?: DomainBreakdownItem[] | null;
   officer?: {
     id: number;
     fullName: string;

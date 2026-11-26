@@ -220,6 +220,7 @@ export default function UptLayout({
           title: "Utama & Persetujuan",
           items: [
             { href: "/upt/dashboard", label: "Dashboard", icon: Radio },
+            { href: "/upt/head/bottlenecks", label: "Radar Bottleneck", icon: ShieldCheck, keywords: "bottleneck macet keterlambatan petugas" },
             { href: "/upt/checker/tugas", label: "Verifikasi Tugas", icon: ClipboardCheck },
             { href: "/upt/checker/laporan", label: "Laporan Harian", icon: FileCheck2 },
             { href: "/upt/verifikasi", label: "Verifikasi Mitra", icon: ShieldCheck },
@@ -309,6 +310,7 @@ export default function UptLayout({
         {
           title: "Tugas Lapangan",
           items: [
+            { href: "/upt/tugas-saya", label: "Tugas Saya", icon: ClipboardCheck, keywords: "tugas checklist bukti dokumen" },
             { href: "/upt/kapal", label: "Operasional Kapal", icon: Ship },
             { href: "/upt/cctv", label: "Monitoring CCTV", icon: Video },
             { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
@@ -324,6 +326,7 @@ export default function UptLayout({
       {
         title: "Keuangan & Sif",
         items: [
+          { href: "/upt/tugas-saya", label: "Tugas Saya", icon: ClipboardCheck, keywords: "tugas checklist bukti" },
           { href: "/upt/dashboard", label: "Ringkasan", icon: Radio },
           { href: "/upt/tarif", label: "Daftar Tarif", icon: Receipt },
           { href: "/upt/tiket", label: "Tiket & Manifes", icon: QrCode },
